@@ -1,5 +1,7 @@
 from langchain.llms import OpenAI
 from fastapi import FastAPI
+from redis import Redis
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from langchain.schema import (
     AIMessage,
@@ -8,6 +10,8 @@ from langchain.schema import (
 )
 import os
 
+REDIS_USER_SESSION_HOST = os.getenv("REDIS_USER_SESSION_HOST")
+REDIS_USER_SESSION_PORT = os.getenv("REDIS_USER_SESSION_PORT")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 VERSION = "0.0.1"
 SERVICE_NAME = "LEO BOT VERSION:" + VERSION
@@ -26,17 +30,40 @@ app.add_middleware(
 # init LangChain
 llm = OpenAI(openai_api_key=OPENAI_API_KEY, temperature=0.7)
 
+# Redis
+r = Redis(host=REDIS_USER_SESSION_HOST,
+          port=REDIS_USER_SESSION_PORT, decode_responses=True)
+
+
+# Data models
+
+class Question(BaseModel):
+    content: str
+    usersession: str
+    userlogin: str
+
+
+# API handlers
+
 
 @app.get("/")
 async def root():
     return {"SERVICE_NAME": SERVICE_NAME}
 
 
-@app.get("/ask")
-async def ask(question: str):
-    print(question)
-    answer = llm(question)
-    return {"question": question, "answer": answer}
+@app.post("/ask")
+async def ask(question: Question):
+    content = question.content
+    print(content)
+    print(question.usersession)
+    userLogin = r.hget(question.usersession, 'userlogin')
+    print(userLogin)
+    if userLogin == question.userlogin:
+        answer = llm(question.content)
+        data = {"question": content, "answer": answer, "userLogin": userLogin}
+    else:
+        data = {"answer": "Invalid usersession", "error": True}
+    return data
 
 
 @app.get("/is-openapi-ok")
