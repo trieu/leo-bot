@@ -1,8 +1,12 @@
 # leo-bot
 
-## Checklist before run start_app
+- This bot works a proxy with the backend of Chat GPT 
+- You need OpenAI key to run this bot
+- Author: https://github.com/trieu
 
-1. Need Python 3
+## In Ubuntu server, follow this checklist to run LEO BOT
+
+1. Need Python 3.10
 2. sudo apt install python-is-python3
 3. pip install virtualenv
 4. Need to create a file .env to store environment variables
