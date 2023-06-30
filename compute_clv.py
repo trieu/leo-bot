@@ -8,6 +8,10 @@ DATE = 1
 AMOUNT = 2
 LIFETIME_ONE_DAY = 1000 * 60 * 60 * 24
 
+# This code is about how to compute CLV https://en.wikipedia.org/wiki/Customer_lifetime_value
+# Video about CLV: https://www.youtube.com/watch?v=JR8_GNINmuQ
+# Sample data in Google Sheets: https://docs.google.com/spreadsheets/d/1Hb0jsAc22hXHeUBGlV2M-jcSz2M3aF5Jo05_cHdr0no/edit?usp=sharing
+
 ''' 
   Groups customers by their ID calculates customer lifetime value for each.
  
