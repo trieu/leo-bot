@@ -41,7 +41,7 @@ def lifetime_values(rows, product_lifetime):
 
         # convert product_lifecycle to product_lifetime_in_milisecs
         product_lifetime_in_milisecs = LIFETIME_ONE_DAY * product_lifetime
-        #
+        # compute total_months as customer_lifetime
         total_months = (
             dates_range['last'] - dates_range['first']) / product_lifetime_in_milisecs
         if total_months == 0:
