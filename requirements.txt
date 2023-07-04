@@ -8,3 +8,5 @@ langchain
 openai
 python-dotenv
 redis
+dask
+pandas

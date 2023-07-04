@@ -2,6 +2,8 @@
 from collections import defaultdict
 import time
 import datetime
+import pandas as pd
+from datetime import datetime as dt
 
 CUSTOMER_ID = 0
 DATE = 1
@@ -93,14 +95,18 @@ orders = [
     [4, to_timestamp("30/06/2023"), 100]
 ]
 
+df = pd.DataFrame(orders, columns=['Customer ID', 'Order Date', 'Total Value'])
+df['Order Date'] = df['Order Date'].map(lambda t: dt.fromtimestamp(t / 1000))
+print('\n Data about orders')
+print(df)
+
 # after 30 days, the product could be purchased again
 product_lifetime = 30
 result = lifetime_values(orders, product_lifetime)
+resultMetadata = ['Customer ID', 'Average Order Size', 'Average Order Frequency',
+                  'Average Customer Value', 'Average Customer Lifespan', 'Customer Lifetime Value']
 
-for row in result:
-    print(f'Customer ID: {row[0]}')
-    print(f'Average Order Size: {row[1]}')
-    print(f'Average Order Frequency: {row[2]}')
-    print(f'Average Customer Value: {row[3]}')
-    print(f'Average Customer Lifespan: {row[4]}')
-    print(f'Customer Lifetime Value: {row[5]}\n')
+dfResult = pd.DataFrame(result, columns=resultMetadata)
+print('\n Results:')
+print(dfResult)
+
