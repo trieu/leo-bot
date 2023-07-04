@@ -70,3 +70,7 @@ async def ask(question: Question):
 async def openapi():
     isOk = isinstance(OPENAI_API_KEY, str)
     return {"ok": isOk, }
+
+@app.get("/ping")
+async def ping():
+    return "PONG"
