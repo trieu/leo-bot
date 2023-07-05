@@ -1,6 +1,9 @@
 /env
 .env
 
+# Excel data file
+*.xlsx
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
