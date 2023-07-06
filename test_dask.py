@@ -5,6 +5,11 @@ import dask.dataframe as dd
 import dask.array as da
 import dask.bag as db
 
+from faker import Faker
+
+Faker.seed(1000)
+fake = Faker("en_GB")
+
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 
@@ -12,10 +17,22 @@ pd.set_option('display.max_rows', None)
 dfx = pd.DataFrame(pd.read_excel("online_retail_II.xlsx"))
 ddf = dd.from_pandas(dfx, npartitions=10)
 
-result = ddf.head(100)
-print("First 10 rows of the DataFrame:")
-print(result)
-  
+# top10 = ddf.head(10)
+# print("top10 DataFrame:")
+# print(top10)
+
+result = ddf.head(100).groupby(['Customer ID'], group_keys=True)
+for groupKeys, groupData in result:
+    total_price = groupData['Price'].astype(float) * groupData['Quantity'].astype(int)
+    groupData['Total Price'] = total_price
+
+    keys = ','.join(str(item) for item in groupKeys)
+    print('\n => groupKeys: ' + keys)
+    print('DataFrame:')
+    print(groupData)
+    print(fake.simple_profile())
+    # print("DataFrame Customer ID:" + groupKeys[0] + " StockCode: " + groupKeys[1])
+    
 
 def test():
     index = pd.date_range("2021-09-01", periods=2400, freq="1H")

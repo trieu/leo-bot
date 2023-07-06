@@ -11,3 +11,4 @@ redis
 dask
 pandas
 openpyxl
+Faker
