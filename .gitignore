@@ -4,6 +4,10 @@
 # Excel data file
 *.xlsx
 
+# test data in CSV
+*.csv
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
