@@ -12,22 +12,23 @@ fake = Faker("en_GB")
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
 
+default_profit_margin = 0.1
 LIFETIME_ONE_DAY = 1000 * 60 * 60 * 24
-df_header = ['AVG Order Size', 'AVG Order Frequency',
-                  'AVG Customer Value', 'AVG Customer Lifespan', 'CLV']
+df_header = ['AVG Order Size', 'AVG Order Frequency', 'AVG Customer Value', 'AVG Customer Lifespan', 'CLV']
+
 def to_timestamp(s):
     return time.mktime(datetime.datetime.strptime(s, "%Y-%m-%d %H:%M:%S").timetuple()) * 1000
 
-def compute_clv(df, product_lifetime = 30, first_purchasing_date = 0, last_purchasing_date = 0):
+def compute_clv(df, purchasing_lifecycle = 30, first_purchasing_date = 0, last_purchasing_date = 0):
     results = []
     total_revenue = df['Total Price'].sum()
     dates_range = {'first': to_timestamp(first_purchasing_date), 'last': to_timestamp(last_purchasing_date) }
 
-    # convert product_lifecycle to product_lifetime_in_milisecs
-    product_lifetime_in_milisecs = LIFETIME_ONE_DAY * product_lifetime
+    # convert purchasing_lifecycle to purchasing_lifecycle_in_milisecs
+    purchasing_lifecycle_in_milisecs = LIFETIME_ONE_DAY * purchasing_lifecycle
 
     # compute total_months as customer_lifetime
-    total_months = (dates_range['last'] - dates_range['first']) / product_lifetime_in_milisecs
+    total_months = (dates_range['last'] - dates_range['first']) / purchasing_lifecycle_in_milisecs
     if total_months == 0:
         total_months = 1
 
@@ -59,13 +60,6 @@ dfx = pd.DataFrame(data_reader)
 sample = dfx.head(200000)
 ddf = dd.from_pandas(sample, npartitions=10)
 
-# top10 = ddf.head(10)
-# print("top10 DataFrame:")
-# print(top10)
-
-# select sample data
-
-
 # filter  customer Ids
 filter_customer_ids = [18102.0, 15998.0, 15362.0, 15055, 13995]
 result = sample.loc[sample['Customer ID'].isin(filter_customer_ids)].groupby(['Customer ID'], group_keys=True)
@@ -73,24 +67,22 @@ result = sample.loc[sample['Customer ID'].isin(filter_customer_ids)].groupby(['C
 # loop in dataframe to compute CLV for each customer
 for groupKeys, groupData in result:
     total_price = groupData['Price'].astype(float) * groupData['Quantity'].astype(float)
-    groupData['Total Price'] = total_price
+    
+    groupData['Total Price'] = total_price * (1 - default_profit_margin)
     first_purchasing_date = groupData['InvoiceDate'].min()
     last_purchasing_date = groupData['InvoiceDate'].max()
 
-    keys = ','.join(str(item) for item in groupKeys)
+    customer_id = ','.join(str(item) for item in groupKeys)
     
-    print('\n => DataFrame:')
+    print('\n ')
     # print(groupData)
-    print(first_purchasing_date)
-    print(last_purchasing_date)
+    print('Transaction Date from [{0}] to [{1}]'.format(first_purchasing_date, last_purchasing_date))      
 
     clv_dataframe = compute_clv(groupData, 30, first_purchasing_date, last_purchasing_date)
-    print("=> Customer ID:  " + keys)
-    print(clv_dataframe)
+    print("=> Customer ID:  " + customer_id)
+    print(clv_dataframe.to_markdown())
     
 print('Total {0} Customer'.format(len(result)))    
-
-
 
 
 def test():
