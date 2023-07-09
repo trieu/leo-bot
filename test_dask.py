@@ -3,7 +3,8 @@ import pandas as pd
 import time
 import datetime
 import dask.dataframe as dd
-
+import os.path
+import download_test_data as test_data
 from faker import Faker
 
 Faker.seed(1000)
@@ -50,14 +51,15 @@ def compute_clv(df, purchasing_lifecycle = 30, first_purchasing_date = 0, last_p
     ])    
     return pd.DataFrame(results, columns=df_header)
 
+csv_data_filename = 'online_retail.csv'
 
-# download file at https://drive.google.com/file/d/1g7LyuJFRzBFeWBbmrirGozxjCy61Cvyc/view
-# excel_reader = pd.read_excel("online_retail_II.xlsx")
-# excel_reader.to_csv (r'online_retail_II.csv', index = None, header=True)
+# check to download test data
+if not os.path.isfile(csv_data_filename):
+    test_data.donwload_online_retail_data(csv_data_filename)
 
-data_reader = pd.read_csv('online_retail_II.csv')
+data_reader = pd.read_csv(csv_data_filename)
 dfx = pd.DataFrame(data_reader)
-sample = dfx.head(200000)
+sample = dfx.head(300000) # just get first 300K rows
 ddf = dd.from_pandas(sample, npartitions=10)
 
 # filter  customer Ids

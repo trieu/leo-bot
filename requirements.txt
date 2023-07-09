@@ -12,3 +12,5 @@ dask
 pandas
 openpyxl
 Faker
+tabulate
+gdown
