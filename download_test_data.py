@@ -1,8 +1,8 @@
 import gdown
 
-def donwload_online_retail_data(output= "online_retail_II.csv"):
+def donwload_online_retail_data(output = "online_retail_II.csv"):
 
-    # the online_retail_II.xlsx file
+    # the link of test data file in CSV format
     url = "https://drive.google.com/file/d/1y715A5_jx1b3l884TX2xaSIagdCF6xnB/view"
     gdown.download(url=url, output=output, quiet=False, fuzzy=True)
 

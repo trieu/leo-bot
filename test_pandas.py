@@ -2,13 +2,8 @@ import numpy as np
 import pandas as pd
 import time
 import datetime
-import dask.dataframe as dd
 import os.path
 import download_test_data as test_data
-from faker import Faker
-
-Faker.seed(1000)
-fake = Faker("en_GB")
 
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
@@ -20,6 +15,7 @@ df_header = ['AVG Order Size', 'AVG Order Frequency', 'AVG Customer Value', 'AVG
 def to_timestamp(s):
     return time.mktime(datetime.datetime.strptime(s, "%Y-%m-%d %H:%M:%S").timetuple()) * 1000
 
+# Video for CLV explanation: https://www.youtube.com/watch?v=JR8_GNINmuQ
 def compute_clv(df, purchasing_lifecycle = 30, first_purchasing_date = 0, last_purchasing_date = 0):
     results = []
     total_revenue = df['Total Price'].sum()
@@ -51,6 +47,22 @@ def compute_clv(df, purchasing_lifecycle = 30, first_purchasing_date = 0, last_p
     ])    
     return pd.DataFrame(results, columns=df_header)
 
+def processData(groupData):
+    total_price = groupData['Price'].astype(float) * groupData['Quantity'].astype(float)
+    groupData['Total Price'] = total_price * (1 - default_profit_margin)
+    first_purchasing_date = groupData['InvoiceDate'].min()
+    last_purchasing_date = groupData['InvoiceDate'].max()
+    customer_id = ','.join(str(e) for e in groupData['Customer ID'].unique())
+    
+    print('\n ')
+    # print(groupData)
+    print('Customer ID = {0} Transaction Date from [{1}] to [{2}]'.format(customer_id, first_purchasing_date, last_purchasing_date))      
+
+    clv_dataframe = compute_clv(groupData, 30, first_purchasing_date, last_purchasing_date)
+    print(clv_dataframe.to_markdown())
+    return 1
+
+# the filename to load test data
 csv_data_filename = 'online_retail.csv'
 
 # check to download test data
@@ -59,39 +71,13 @@ if not os.path.isfile(csv_data_filename):
 
 data_reader = pd.read_csv(csv_data_filename)
 dfx = pd.DataFrame(data_reader)
-sample = dfx.head(300000) # just get first 300K rows
-ddf = dd.from_pandas(sample, npartitions=10)
+sample = dfx.head(200000) # just get a sample from 500,000 rows
 
 # filter  customer Ids
 filter_customer_ids = [18102.0, 15998.0, 15362.0, 15055, 13995]
-result = sample.loc[sample['Customer ID'].isin(filter_customer_ids)].groupby(['Customer ID'], group_keys=True)
-
+df_result = sample.loc[sample['Customer ID'].isin(filter_customer_ids)].groupby(['Customer ID'], group_keys=True)
+ 
 # loop in dataframe to compute CLV for each customer
-for groupKeys, groupData in result:
-    total_price = groupData['Price'].astype(float) * groupData['Quantity'].astype(float)
-    
-    groupData['Total Price'] = total_price * (1 - default_profit_margin)
-    first_purchasing_date = groupData['InvoiceDate'].min()
-    last_purchasing_date = groupData['InvoiceDate'].max()
-
-    customer_id = ','.join(str(item) for item in groupKeys)
-    
-    print('\n ')
-    # print(groupData)
-    print('Transaction Date from [{0}] to [{1}]'.format(first_purchasing_date, last_purchasing_date))      
-
-    clv_dataframe = compute_clv(groupData, 30, first_purchasing_date, last_purchasing_date)
-    print("=> Customer ID:  " + customer_id)
-    print(clv_dataframe.to_markdown())
-    
-print('Total {0} Customer'.format(len(result)))    
-
-
-def test():
-    index = pd.date_range("2021-09-01", periods=2400, freq="1H")
-    df = pd.DataFrame({"a": np.arange(2400), "b": list("abcaddbe" * 300)}, index=index)
-    ddf = dd.from_pandas(df, npartitions=10)
-    rs = ddf["2021-10-01": "2021-10-09 5:00"].compute()
-    print(ddf)
-    print(rs)
-    print(ddf.a.mean().compute())
+total_customer = df_result.apply(processData).sum()
+   
+print('\n =>> Total {0} Customer'.format(total_customer)) 
