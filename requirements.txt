@@ -9,7 +9,11 @@ openai
 python-dotenv
 redis
 pyarango
+numpy
 pandas
+seaborn
+matplotlib
+squarify
 openpyxl
 Faker
 tabulate
