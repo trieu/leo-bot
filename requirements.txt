@@ -19,3 +19,7 @@ openpyxl
 Faker
 tabulate
 gdown
+selenium
+beautifulsoup4
+lxml
+html5lib
