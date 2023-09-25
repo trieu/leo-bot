@@ -8,12 +8,13 @@
 
 1. Need Python 3.10
 2. sudo apt install python-is-python3
-3. pip install virtualenv
-4. Need to create a file .env to store environment variables
-5. In the file .env, set value for OPENAI_API_KEY, REDIS_USER_SESSION_HOST and REDIS_USER_SESSION_PORT
-6. Set correct DIR_PATH in start_app.sh
-7. Run ./start_app.sh
-8. The app will be start at the host 0.0.0.0 with port 8888
+3. curl -sS https://bootstrap.pypa.io/get-pip.py | sudo python3.10
+4. pip install virtualenv (need to refresh the session of login shell)
+5. Need to create a file .env to store environment variables
+6. In the file .env, set value for OPENAI_API_KEY, REDIS_USER_SESSION_HOST and REDIS_USER_SESSION_PORT
+7. Set correct DIR_PATH in start_app.sh
+8. Run ./start_app.sh
+9. The app will be start at the host 0.0.0.0 with port 8888
 
 ## More document links
 

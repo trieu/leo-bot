@@ -1,12 +1,19 @@
 #!/bin/bash
 
-DIR_PATH="/home/thomas/0-uspa/leo-bot/"
+DIR_PATH="/build/leo-bot/"
 
 # Change to the directory where your FastAPI app is located
 cd $DIR_PATH
 
 # Activate your virtual environment if necessary
-source $DIR_PATH.venv/bin/activate
+SOURCE_PATH="env/bin/activate"
+source $SOURCE_PATH
+
+# clear old log
+cat /dev/null > leobot.log
 
 # Start the FastAPI app using uvicorn
-uvicorn main:app --reload --env-file .env --host 0.0.0.0 --port 8888 
+uvicorn main:app --reload --env-file .env --host 0.0.0.0 --port 8888 >> leobot.log 2>&1 &
+
+# exit
+deactivate
