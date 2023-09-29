@@ -26,15 +26,26 @@ def get_web_driver():
     return crawler_driver
 
 def convert_string_to_number(input_str):
-    num_str = re.sub(r'[^0-9]', '', input_str)
-    
+    s = re.sub(r'[^0-9][K][M]', '', input_str.upper())
     # Try to convert the string to an integer
+    number = 0
     try:
-        number = int(num_str)
-    # If it fails, try to convert the string to a float
+        s = s.strip()  # Remove leading/trailing spaces
+        if s[-1] == 'K':
+            multiplier = 10 ** 3  # 1,000
+            numeric_part = float(s[:-1])  # Remove the 'K' and convert the rest to a float
+            number = int(numeric_part * multiplier)
+        elif s[-1] == 'M':
+            multiplier = 10 ** 6  # 1,000,000
+            numeric_part = float(s[:-1])  # Remove the 'M' and convert the rest to a float
+            number = int(numeric_part * multiplier)
+        else:
+            # No letter suffix, assume it's already a number
+            number = float(s)
+        # If it fails, try to convert the string to a float
     except ValueError:
         try:
-            number = float(num_str)
+            number = float(s)
         # If it fails, return None
         except ValueError:
             return None
@@ -69,8 +80,9 @@ def get_html_from_url_by_request(url):
         print('Error when requests.get url: ' + url)
     return ""
 
-def get_product_price(url:str, selector:str, use_chrome:bool = False):
-    print('get_product_price url: ' + url)
+def get_video_view(url:str, selector:str, use_chrome:bool = False):
+    print('---------------------------------------')
+    print('get_video_view url: ' + url)
     if use_chrome :
         html = get_html_from_url_by_chrome(url, selector)
     else: 
@@ -90,25 +102,17 @@ def get_product_price(url:str, selector:str, use_chrome:bool = False):
 
 ######################################################
 
-# url1 = 'https://www.fahasa.com/30-giay-khoa-hoc-30-giay-khoa-hoc-du-lieu.html'
-# selector1 = '#catalog-product-details-price .price'
-# price1 = get_product_price(url1, selector1)
-# print('Fahasa Product Price: ', price1)
+selectorLikeCount = 'strong[data-e2e="like-count"]'
 
-# url2 = 'https://www.lazada.vn/products/xe-may-honda-future-125-fi-cao-cap-2023-i1599437312-s6862243432.html'
-# selector2 = "#module_product_price_1 > div > div > span"
-# price2 = get_product_price(url2, selector2, True)
-# print('Lazada Product Price: ', price2)
+url1 = 'https://www.tiktok.com/@clap_h/video/7282667642584861998'
+view1 = get_video_view(url1, selectorLikeCount, True)
+print('Video Like: ', view1)
 
-url4 = 'https://www.dienmayxanh.com/dien-thoai/iphone-15-256gb'
-selector4 = "div.price-one > div > p.box-price-present"
-price4 = get_product_price(url4, selector4, True)
-print('Dienmayxanh Product Price: ', price4)
+url2 = 'https://www.tiktok.com/@mouse11121/video/7267355123913952555'
+view2 = get_video_view(url2, selectorLikeCount, True)
+print('Video Like: ', view2)
 
-# url3 = 'https://shopee.vn/Xe-m%C3%A1y-Honda-Vision-2023_Phi%C3%AAn-b%E1%BA%A3n-Th%E1%BB%83-thao-i.313043031.23913942525?sp_atk=452f76e2-4d42-47a3-bc34-28f0c1c67c9a&xptdk=452f76e2-4d42-47a3-bc34-28f0c1c67c9a'
-# selector3 = "div.pqTWkA"
-# price3 = get_product_price(url3, selector3)
-# print('Lazada Product Price: ', price3)
+
 
 
 
