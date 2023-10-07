@@ -1,18 +1,16 @@
-from langchain.llms import OpenAI
+import google.generativeai as palm
+
 from fastapi import FastAPI
 from redis import Redis
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-from langchain.schema import (
-    AIMessage,
-    HumanMessage,
-    SystemMessage
-)
+
 import os
 
 REDIS_USER_SESSION_HOST = os.getenv("REDIS_USER_SESSION_HOST")
 REDIS_USER_SESSION_PORT = os.getenv("REDIS_USER_SESSION_PORT")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GOOGLE_API_KEY = os.getenv("GOOGLE_GENAI_API_KEY")
+
 VERSION = "0.0.1"
 SERVICE_NAME = "LEO BOT VERSION:" + VERSION
 
@@ -27,8 +25,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# init LangChain
-llm = OpenAI(openai_api_key=OPENAI_API_KEY, temperature=0.7)
+# init API KEY
+palm.configure(api_key=GOOGLE_API_KEY)
 
 # Redis
 r = Redis(host=REDIS_USER_SESSION_HOST,
@@ -39,12 +37,12 @@ r = Redis(host=REDIS_USER_SESSION_HOST,
 
 class Question(BaseModel):
     content: str
+    prompt: str 
     usersession: str
     userlogin: str
 
 
 # API handlers
-
 
 @app.get("/")
 async def root():
@@ -59,17 +57,19 @@ async def ask(question: Question):
     userLogin = r.hget(question.usersession, 'userlogin')
     print(userLogin)
     if userLogin == question.userlogin:
-        answer = llm(question.content)
+        # answer = llm(question.content)
+        response = palm.generate_text(prompt = question.prompt)
+        answer = response.result
         data = {"question": content, "answer": answer, "userLogin": userLogin}
     else:
         data = {"answer": "Invalid usersession", "error": True}
     return data
 
 
-@app.get("/is-openapi-ok")
-async def openapi():
-    isOk = isinstance(OPENAI_API_KEY, str)
-    return {"ok": isOk, }
+@app.get("/is-ready")
+async def is_leobot_ready():
+    isReady = isinstance(GOOGLE_API_KEY, str)
+    return {"ok": isReady }
 
 @app.get("/ping")
 async def ping():
