@@ -9,7 +9,8 @@ import os
 
 REDIS_USER_SESSION_HOST = os.getenv("REDIS_USER_SESSION_HOST")
 REDIS_USER_SESSION_PORT = os.getenv("REDIS_USER_SESSION_PORT")
-GOOGLE_API_KEY = os.getenv("GOOGLE_GENAI_API_KEY")
+GOOGLE_API_KEY = os.getenv("GOOGLE_PALM_API_KEY")
+TEMPERATURE_SCORE = 0.7
 
 VERSION = "0.0.1"
 SERVICE_NAME = "LEO BOT VERSION:" + VERSION
@@ -41,6 +42,9 @@ class Question(BaseModel):
     usersession: str
     userlogin: str
 
+def buildPrompt(promptText):
+    p = {'prompt' : promptText, 'temperature' : TEMPERATURE_SCORE}
+    return p
 
 # API handlers
 
@@ -52,14 +56,22 @@ async def root():
 @app.post("/ask")
 async def ask(question: Question):
     content = question.content
-    print(content)
+    print("question "+content)
     print(question.usersession)
     userLogin = r.hget(question.usersession, 'userlogin')
     print(userLogin)
     if userLogin == question.userlogin:
         # answer = llm(question.content)
-        response = palm.generate_text(prompt = question.prompt)
-        answer = response.result
+        answer = "My name is LEO. That's a great question, but I don't have the answer right now. I'll do some research and get back to you."
+        try:
+            response = palm.generate_text(**buildPrompt(question.prompt))
+            if response is not None and isinstance(response.result, str):
+                answer = response.result
+        except Exception as error:
+            # handle the exception
+            print("An exception occurred:", error) # An exception occurred: division by zero
+        
+        print("answer " + answer)
         data = {"question": content, "answer": answer, "userLogin": userLogin}
     else:
         data = {"answer": "Invalid usersession", "error": True}
