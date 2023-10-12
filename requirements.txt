@@ -24,3 +24,5 @@ beautifulsoup4
 lxml
 html5lib
 google-generativeai
+transformers
+sentence-transformers

@@ -1,16 +1,23 @@
 import google.generativeai as palm
+from transformers import pipeline
 
 from fastapi import FastAPI
 from redis import Redis
-from pydantic import BaseModel
+from typing import Optional
+from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 
 import os
 
+
 REDIS_USER_SESSION_HOST = os.getenv("REDIS_USER_SESSION_HOST")
 REDIS_USER_SESSION_PORT = os.getenv("REDIS_USER_SESSION_PORT")
+
 GOOGLE_API_KEY = os.getenv("GOOGLE_PALM_API_KEY")
 TEMPERATURE_SCORE = 0.7
+
+MODEL_NLP = "cardiffnlp/twitter-roberta-base-sentiment-latest"
+sentiment_pipe = pipeline("sentiment-analysis", model=MODEL_NLP, tokenizer=MODEL_NLP)
 
 VERSION = "0.0.1"
 SERVICE_NAME = "LEO BOT VERSION:" + VERSION
@@ -36,9 +43,9 @@ r = Redis(host=REDIS_USER_SESSION_HOST,
 
 # Data models
 
-class Question(BaseModel):
+class Message(BaseModel):
     content: str
-    prompt: str 
+    prompt: Optional[str] = Field(None, description="Who sends the error message.")
     usersession: str
     userlogin: str
 
@@ -54,9 +61,9 @@ async def root():
 
 
 @app.post("/ask")
-async def ask(question: Question):
+async def ask(question: Message):
     content = question.content
-    print("question "+content)
+    print("ask question "+content)
     print(question.usersession)
     userLogin = r.hget(question.usersession, 'userlogin')
     print(userLogin)
@@ -68,11 +75,28 @@ async def ask(question: Question):
             if response is not None and isinstance(response.result, str):
                 answer = response.result
         except Exception as error:
-            # handle the exception
-            print("An exception occurred:", error) # An exception occurred: division by zero
+            print("An exception occurred:", error)
         
         print("answer " + answer)
         data = {"question": content, "answer": answer, "userLogin": userLogin}
+    else:
+        data = {"answer": "Invalid usersession", "error": True}
+    return data
+
+@app.post("/sentiment-analysis")
+async def sentiment_analysis(msg: Message):
+    content = msg.content
+    print("sentiment_analysis msg "+content)
+    userLogin = r.hget(msg.usersession, 'userlogin')
+
+    data = {"error": True}
+    if userLogin == msg.userlogin:
+        try:
+            rs = sentiment_pipe(content)
+            if len(rs) > 0 :
+                data = rs[0]
+        except Exception as error:
+            print("An exception occurred:", error)
     else:
         data = {"answer": "Invalid usersession", "error": True}
     return data
