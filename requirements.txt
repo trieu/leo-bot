@@ -28,4 +28,13 @@ openai
 google-generativeai
 
 transformers
+accelerate
+peft
 sentence-transformers
+ctransformers[cuda]
+bitsandbytes
+einops
+safetensors
+torch
+xformers
+chromadb
