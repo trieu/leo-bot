@@ -52,9 +52,18 @@ template2 = """<s>[INST] You are the marketing manager. :
 """
 prompt2 = PromptTemplate(template=template2, input_variables=["question","context"])
 
+#### Prompt 3
+context_p3 = """ In Culture and Movie Industry, """
+question_p3 = """ Write a marketing plan to promote a movie ? """
+template3 = """<s>[INST] You are the marketing manager. Answer less than 5000 words, from the context :
+{context}
+{question} [/INST] </s>
+"""
+prompt3 = PromptTemplate(template=template3, input_variables=["question","context"])
+
 # set pipeline into LLMChain with prompt and llm model
 llm = HuggingFacePipeline(pipeline=pipeline)
-llm_chain = LLMChain(prompt=prompt2, llm=llm)
-response = llm_chain.run({"question":question_p2,"context":context_p2})
+llm_chain = LLMChain(prompt=prompt3, llm=llm)
+response = llm_chain.run({"question":question_p3,"context":context_p3})
 
 print(response)
