@@ -54,16 +54,27 @@ prompt2 = PromptTemplate(template=template2, input_variables=["question","contex
 
 #### Prompt 3
 context_p3 = """ In Culture and Movie Industry, """
-question_p3 = """ Write a marketing plan to promote a movie ? """
-template3 = """<s>[INST] You are the marketing manager. Answer less than 5000 words, from the context :
+question_p3 = """ Write some creative ideas to promote a movie ? """
+template3 = """<s>[INST] You are the marketing manager. The answer should be short, from the context :
 {context}
 {question} [/INST] </s>
 """
 prompt3 = PromptTemplate(template=template3, input_variables=["question","context"])
 
-# set pipeline into LLMChain with prompt and llm model
-llm = HuggingFacePipeline(pipeline=pipeline)
-llm_chain = LLMChain(prompt=prompt3, llm=llm)
-response = llm_chain.run({"question":question_p3,"context":context_p3})
+#### Prompt 4
+question_p4 = input("Please enter a question:\n")
+context_p4 = """ In F&B industry, """
+template4 = """<s>[INST] You are the chef of restaurant. The answer should be clear with several key steps, from the context :
+{context}
+{question} [/INST] </s>
+"""
+prompt4 = PromptTemplate(template=template4, input_variables=["question","context"])
 
-print(response)
+# set pipeline into LLMChain with prompt and llm model
+llm_model = HuggingFacePipeline(pipeline=pipeline)
+llm_chain = LLMChain(prompt=prompt4, llm=llm_model)
+response = llm_chain.run({"question":question_p4,"context":context_p4})
+
+src_text = response
+# print or save into database
+print(src_text)

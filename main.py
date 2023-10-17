@@ -81,14 +81,14 @@ async def ask(question: Message):
         data = {"question": content, "answer": answer, "userLogin": userLogin}
     else:
         data = {"answer": "Invalid usersession", "error": True}
-    return data
+    return 
+
 
 @app.post("/sentiment-analysis")
 async def sentiment_analysis(msg: Message):
     content = msg.content
     print("sentiment_analysis msg "+content)
     userLogin = r.hget(msg.usersession, 'userlogin')
-
     data = {"error": True}
     if userLogin == msg.userlogin:
         try:
