@@ -26,6 +26,7 @@ html5lib
 langchain
 openai
 google-generativeai
+google-cloud-translate
 
 transformers
 accelerate

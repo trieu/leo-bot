@@ -6,6 +6,17 @@ from transformers import BitsAndBytesConfig
 from langchain import HuggingFacePipeline
 from langchain import PromptTemplate, LLMChain
 
+from google.cloud import translate_v2 as translate
+
+def translate_text(target: str, text: str) -> dict:
+    """Translates text into the target language.
+    """
+    translate_client = translate.Client()
+    if isinstance(text, bytes):
+        text = text.decode("utf-8")
+    result = translate_client.translate(text, target_language=target)
+    return result['translatedText']
+
 # Quantize 🤗 Transformers models
 quantization_config = BitsAndBytesConfig(
     load_in_4bit=True,
@@ -25,9 +36,12 @@ pipeline = pipeline(
         tokenizer=tokenizer,
         use_cache=True,
         device_map="auto",
-        max_length=500,
-        do_sample=True,
-        top_k=5,
+        max_length=512,
+        do_sample=True,        
+        temperature=0.68,
+        top_p=0.95,
+        top_k=20,
+        repetition_penalty=1.1,
         num_return_sequences=1,
         eos_token_id=tokenizer.eos_token_id,
         pad_token_id=tokenizer.eos_token_id,
@@ -61,20 +75,33 @@ template3 = """<s>[INST] You are the marketing manager. The answer should be sho
 """
 prompt3 = PromptTemplate(template=template3, input_variables=["question","context"])
 
-#### Prompt 4
-question_p4 = input("Please enter a question:\n")
-context_p4 = """ In F&B industry, """
-template4 = """<s>[INST] You are the chef of restaurant. The answer should be clear with several key steps, from the context :
-{context}
-{question} [/INST] </s>
-"""
-prompt4 = PromptTemplate(template=template4, input_variables=["question","context"])
+#### Prompt in loop
 
-# set pipeline into LLMChain with prompt and llm model
-llm_model = HuggingFacePipeline(pipeline=pipeline)
-llm_chain = LLMChain(prompt=prompt4, llm=llm_model)
-response = llm_chain.run({"question":question_p4,"context":context_p4})
+# export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:32
 
-src_text = response
-# print or save into database
-print(src_text)
+
+torch.cuda.empty_cache()
+while True:
+    question = input("\n Please enter a question: \n").strip()
+    if question == "exit" or len(question) == 0:
+        # done
+        break
+
+    context = """  """
+    template = """<s>[INST] Your name is LEO and you are the AI bot is created by Triều. The answer should be clear from the context :
+    {context}
+    {question} [/INST] </s>
+    """
+    prompt = PromptTemplate(template=template, input_variables=["question","context"])
+
+    # set pipeline into LLMChain with prompt and llm model
+    llm_model = HuggingFacePipeline(pipeline=pipeline)
+    llm_chain = LLMChain(prompt=prompt, llm=llm_model)
+    response = llm_chain.run({"question":question,"context":context})
+
+    src_text = response
+    # print or save into database
+    print(src_text)
+    
+    trs_text = translate_text('vi',src_text)
+    print(trs_text)
