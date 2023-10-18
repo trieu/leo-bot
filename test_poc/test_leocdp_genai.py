@@ -16,8 +16,7 @@ load_dotenv()
 GOOGLE_GENAI_API_KEY = os.getenv("GOOGLE_GENAI_API_KEY")
 palm.configure(api_key=GOOGLE_GENAI_API_KEY)
 
-
-
+# for text translation 
 def translate_text(target: str, text: str) -> dict:
     """Translates text into the target language.
     """
@@ -27,7 +26,7 @@ def translate_text(target: str, text: str) -> dict:
     result = translate_client.translate(text, target_language=target)
     return result['translatedText']
 
-
+# local AI model
 def load_llm_pipeline():
     # Quantize 🤗 Transformers models
     quantization_config = BitsAndBytesConfig(
@@ -42,6 +41,7 @@ def load_llm_pipeline():
     model_4bit = AutoModelForCausalLM.from_pretrained( model_id, device_map="auto",quantization_config=quantization_config, )
     tokenizer = AutoTokenizer.from_pretrained(model_id)
 
+    # init pipeline of text-generation
     pipe = pipeline(
             "text-generation",
             model=model_4bit,
@@ -60,8 +60,6 @@ def load_llm_pipeline():
     )
     return pipe
 
-# load pipeline
-
 # export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:32
 pipe_text_generation = load_llm_pipeline()
 llm_model = HuggingFacePipeline(pipeline=pipe_text_generation)
@@ -69,7 +67,7 @@ torch.cuda.empty_cache()
 
 def start_leo_bot(question: str):
     context = """ In any knowledge domain, """
-    template = """<s> [INST] Your name is LEO and you are the AI bot is created by Trieu at trieu@leocdp.com. 
+    template = """<s> [INST] Your name is LEO and you are the AI bot is created by Mr.Triều at LEOCDP.com. 
     The answer should be clear from the context :
     {context} {question} [/INST] </s>
     """
