@@ -1,4 +1,4 @@
-import google.generativeai as palm
+import os
 from transformers import pipeline
 
 from fastapi import FastAPI
@@ -6,15 +6,10 @@ from redis import Redis
 from typing import Optional
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
-
-import os
-
+from leoai import leo_chatbot
 
 REDIS_USER_SESSION_HOST = os.getenv("REDIS_USER_SESSION_HOST")
 REDIS_USER_SESSION_PORT = os.getenv("REDIS_USER_SESSION_PORT")
-
-GOOGLE_API_KEY = os.getenv("GOOGLE_PALM_API_KEY")
-TEMPERATURE_SCORE = 0.7
 
 MODEL_NLP = "cardiffnlp/twitter-roberta-base-sentiment-latest"
 sentiment_pipe = pipeline("sentiment-analysis", model=MODEL_NLP, tokenizer=MODEL_NLP)
@@ -33,25 +28,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# init API KEY
-palm.configure(api_key=GOOGLE_API_KEY)
-
 # Redis
-r = Redis(host=REDIS_USER_SESSION_HOST,
-          port=REDIS_USER_SESSION_PORT, decode_responses=True)
-
+r = Redis(host=REDIS_USER_SESSION_HOST, port=REDIS_USER_SESSION_PORT, decode_responses=True)
 
 # Data models
 
 class Message(BaseModel):
+    answer_in_language: Optional[str] = Field("vi")
     content: str
-    prompt: Optional[str] = Field(None, description="Who sends the error message.")
+    prompt: Optional[str] = Field(None, description="the question")
     usersession: str
     userlogin: str
-
-def buildPrompt(promptText):
-    p = {'prompt' : promptText, 'temperature' : TEMPERATURE_SCORE}
-    return p
 
 # API handlers
 
@@ -69,19 +56,17 @@ async def ask(question: Message):
     print(userLogin)
     if userLogin == question.userlogin:
         # answer = llm(question.content)
-        answer = "My name is LEO. That's a great question, but I don't have the answer right now. I'll do some research and get back to you."
-        try:
-            response = palm.generate_text(**buildPrompt(question.prompt))
-            if response is not None and isinstance(response.result, str):
-                answer = response.result
-        except Exception as error:
-            print("An exception occurred:", error)
-        
+
+        # our model can only understand English
+        question_in_english = leo_chatbot.translate_text('en',content) 
+        # translate if need
+        answer = leo_chatbot.ask_question(question.answer_in_language, question_in_english)
+
         print("answer " + answer)
         data = {"question": content, "answer": answer, "userLogin": userLogin}
     else:
         data = {"answer": "Invalid usersession", "error": True}
-    return 
+    return data
 
 
 @app.post("/sentiment-analysis")
@@ -104,7 +89,7 @@ async def sentiment_analysis(msg: Message):
 
 @app.get("/is-ready")
 async def is_leobot_ready():
-    isReady = isinstance(GOOGLE_API_KEY, str)
+    isReady = isinstance(leo_chatbot.GOOGLE_GENAI_API_KEY, str)
     return {"ok": isReady }
 
 @app.get("/ping")

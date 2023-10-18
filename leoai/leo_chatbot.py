@@ -1,5 +1,3 @@
-#### https://medium.com/@scholarly360/mistral-7b-complete-guide-on-colab-129fa5e9a04d
-
 # Local AI LLM Model
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
@@ -19,6 +17,7 @@ load_dotenv()
 # to use local model "Mistral-7B", export LEOAI_LOCAL_MODEL=true
 LEOAI_LOCAL_MODEL = os.getenv("LEOAI_LOCAL_MODEL") == "true"
 GOOGLE_GENAI_API_KEY = os.getenv("GOOGLE_GENAI_API_KEY")
+TEMPERATURE_SCORE = 0.7
 
 # init PaLM client as backup AI
 palm.configure(api_key=GOOGLE_GENAI_API_KEY)
@@ -57,7 +56,7 @@ def load_llm_pipeline():
             device_map="auto",
             max_length=512,
             do_sample=True,        
-            temperature=0.7,
+            temperature=TEMPERATURE_SCORE,
             top_p=0.95,
             top_k=20,
             repetition_penalty=1.1,
@@ -71,19 +70,17 @@ def load_llm_pipeline():
 llm_model = None
 # check to init local HuggingFacePipeline, Minimum System Requirements: GeForce RTX 3060
 if LEOAI_LOCAL_MODEL:
-    llm_model = HuggingFacePipeline(pipeline=load_llm_pipeline())
-    # clear GPU cache after init 
-    torch.cuda.empty_cache()
+    llm_model = HuggingFacePipeline(pipeline=load_llm_pipeline())    
+    torch.cuda.empty_cache() # clear GPU cache 
 
 # the main function to ask LEO
-def ask_leo_assistant(target_language: str, question: str) -> str:
-    context = """ In any knowledge domain, """
+def ask_question(target_language: str, question: str) -> str:
+    context = """  """
     template = """<s> [INST] Your name is LEO and you are the AI bot is created by Mr.Triều at LEOCDP.com. 
     The answer should be clear from the context :
     {context} {question} [/INST] </s>
     """
     prompt_tpl = PromptTemplate(template=template, input_variables=["question","context"])
-
     # set pipeline into LLMChain with prompt and llm model
     response = ""
     prompt_data = {"question":question,"context":context}
@@ -94,23 +91,15 @@ def ask_leo_assistant(target_language: str, question: str) -> str:
     src_text = f"{response}".strip()
     if len(src_text) == 0:
         prompt_text = prompt_tpl.format(**prompt_data)
-        src_text = palm.generate_text(prompt=prompt_text).result
+        try:
+            src_text = palm.generate_text(prompt=prompt_text, temperature=TEMPERATURE_SCORE).result    
+        except Exception as error:
+            print("An exception occurred:", error)
+        
     # translate into target_language 
-    if isinstance(target_language,str):
+    if isinstance(target_language,str) and len(src_text) > 3:
         trs_text = translate_text(target_language, src_text)
         return trs_text
     else:
+        # no need to translate
         return src_text
-
-def start_main_loop():
-    while True:
-        question = input("\n [Please enter a question] \n").strip()
-        if question == "exit" or len(question) == 0:
-            # done
-            break
-        else:
-            q = translate_text('en',question) 
-            print(ask_leo_assistant('vi', q))
-
-# start local bot in command line
-start_main_loop()
