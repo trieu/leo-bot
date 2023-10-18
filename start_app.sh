@@ -3,7 +3,10 @@
 DIR_PATH="/build/leo-bot/"
 
 # Change to the directory where your FastAPI app is located
-cd $DIR_PATH
+
+if [ -d "$DIR_PATH" ]; then
+  cd $DIR_PATH
+fi
 
 # Activate your virtual environment if necessary
 SOURCE_PATH="env/bin/activate"

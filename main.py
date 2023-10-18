@@ -58,9 +58,12 @@ async def ask(question: Message):
         # answer = llm(question.content)
 
         # our model can only understand English
-        question_in_english = leo_chatbot.translate_text('en',content) 
+        lang = question.answer_in_language
+        question_in_english = content
+        if lang != "en":
+            question_in_english = leo_chatbot.translate_text('en',content) 
         # translate if need
-        answer = leo_chatbot.ask_question(question.answer_in_language, question_in_english)
+        answer = leo_chatbot.ask_question(lang, question_in_english)
 
         print("answer " + answer)
         data = {"question": content, "answer": answer, "userLogin": userLogin}

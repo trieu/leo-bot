@@ -75,7 +75,7 @@ if LEOAI_LOCAL_MODEL:
 
 # the main function to ask LEO
 def ask_question(target_language: str, question: str) -> str:
-    context = """  """
+    context = """ LEO CDP is LEO Customer Data Platform. """
     template = """<s> [INST] Your name is LEO and you are the AI bot is created by Mr.Triều at LEOCDP.com. 
     The answer should be clear from the context :
     {context} {question} [/INST] </s>
