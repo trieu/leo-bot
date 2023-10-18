@@ -6,6 +6,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 from transformers import BitsAndBytesConfig
 from langchain import HuggingFacePipeline
 from langchain import PromptTemplate, LLMChain
+
+# need Google translate to convert input into English
 from google.cloud import translate_v2 as translate
 
 # Try PALM from Google AI
@@ -13,13 +15,18 @@ import google.generativeai as palm
 import os
 from dotenv import load_dotenv
 load_dotenv()
+
+# to use local model "Mistral-7B", export LEOAI_LOCAL_MODEL=true
+LEOAI_LOCAL_MODEL = os.getenv("LEOAI_LOCAL_MODEL") == "true"
 GOOGLE_GENAI_API_KEY = os.getenv("GOOGLE_GENAI_API_KEY")
+
+# init PaLM client as backup AI
 palm.configure(api_key=GOOGLE_GENAI_API_KEY)
 
-# for text translation 
+# Translates text into the target language.
 def translate_text(target: str, text: str) -> dict:
-    """Translates text into the target language.
-    """
+    if text == "" or text is None:
+        return ""
     translate_client = translate.Client()
     if isinstance(text, bytes):
         text = text.decode("utf-8")
@@ -50,7 +57,7 @@ def load_llm_pipeline():
             device_map="auto",
             max_length=512,
             do_sample=True,        
-            temperature=0.68,
+            temperature=0.7,
             top_p=0.95,
             top_k=20,
             repetition_penalty=1.1,
@@ -61,32 +68,41 @@ def load_llm_pipeline():
     return pipe
 
 # export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:32
-pipe_text_generation = load_llm_pipeline()
-llm_model = HuggingFacePipeline(pipeline=pipe_text_generation)
-torch.cuda.empty_cache()
+llm_model = None
+# check to init local HuggingFacePipeline, Minimum System Requirements: GeForce RTX 3060
+if LEOAI_LOCAL_MODEL:
+    llm_model = HuggingFacePipeline(pipeline=load_llm_pipeline())
+    # clear GPU cache after init 
+    torch.cuda.empty_cache()
 
-def start_leo_bot(question: str):
+# the main function to ask LEO
+def ask_leo_assistant(target_language: str, question: str) -> str:
     context = """ In any knowledge domain, """
     template = """<s> [INST] Your name is LEO and you are the AI bot is created by Mr.Triều at LEOCDP.com. 
     The answer should be clear from the context :
     {context} {question} [/INST] </s>
     """
-    prompt = PromptTemplate(template=template, input_variables=["question","context"])
+    prompt_tpl = PromptTemplate(template=template, input_variables=["question","context"])
 
-    # set pipeline into LLMChain with prompt and llm model  
-    llm_chain = LLMChain(prompt=prompt, llm=llm_model)
-    response = llm_chain.run({"question":question,"context":context})
+    # set pipeline into LLMChain with prompt and llm model
+    response = ""
+    prompt_data = {"question":question,"context":context}
+    if llm_model is not None:  
+        llm_chain = LLMChain(prompt=prompt_tpl, llm=llm_model)
+        response = llm_chain.run(prompt_data)
 
-    src_text = f"'{response}'".strip() 
-    if src_text == "":
-        src_text = palm.generate_text(prompt=question).result
-    # print or save into database
-    # print(src_text)    
-    trs_text = translate_text('vi',src_text)
-    print(trs_text)
+    src_text = f"{response}".strip()
+    if len(src_text) == 0:
+        prompt_text = prompt_tpl.format(**prompt_data)
+        src_text = palm.generate_text(prompt=prompt_text).result
+    # translate into target_language 
+    if isinstance(target_language,str):
+        trs_text = translate_text(target_language, src_text)
+        return trs_text
+    else:
+        return src_text
 
 def start_main_loop():
-    #### Prompt in loop
     while True:
         question = input("\n [Please enter a question] \n").strip()
         if question == "exit" or len(question) == 0:
@@ -94,7 +110,7 @@ def start_main_loop():
             break
         else:
             q = translate_text('en',question) 
-            start_leo_bot(q)
+            print(ask_leo_assistant('vi', q))
 
 # start local bot in command line
 start_main_loop()
