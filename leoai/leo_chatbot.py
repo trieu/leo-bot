@@ -1,3 +1,5 @@
+from datetime import date
+
 # Local AI LLM Model
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
@@ -75,7 +77,8 @@ if LEOAI_LOCAL_MODEL:
 
 # the main function to ask LEO
 def ask_question(target_language: str, question: str) -> str:
-    context = """ LEO CDP is LEO Customer Data Platform. """
+    context = " LEO CDP is LEO Customer Data Platform. "
+    context = context + " Today is " + date.today().strftime("%B %d, %Y") + ". "    
     template = """<s> [INST] Your name is LEO and you are the AI bot is created by Mr.Triều at LEOCDP.com. 
     The answer should be clear from the context :
     {context} {question} [/INST] </s>
@@ -97,9 +100,13 @@ def ask_question(target_language: str, question: str) -> str:
             print("An exception occurred:", error)
         
     # translate into target_language 
-    if isinstance(target_language,str) and len(src_text) > 3:
-        trs_text = translate_text(target_language, src_text)
-        return trs_text
-    else:
+    if isinstance(target_language, str) and isinstance(src_text, str):
+        if len(src_text) > 3: 
+            trs_text = translate_text(target_language, src_text)
+            return trs_text
+        else:
+            return src_text    
+    elif src_text is None:
+        return "😀"
         # no need to translate
-        return src_text
+    return str(src_text)

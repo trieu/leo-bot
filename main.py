@@ -6,6 +6,7 @@ from redis import Redis
 from typing import Optional
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, FileResponse
 from leoai import leo_chatbot
 
 REDIS_USER_SESSION_HOST = os.getenv("REDIS_USER_SESSION_HOST")
@@ -14,13 +15,20 @@ REDIS_USER_SESSION_PORT = os.getenv("REDIS_USER_SESSION_PORT")
 MODEL_NLP = "cardiffnlp/twitter-roberta-base-sentiment-latest"
 sentiment_pipe = pipeline("sentiment-analysis", model=MODEL_NLP, tokenizer=MODEL_NLP)
 
+# Redis
+redis = Redis(host=REDIS_USER_SESSION_HOST, port=REDIS_USER_SESSION_PORT, decode_responses=True)
+
 VERSION = "0.0.1"
 SERVICE_NAME = "LEO BOT VERSION:" + VERSION
+ROOT_FOLDER = os.path.dirname(os.path.abspath(__file__)) + "/resources/"
+MAIN_HTML_LEO_BOT = SERVICE_NAME
+with open(os.path.join(ROOT_FOLDER, 'index.html')) as fh:
+    MAIN_HTML_LEO_BOT = fh.read()
 
-# init FAST API app
-app = FastAPI()
+# init FAST API leobot
+leobot = FastAPI()
 origins = ["*"]
-app.add_middleware(
+leobot.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
@@ -28,8 +36,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Redis
-r = Redis(host=REDIS_USER_SESSION_HOST, port=REDIS_USER_SESSION_PORT, decode_responses=True)
 
 # Data models
 
@@ -42,18 +48,27 @@ class Message(BaseModel):
 
 # API handlers
 
-@app.get("/")
+
+@leobot.get("/", response_class=HTMLResponse)
 async def root():
-    return {"SERVICE_NAME": SERVICE_NAME}
+    return HTMLResponse(content=MAIN_HTML_LEO_BOT, status_code=200)
 
 
-@app.post("/ask")
+@leobot.get("/resources/leocdp.chatbot.js", response_class=FileResponse)
+async def chatbot_javascript():
+    path = ROOT_FOLDER + "leocdp.chatbot.js"
+    return FileResponse(path)
+
+@leobot.post("/ask")
 async def ask(question: Message):
+    userLogin = redis.hget(question.usersession, 'userlogin')    
     content = question.content
-    print("ask question "+content)
-    print(question.usersession)
-    userLogin = r.hget(question.usersession, 'userlogin')
-    print(userLogin)
+    
+    print("question.content: "+content)
+    print("question.userlogin: "+question.userlogin)
+    print("usersession: "+ question.usersession)    
+    print("userLogin: "+userLogin)
+    
     if userLogin == question.userlogin:
         # answer = llm(question.content)
 
@@ -72,11 +87,11 @@ async def ask(question: Message):
     return data
 
 
-@app.post("/sentiment-analysis")
+@leobot.post("/sentiment-analysis")
 async def sentiment_analysis(msg: Message):
     content = msg.content
     print("sentiment_analysis msg "+content)
-    userLogin = r.hget(msg.usersession, 'userlogin')
+    userLogin = redis.hget(msg.usersession, 'userlogin')
     data = {"error": True}
     if userLogin == msg.userlogin:
         try:
@@ -90,11 +105,11 @@ async def sentiment_analysis(msg: Message):
     return data
 
 
-@app.get("/is-ready")
+@leobot.get("/is-ready")
 async def is_leobot_ready():
     isReady = isinstance(leo_chatbot.GOOGLE_GENAI_API_KEY, str)
     return {"ok": isReady }
 
-@app.get("/ping")
+@leobot.get("/ping")
 async def ping():
     return "PONG"
