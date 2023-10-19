@@ -64,7 +64,12 @@ var leoBotRecommendation = function(context, content) {
 	
 						// next question
 						leoBotAskKeywords()
-					}				
+					}
+					
+					if(typeof window.LeoObserver === 'object') {
+						var eventData = {"question":content,"answer":answerInRaw};
+						window.LeoObserver.recordEventAskQuestion(eventData);
+					}
 				}
 				else if (data.error) {
 					alert(data.answer)				
