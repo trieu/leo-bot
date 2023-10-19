@@ -39,7 +39,7 @@ leobot.add_middleware(
 
 # Data models
 class Message(BaseModel):
-    answer_in_language: Optional[str] = Field("vi")
+    answer_in_language: Optional[str] = Field("en") # default is English
     content: str
     prompt: Optional[str] = Field(None, description="the question")
     usersession: str
