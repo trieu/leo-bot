@@ -19,6 +19,7 @@ pip install -r requirements.txt
 3. Need to create a file .env to store environment variables
 4. In the file .env, set value like this example
 ```
+    LEOBOT_DEV_MODE=true
     HOSTNAME=leobot.example.com
     LEOAI_LOCAL_MODEL=false
     GOOGLE_GENAI_API_KEY=

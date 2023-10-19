@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, FileResponse
 from leoai import leo_chatbot
 
+LEOBOT_DEV_MODE = os.getenv("LEOBOT_DEV_MODE") == "true"
 REDIS_USER_SESSION_HOST = os.getenv("REDIS_USER_SESSION_HOST")
 REDIS_USER_SESSION_PORT = os.getenv("REDIS_USER_SESSION_PORT")
 
@@ -36,9 +37,7 @@ leobot.add_middleware(
     allow_headers=["*"],
 )
 
-
 # Data models
-
 class Message(BaseModel):
     answer_in_language: Optional[str] = Field("vi")
     content: str
@@ -46,19 +45,23 @@ class Message(BaseModel):
     usersession: str
     userlogin: str
 
-# API handlers
-
+##### API handlers #####
 
 @leobot.get("/", response_class=HTMLResponse)
 async def root():
+    if LEOBOT_DEV_MODE :
+        index_html = ''
+        with open(os.path.join(ROOT_FOLDER, 'index.html')) as fh:
+            index_html = fh.read()
+        return HTMLResponse(content=index_html, status_code=200)
     return HTMLResponse(content=MAIN_HTML_LEO_BOT, status_code=200)
-
 
 @leobot.get("/resources/leocdp.chatbot.js", response_class=FileResponse)
 async def chatbot_javascript():
     path = ROOT_FOLDER + "leocdp.chatbot.js"
     return FileResponse(path)
 
+# the main API of chatbot
 @leobot.post("/ask")
 async def ask(question: Message):
     userLogin = redis.hget(question.usersession, 'userlogin')    
@@ -86,7 +89,6 @@ async def ask(question: Message):
         data = {"answer": "Invalid usersession", "error": True}
     return data
 
-
 @leobot.post("/sentiment-analysis")
 async def sentiment_analysis(msg: Message):
     content = msg.content
@@ -103,7 +105,6 @@ async def sentiment_analysis(msg: Message):
     else:
         data = {"answer": "Invalid usersession", "error": True}
     return data
-
 
 @leobot.get("/is-ready")
 async def is_leobot_ready():

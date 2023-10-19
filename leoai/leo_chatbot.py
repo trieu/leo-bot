@@ -4,8 +4,9 @@ from datetime import date
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 from transformers import BitsAndBytesConfig
-from langchain import HuggingFacePipeline
-from langchain import PromptTemplate, LLMChain
+from langchain.llms.huggingface_pipeline import HuggingFacePipeline
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
 
 # need Google translate to convert input into English
 from google.cloud import translate_v2 as translate
@@ -43,7 +44,6 @@ def load_llm_pipeline():
         bnb_4bit_quant_type="nf4",
         bnb_4bit_use_double_quant=True,
     )
-
     # define Mistral AI Large Language Models
     model_id = "mistralai/Mistral-7B-Instruct-v0.1"
     model_4bit = AutoModelForCausalLM.from_pretrained( model_id, device_map="auto",quantization_config=quantization_config, )
@@ -107,6 +107,6 @@ def ask_question(target_language: str, question: str) -> str:
         else:
             return src_text    
     elif src_text is None:
-        return "😀"
+        return translate_text(target_language, "Sorry, I can not answer your question !") 
         # no need to translate
     return str(src_text)

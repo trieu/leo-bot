@@ -1,16 +1,16 @@
 const dnsDomainLeoBot = 'leobot.example.com';
 const baseLeoBotUrl = location.protocol + '//' + dnsDomainLeoBot;
-var currentUserProfile = {"userLogin":"demo", "displayName": "Friend"}		
+var currentUserProfile = {"userLogin":"demo", "displayName": "good friend"}		
 
 const BASE_URL_LEOBOT = baseLeoBotUrl + '/ask';
 const IS_LEO_BOT_READY = dnsDomainLeoBot !== "";
 
-var leoBotUI = false;
+window.leoBotUI = false;
 function getBotUI(){
-	if(leoBotUI === false){
-		leoBotUI = new BotUI('LEO_ChatBot_Container');	
+	if(window.leoBotUI === false){
+		window.leoBotUI = new BotUI('LEO_ChatBot_Container');	
 	}
-	return leoBotUI;
+	return window.leoBotUI;
 }
 
 function initLeoChatBot(context) {
@@ -20,17 +20,16 @@ function initLeoChatBot(context) {
 }
 
 var showLeoChatBot = function() {
-	
-	getBotUI().message.bot('Hi ' + currentUserProfile.displayName + ', how can LEO help you ?')
-		.then(function() {
-			leoBotAskKeywords();
-		});
+	var msg = 'Hello ' + currentUserProfile.displayName + ', how can I help you ?'
+	getBotUI().message.bot({content:msg}).then(function() {
+		leoBotAskKeywords();
+	});
 }
 
 var leoBotAskKeywords = function() {
 	getBotUI().message.bot({
 		delay: 500,
-		content: 'Please enter your question: '
+		content: 'Please enter your question:'
 	})
 	.then(function() {
 		return getBotUI().action.text({
@@ -50,53 +49,45 @@ var leoBotAskKeywords = function() {
 
 var leoBotRecommendation = function(context, content) {
 	if (content.length > 1 && content !== "exit") {
-		var chatLoader = getBotUI().message.add({
-			delay: 10000,
-			loading: true,
-			content: ''
-		});
-		console.log(chatLoader)
-
-		var callback = function(loader, data) {
-			loader.then(function (index) {
-				// get the index of the empty message and delete it
+		
+		var callServer = function (index) {
+			var serverCallback = function(data) {
 				getBotUI().message.remove(index);
-			});
+	
+				if (typeof data.answer === 'string') {
+					var answerInRaw = data.answer.trim();
+					var answerInHtml = marked.parse(answerInRaw);
+	
+					if ('ask' === context) {
+						getBotUI().message.add({ human: false, content: answerInHtml, type: 'html' });
+						setTimeout(function() {
+							$('div.botui-message').find('a').attr('target', '_blank');
+						}, 1000);
+	
+						// next question
+						leoBotAskKeywords()
+					}				
+				}
+				else if (data.error) {
+					alert(data.answer)				
+				}
+				else {
+					alert('LEO BOT is getting a system error !')
+				}
+			};
 
-			if (typeof data.answer === 'string') {
-				var answerInRaw = data.answer.trim();
-				var answerInHtml = marked.parse(answerInRaw);
-
-				if ('ask' === context) {
-					getBotUI().message.add({ human: false, content: answerInHtml, type: 'html' });
-					setTimeout(function() {
-						$('div.botui-message').find('a').attr('target', '_blank');
-					}, 1000);
-
-					// next question
-					leoBotAskKeywords()
-				}				
-			}
-			else if (data.error) {
-				alert(data.answer)				
-			}
-			else {
-				alert('LEO BOT is getting a system error !')
-			}
+			var lang = $('#leobot_answer_in_language').val()
+			var prompt = content;
+			var userLogin = currentUserProfile.userLogin;		
+			var payload = { 'prompt': prompt, 'content': content, 'usersession': getUserSession(), 'userlogin': userLogin, 'answer_in_language': lang };
+			callPostApi(BASE_URL_LEOBOT, payload, serverCallback);
 		};
 
-		
-
-		var lang = $('#leobot_answer_in_language').val()
-		var prompt = content;
-		var userLogin = currentUserProfile.userLogin;		
-		var payload = { 'prompt': prompt, 'content': content, 'usersession': getUserSession(), 'userlogin': userLogin, 'answer_in_language': lang };
-		callPostApi(BASE_URL_LEOBOT, payload, chatLoader, callback);
+		getBotUI().message.add({loading: true, content:''}).then(callServer);
 	}
-	
 }
 
-var callPostApi = function (urlStr, data, chatLoader, okCallback, errorCallback) {
+var callPostApi = function (urlStr, data, okCallback, errorCallback) {
 	$.ajax({
 		url: urlStr,
 		crossDomain: true,
@@ -104,14 +95,14 @@ var callPostApi = function (urlStr, data, chatLoader, okCallback, errorCallback)
 		contentType: 'application/json',
 		type: 'POST',
 		error: function (jqXHR, exception) {
-			notifyErrorMessage('WE GET AN ERROR AT URL:' + urlStr);
+			console.error('WE GET AN ERROR AT URL:' + urlStr);
 			if (typeof errorCallback === 'function') {
 				errorCallback();
 			}
 		}
 	}).done(function (json) {
+		okCallback(json);
 		console.log("callPostApi", urlStr, data, json);
-		okCallback(chatLoader, json);
 	});
 }
 
