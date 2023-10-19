@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse, FileResponse
 from leoai import leo_chatbot
 
 LEOBOT_DEV_MODE = os.getenv("LEOBOT_DEV_MODE") == "true"
+HOSTNAME = os.getenv("HOSTNAME")
 REDIS_USER_SESSION_HOST = os.getenv("REDIS_USER_SESSION_HOST")
 REDIS_USER_SESSION_PORT = os.getenv("REDIS_USER_SESSION_PORT")
 
@@ -25,6 +26,7 @@ ROOT_FOLDER = os.path.dirname(os.path.abspath(__file__)) + "/resources/"
 MAIN_HTML_LEO_BOT = SERVICE_NAME
 with open(os.path.join(ROOT_FOLDER, 'index.html')) as fh:
     MAIN_HTML_LEO_BOT = fh.read()
+MAIN_HTML_LEO_BOT = MAIN_HTML_LEO_BOT.replace('$HOSTNAME', HOSTNAME)
 
 # init FAST API leobot
 leobot = FastAPI()
@@ -53,6 +55,7 @@ async def root():
         index_html = ''
         with open(os.path.join(ROOT_FOLDER, 'index.html')) as fh:
             index_html = fh.read()
+        index_html = index_html.replace('$HOSTNAME', HOSTNAME)
         return HTMLResponse(content=index_html, status_code=200)
     return HTMLResponse(content=MAIN_HTML_LEO_BOT, status_code=200)
 

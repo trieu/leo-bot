@@ -1,4 +1,3 @@
-const dnsDomainLeoBot = 'leobot.example.com';
 const baseLeoBotUrl = location.protocol + '//' + dnsDomainLeoBot;
 var currentUserProfile = {"userLogin":"demo", "displayName": "good friend"}		
 
