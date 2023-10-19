@@ -11,7 +11,7 @@
     
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=yes">
 
-    <title> LEO ChatBot Demo </title>
+    <title> LEO ChatBot </title>
 
     <script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
 
@@ -38,14 +38,17 @@
     <style>
         .botui-message-content span {
             line-height: 22px !important;
-        }        
+        }       
+        #LEO_ChatBot_Container {
+            width:100%; height:560px; overflow-y:scroll;
+        } 
     </style>
 </head>
 
 <body>
 
     <div class="container text-center">
-        <h1>LEO ChatBot Demo</h1>
+        <h1> LEO ChatBot </h1>
         <div class="row">
             <!-- BCP-47 language code https://en.wikipedia.org/wiki/IETF_language_tag  -->
             <select id="leobot_answer_in_language" class="form-control">
@@ -53,6 +56,7 @@
                 <option value="vi"> Trả lời câu hỏi bằng tiếng Việt </option>
                 <option value="de"> Beantworten Sie Fragen auf Deutsch </option>
                 <option value="fr"> Répondez à la question en anglais </option>
+                <option value="es"> Responde la pregunta en español </option>
                 <option value="ja"> 質問には日本語で答える </option>
                 <option value="zh"> 用中文回答问题 </option>
                 <option value="ko"> 질문에 한국어로 답변하기 </option>
@@ -60,14 +64,12 @@
         </div>
     </div>
 
-    <div class="botui-app-container" id="LEO_ChatBot_Container" style="width:100%; height:560px; overflow-y:scroll;">
+    <div class="botui-app-container" id="LEO_ChatBot_Container" >
         <bot-ui></bot-ui>
     </div>
 
-    <script src="./resources/leocdp.chatbot.js"  ></script>
-    <script>
-        $(document).ready(initLeoChatBot);
-    </script>
+    <script src="./resources/leocdp.chatbot.js" ></script>
+    <script> $(document).ready(initLeoChatBot) </script>
 </body>
 
 </html>

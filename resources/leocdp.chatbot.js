@@ -1,6 +1,6 @@
 const dnsDomainLeoBot = 'leobot.example.com';
 const baseLeoBotUrl = location.protocol + '//' + dnsDomainLeoBot;
-var currentUserProfile = {"userLogin":"demo", "displayName": "Demo User"}		
+var currentUserProfile = {"userLogin":"demo", "displayName": "Friend"}		
 
 const BASE_URL_LEOBOT = baseLeoBotUrl + '/ask';
 const IS_LEO_BOT_READY = dnsDomainLeoBot !== "";
@@ -20,7 +20,6 @@ function initLeoChatBot(context) {
 }
 
 var showLeoChatBot = function() {
-	var actionModel = [];
 	
 	getBotUI().message.bot('Hi ' + currentUserProfile.displayName + ', how can LEO help you ?')
 		.then(function() {
@@ -33,25 +32,37 @@ var leoBotAskKeywords = function() {
 		delay: 500,
 		content: 'Please enter your question: '
 	})
-		.then(function() {
-			return getBotUI().action.text({
-				delay: 1000,
-				action: {
-					size: 80,
-					icon: 'search',
-					value: '', // show the prevous answer if any
-					placeholder: 'Enter your question'
-				}
-			})
-		}).then(function(res) {
-			leoBotRecommendation('ask', res.value);			
-		});
+	.then(function() {
+		return getBotUI().action.text({
+			delay: 1000,
+			action: {
+				size: 80,
+				icon: 'question',
+				value: '', // show the prevous answer if any
+				placeholder: 'Enter your question'
+			}
+		})
+	}).then(function(res) {
+		leoBotRecommendation('ask', res.value);	
+	});
 }
 
 
 var leoBotRecommendation = function(context, content) {
 	if (content.length > 1 && content !== "exit") {
-		var callback = function(data) {
+		var chatLoader = getBotUI().message.add({
+			delay: 10000,
+			loading: true,
+			content: ''
+		});
+		console.log(chatLoader)
+
+		var callback = function(loader, data) {
+			loader.then(function (index) {
+				// get the index of the empty message and delete it
+				getBotUI().message.remove(index);
+			});
+
 			if (typeof data.answer === 'string') {
 				var answerInRaw = data.answer.trim();
 				var answerInHtml = marked.parse(answerInRaw);
@@ -74,16 +85,18 @@ var leoBotRecommendation = function(context, content) {
 			}
 		};
 
+		
+
 		var lang = $('#leobot_answer_in_language').val()
 		var prompt = content;
 		var userLogin = currentUserProfile.userLogin;		
 		var payload = { 'prompt': prompt, 'content': content, 'usersession': getUserSession(), 'userlogin': userLogin, 'answer_in_language': lang };
-		callPostApi(BASE_URL_LEOBOT, payload, callback);
+		callPostApi(BASE_URL_LEOBOT, payload, chatLoader, callback);
 	}
 	
 }
 
-var callPostApi = function (urlStr, data, okCallback, errorCallback) {
+var callPostApi = function (urlStr, data, chatLoader, okCallback, errorCallback) {
 	$.ajax({
 		url: urlStr,
 		crossDomain: true,
@@ -98,7 +111,7 @@ var callPostApi = function (urlStr, data, okCallback, errorCallback) {
 		}
 	}).done(function (json) {
 		console.log("callPostApi", urlStr, data, json);
-		okCallback(json);
+		okCallback(chatLoader, json);
 	});
 }
 

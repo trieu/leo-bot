@@ -5,6 +5,8 @@ pytest
 requests
 python-dotenv
 redis
+rq
+rq-dashboard
 pyarango
 gdown
 
@@ -24,7 +26,6 @@ lxml
 html5lib
 
 langchain
-openai
 google-generativeai
 google-cloud-translate
 
