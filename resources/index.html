@@ -32,8 +32,8 @@
             width:100%; height:720px; overflow-y:scroll;
         } 
         .leobot-question-input {
-            width:78% !important;
-            float: left;
+            width:76% !important; float: right;
+            box-shadow: 0 0 6px rgba(255, 0, 0, 0.6);
         }
     </style>
 </head>
@@ -62,7 +62,7 @@
 
     <div class="alert alert-info" role="alert">
         
-        This chatbot is used for demo only, is developed by Trieu Nguyen by using Google AI.
+        This chatbot is used for demo only, is developed by Trieu Nguyen by using Google AI. <br>
         If you have any questions, please contact me at <a href="mailto:trieu@leocdp.com">trieu@leocdp.com</a>
         or send me a message at <a target="_blank" href="https://facebook.com/tantrieuf31">facebook.com/tantrieuf31</a> 
         
@@ -77,8 +77,10 @@
     <!-- DOMPurify XSS sanitizer for HTML -->
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" async="true" ></script>
 	
+    <!-- LEO ChatBot javascript -->
     <script src="./resources/leocdp.chatbot.js" ></script>
     <script> $(document).ready(initLeoChatBot) </script>
+    
 </body>
 
 </html>

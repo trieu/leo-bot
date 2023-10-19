@@ -36,7 +36,6 @@ var leoBotAskKeywords = function() {
 			delay: 1000,
 			action: {
 				cssClass: 'leobot-question-input',
-				icon: 'question',
 				value: '', // show the prevous answer if any
 				placeholder: 'Enter your question'
 			}
