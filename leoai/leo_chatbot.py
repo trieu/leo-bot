@@ -20,7 +20,7 @@ load_dotenv()
 # to use local model "Mistral-7B", export LEOAI_LOCAL_MODEL=true
 LEOAI_LOCAL_MODEL = os.getenv("LEOAI_LOCAL_MODEL") == "true"
 GOOGLE_GENAI_API_KEY = os.getenv("GOOGLE_GENAI_API_KEY")
-TEMPERATURE_SCORE = 0.7
+TEMPERATURE_SCORE = 0.68
 
 # init PaLM client as backup AI
 palm.configure(api_key=GOOGLE_GENAI_API_KEY)

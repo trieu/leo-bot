@@ -64,6 +64,11 @@ async def chatbot_javascript():
     path = ROOT_FOLDER + "leocdp.chatbot.js"
     return FileResponse(path)
 
+@leobot.get("/resources/leocdp.observer.js", response_class=FileResponse)
+async def observer_javascript():
+    path = ROOT_FOLDER + "leocdp.observer.js"
+    return FileResponse(path)
+
 # the main API of chatbot
 @leobot.post("/ask")
 async def ask(question: Message):
