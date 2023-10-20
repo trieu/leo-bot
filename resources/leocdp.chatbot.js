@@ -24,18 +24,14 @@ var showLeoChatBot = function() {
 }
 
 var showPromptQuestion = function() {
-	getBotUI().message.bot({
-		delay: 500, content: 'Please enter your question:'
-	})
-	.then(function() {
-		return getBotUI().action.text({
-			delay: 1000,
-			action: {
-				cssClass: 'leobot-question-input',
-				value: '', // show the prevous answer if any
-				placeholder: 'Enter your question'
-			}
-		})
+	getBotUI().action.text({
+		delay: 500,
+		action: {
+			icon: 'question',
+			cssClass: 'leobot-question-input',
+			value: '', // show the prevous answer if any
+			placeholder: 'Enter your question'
+		}
 	}).then(function(res) {
 		leoBotRecommendation('ask', res.value);	
 	});
