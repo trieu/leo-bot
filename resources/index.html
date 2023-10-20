@@ -43,7 +43,6 @@
         }
     </style>
 </head>
-
 <body>
     <div class="container text-center">
         <h1> LEO ChatBot </h1>
@@ -83,18 +82,19 @@
     <!-- HOSTNAME to call API -->
     <script>
         const dnsDomainLeoBot = '$HOSTNAME'; 
+        const leobotJs = location.protocol + '//' + dnsDomainLeoBot + "/resources/leocdp.chatbot.js";
     </script>
-    <!-- LEO ChatBot javascript -->
-    <script src="./resources/leocdp.chatbot.js" ></script>
+    
+    <!-- load LEO ChatBot JS -->
     <script> 
-        $(document).ready(function(){
-            initLeoChatBot(); // ok to load chatbot UI
-            // only load LEO Observer javascript in the domain leocdp.com or example.com
-            if(location.hostname ==='leobot.leocdp.com' || location.hostname ==='leobot.example.com') {
-                $.getScript( "./resources/leocdp.observer.js" );
+        $.getScript(leobotJs, function(){
+                initLeoChatBot(); 
+                // only load LEO Observer javascript in the domain leocdp.com or example.com
+                if(location.hostname ==='leobot.leocdp.com' || location.hostname ==='leobot.example.com') {
+                    $.getScript( "./resources/leocdp.observer.js" );
+                }
             }
-        });
+        );
     </script>
-
 </body>
 </html>
