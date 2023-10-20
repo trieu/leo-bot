@@ -20,15 +20,12 @@ function initLeoChatBot(context) {
 
 var showLeoChatBot = function() {
 	var msg = 'Hello ' + currentUserProfile.displayName + ', how can I help you ?'
-	getBotUI().message.bot({content:msg}).then(function() {
-		leoBotAskKeywords();
-	});
+	getBotUI().message.bot({content:msg}).then(showPromptQuestion);
 }
 
-var leoBotAskKeywords = function() {
+var showPromptQuestion = function() {
 	getBotUI().message.bot({
-		delay: 500,
-		content: 'Please enter your question:'
+		delay: 500, content: 'Please enter your question:'
 	})
 	.then(function() {
 		return getBotUI().action.text({
@@ -44,7 +41,6 @@ var leoBotAskKeywords = function() {
 	});
 }
 
-
 var leoBotRecommendation = function(context, content) {
 	if (content.length > 1 && content !== "exit") {
 		
@@ -53,7 +49,7 @@ var leoBotRecommendation = function(context, content) {
 				getBotUI().message.remove(index);
 	
 				if (typeof data.answer === 'string') {
-					var answerInRaw = data.answer.trim();
+					var answerInRaw = data.answer.trim().replace(/(?:\r\n|\r|\n)/g, '<br>');
 					var answerInHtml = marked.parse(answerInRaw);
 	
 					if ('ask' === context) {
@@ -63,7 +59,7 @@ var leoBotRecommendation = function(context, content) {
 						}, 1000);
 	
 						// next question
-						leoBotAskKeywords()
+						showPromptQuestion()
 					}
 					
 					if(typeof window.LeoObserver === 'object') {
@@ -99,6 +95,7 @@ var callPostApi = function (urlStr, data, okCallback, errorCallback) {
 		type: 'POST',
 		error: function (jqXHR, exception) {
 			console.error('WE GET AN ERROR AT URL:' + urlStr);
+			console.error(exception);
 			if (typeof errorCallback === 'function') {
 				errorCallback();
 			}
