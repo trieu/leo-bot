@@ -19,8 +19,9 @@ function initLeoChatBot(context) {
 }
 
 var showLeoChatBot = function() {
-	var msg = 'Hi ' + currentUserProfile.displayName + ', you may ask me for anything'
-	getBotUI().message.bot({content:msg}).then(showPromptQuestion);
+	var msg = 'Hi ' + currentUserProfile.displayName + ', you may ask me for anything';
+	var msgObj = {content:msg, cssClass: 'leobot-answer'};
+	getBotUI().message.bot(msgObj).then(showPromptQuestion);
 }
 
 var showPromptQuestion = function() {
@@ -30,7 +31,7 @@ var showPromptQuestion = function() {
 			icon: 'question',
 			cssClass: 'leobot-question-input',
 			value: '', // show the prevous answer if any
-			placeholder: 'Your question'
+			placeholder: 'Give me a question'
 		}
 	}).then(function(res) {
 		sendQuestionToLeoAI('ask', res.value);	
@@ -38,7 +39,12 @@ var showPromptQuestion = function() {
 }
 
 var leoBotShowAnswer = function(answerInHtml){
-	getBotUI().message.add({ human: false, content: answerInHtml, type: 'html' });
+	getBotUI().message.add({ 
+		human: false, 
+		cssClass: 'leobot-answer',
+		content: answerInHtml, 
+		type: 'html' 
+	});
 	setTimeout(function() {
 		$('div.botui-message').find('a').attr('target', '_blank');
 	}, 1500);
