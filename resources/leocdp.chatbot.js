@@ -21,10 +21,10 @@ function initLeoChatBot(context) {
 var showLeoChatBot = function() {
 	var msg = 'Hi ' + currentUserProfile.displayName + ', you may ask me for anything';
 	var msgObj = {content:msg, cssClass: 'leobot-answer'};
-	getBotUI().message.bot(msgObj).then(showPromptQuestion);
+	getBotUI().message.bot(msgObj).then(leoBotPromptQuestion);
 }
 
-var showPromptQuestion = function() {
+var leoBotPromptQuestion = function() {
 	getBotUI().action.text({
 		delay: 500,
 		action: {
@@ -64,7 +64,7 @@ var sendQuestionToLeoAI = function(context, content) {
 					if ('ask' === context) {
 						leoBotShowAnswer(answerInHtml);
 						// next question
-						showPromptQuestion()
+						leoBotPromptQuestion()
 					}
 					
 					// save event into LEO CDP
