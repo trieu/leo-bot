@@ -28,7 +28,7 @@ var leoBotPromptQuestion = function() {
 	getBotUI().action.text({
 		delay: 500,
 		action: {
-			icon: 'question',
+			icon: 'question-circle',
 			cssClass: 'leobot-question-input',
 			value: '', // show the prevous answer if any
 			placeholder: 'Give me a question'
