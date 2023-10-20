@@ -13,13 +13,13 @@ function getBotUI(){
 }
 
 function initLeoChatBot(context) {
-	$('#leoChatBotDialog').modal({ backdrop: 'static', keyboard: false});
+	$('#leoChatBotDialog').modal({backdrop: 'static', keyboard: false});
 	getBotUI().message.removeAll();
 	showLeoChatBot();
 }
 
 var showLeoChatBot = function() {
-	var msg = 'Hello ' + currentUserProfile.displayName + ', how can I help you ?'
+	var msg = 'Hi ' + currentUserProfile.displayName + ', you may ask me for anything'
 	getBotUI().message.bot({content:msg}).then(showPromptQuestion);
 }
 
@@ -30,14 +30,21 @@ var showPromptQuestion = function() {
 			icon: 'question',
 			cssClass: 'leobot-question-input',
 			value: '', // show the prevous answer if any
-			placeholder: 'Enter your question'
+			placeholder: 'Your question'
 		}
 	}).then(function(res) {
-		leoBotRecommendation('ask', res.value);	
+		sendQuestionToLeoAI('ask', res.value);	
 	});
 }
 
-var leoBotRecommendation = function(context, content) {
+var leoBotShowAnswer = function(answerInHtml){
+	getBotUI().message.add({ human: false, content: answerInHtml, type: 'html' });
+	setTimeout(function() {
+		$('div.botui-message').find('a').attr('target', '_blank');
+	}, 1500);
+}
+
+var sendQuestionToLeoAI = function(context, content) {
 	if (content.length > 1 && content !== "exit") {
 		
 		var callServer = function (index) {
@@ -49,22 +56,19 @@ var leoBotRecommendation = function(context, content) {
 					var answerInHtml = marked.parse(answerInRaw);
 	
 					if ('ask' === context) {
-						getBotUI().message.add({ human: false, content: answerInHtml, type: 'html' });
-						setTimeout(function() {
-							$('div.botui-message').find('a').attr('target', '_blank');
-						}, 1000);
-	
+						leoBotShowAnswer(answerInHtml);
 						// next question
 						showPromptQuestion()
 					}
 					
+					// save event into LEO CDP
 					if(typeof window.LeoObserver === 'object') {
 						var eventData = {"question":content,"answer":answerInRaw};
 						window.LeoObserver.recordEventAskQuestion(eventData);
 					}
 				}
 				else if (data.error) {
-					alert(data.answer)				
+					alert(data.error)				
 				}
 				else {
 					alert('LEO BOT is getting a system error !')
