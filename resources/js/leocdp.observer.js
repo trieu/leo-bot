@@ -166,5 +166,4 @@ function leoObserverProxyReady(session) {
 			window.synchLeoCdpToGA4(vid)
 		}
 	});
-    
 }
