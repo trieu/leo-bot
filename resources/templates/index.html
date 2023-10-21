@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
+    <base href="https://{{ HOSTNAME }}/">
     
     <link rel="apple-touch-icon" sizes="180x180" href="//admin.leocdp.com/public/images/leocdp-icon/apple-touch-icon.png">
 	<link rel="icon" type="image/png" sizes="32x32" href="//admin.leocdp.com/public/images/leocdp-icon/favicon-32x32.png">
@@ -41,7 +42,7 @@
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/botui/0.3.9/botui.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
     <!-- LEO CHATBOT CSS -->
-    <link href="{{ url_for('resources', path='css/leobot.css') }}" rel="stylesheet" media="all" >
+    <link href="/resources/css/leobot.css" rel="stylesheet" media="all" >
 </head>
 
 <body>
