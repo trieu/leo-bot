@@ -12,6 +12,7 @@ from langchain.chains import LLMChain
 from google.cloud import translate_v2 as translate
 
 # Try PALM from Google AI
+import markdown
 import google.generativeai as palm
 import os
 from dotenv import load_dotenv
@@ -20,7 +21,7 @@ load_dotenv()
 # to use local model "Mistral-7B", export LEOAI_LOCAL_MODEL=true
 LEOAI_LOCAL_MODEL = os.getenv("LEOAI_LOCAL_MODEL") == "true"
 GOOGLE_GENAI_API_KEY = os.getenv("GOOGLE_GENAI_API_KEY")
-TEMPERATURE_SCORE = 0.68
+TEMPERATURE_SCORE = 0.69
 
 # init PaLM client as backup AI
 palm.configure(api_key=GOOGLE_GENAI_API_KEY)
@@ -29,10 +30,9 @@ palm.configure(api_key=GOOGLE_GENAI_API_KEY)
 def translate_text(target: str, text: str) -> dict:
     if text == "" or text is None:
         return ""
-    translate_client = translate.Client()
     if isinstance(text, bytes):
         text = text.decode("utf-8")
-    result = translate_client.translate(text, target_language=target)
+    result = translate.Client().translate(text, target_language=target)
     return result['translatedText']
 
 # local AI model
@@ -76,10 +76,8 @@ if LEOAI_LOCAL_MODEL:
     torch.cuda.empty_cache() # clear GPU cache 
 
 # the main function to ask LEO
-def ask_question(target_language: str, question: str) -> str:
-    context = " LEO CDP is LEO Customer Data Platform. "
-    context = context + " Today is " + date.today().strftime("%B %d, %Y") + ". "    
-    template = """<s> [INST] Your name is LEO and you are the AI bot is created by Mr.Triều at LEOCDP.com. 
+def ask_question(context: str, answer_in_format: str, target_language: str, question: str) -> str:
+    template = """<s> [INST] Your name is LEO_BOT and you are the AI bot is created by Mr.Triều at LEOCDP.com. 
     The answer should be clear from the context :
     {context} {question} [/INST] </s>
     """
@@ -101,9 +99,19 @@ def ask_question(target_language: str, question: str) -> str:
         
     # translate into target_language 
     if isinstance(target_language, str) and isinstance(src_text, str):
-        if len(src_text) > 3: 
-            trs_text = translate_text(target_language, src_text)
-            return trs_text
+        if len(src_text) > 1:
+            rs = ''
+            if answer_in_format == 'html':
+                # format the answer in HTML
+                src_text = src_text.replace('\n', '<br/>')
+                src_text = src_text.replace('[LEO_BOT]', '[LEO_BOT]<br/>')
+                # convert the answer in markdown into html
+                rs_html = markdown.markdown(src_text)
+                # translate into target language
+                rs = translate_text(target_language, rs_html)
+            else :
+                rs = translate_text(target_language, src_text)
+            return rs
         else:
             return src_text    
     elif src_text is None:

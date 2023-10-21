@@ -5,6 +5,7 @@ asyncio
 pytest
 requests
 python-dotenv
+
 redis
 rq
 rq-dashboard
@@ -25,19 +26,20 @@ selenium
 beautifulsoup4
 lxml
 html5lib
+markdown
 
 langchain
 google-generativeai
 google-cloud-translate
 
+torch
 transformers
+ctransformers[cuda]
+sentence-transformers
 accelerate
 peft
-sentence-transformers
-ctransformers[cuda]
 bitsandbytes
 einops
 safetensors
-torch
 xformers
 chromadb

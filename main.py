@@ -62,27 +62,35 @@ async def root(request: Request):
 
 # the main API of chatbot
 @leobot.post("/ask")
-async def ask(question: Message):
-    userLogin = REDIS_CLIENT.hget(question.usersession, 'userlogin')    
-    content = question.content
+async def ask(msg: Message):
+    userLogin = REDIS_CLIENT.hget(msg.usersession, 'userlogin')    
+    question = msg.question
+    prompt = msg.prompt
     
-    print("question.content: "+content)
-    print("question.userlogin: "+question.userlogin)
-    print("usersession: "+ question.usersession)    
+    print("question: "+question)
+    print("prompt: "+prompt)
+    print("question.userlogin: "+msg.userlogin)
+    print("usersession: "+ msg.usersession)    
     print("userLogin: "+userLogin)
     
-    if userLogin == question.userlogin:
-        # answer = llm(question.content)
+    if userLogin == msg.userlogin:
+        # answer = llm(question)
+
         # our model can only understand English
-        lang = question.answer_in_language
-        question_in_english = content
+        lang = msg.answer_in_language
+        format = msg.answer_in_format
+        question_in_english = prompt
+
         if lang != "en":
-            question_in_english = translate_text('en',content) 
+            question_in_english = translate_text('en', prompt) 
+
         # translate if need
-        answer = ask_question(lang, question_in_english)
+        context = " LEO CDP is LEO Customer Data Platform. "
+        # context = context + " Today is " + date.today().strftime("%B %d, %Y") + ". "    
+        answer = ask_question(context, format, lang, question_in_english)
 
         print("answer " + answer)
-        data = {"question": content, "answer": answer, "userLogin": userLogin}
+        data = {"question": question, "answer": answer, "userLogin": userLogin}
     else:
         data = {"answer": "Invalid usersession", "error": True}
     return data
@@ -90,13 +98,13 @@ async def ask(question: Message):
 
 @leobot.post("/sentiment-analysis")
 async def sentiment_analysis(msg: Message):
-    content = msg.content
-    print("sentiment_analysis msg "+content)
+    prompt = msg.prompt
+    print("sentiment_analysis msg "+prompt)
     userLogin = REDIS_CLIENT.hget(msg.usersession, 'userlogin')
     data = {"error": True}
     if userLogin == msg.userlogin:
         try:
-            rs = sentiment_pipe(content)
+            rs = sentiment_pipe(prompt)
             if len(rs) > 0 :
                 data = rs[0]
         except Exception as error:

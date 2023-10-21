@@ -50,28 +50,29 @@ var leoBotShowAnswer = function(answerInHtml){
 	}, 1500);
 }
 
-var sendQuestionToLeoAI = function(context, content) {
-	if (content.length > 1 && content !== "exit") {
+var sendQuestionToLeoAI = function(context, question) {
+	if (question.length > 1 && question !== "exit") {
+
+		var processAnswer = function(answer) {
+			if ('ask' === context) {
+				leoBotShowAnswer(answer);
+				// next question
+				leoBotPromptQuestion()
+			}
+			// save event into LEO CDP
+			if(typeof window.LeoObserver === 'object') {
+				var encodedAnswer = encodeURIComponent(answer.slice(0, 200));
+				var eventData = {"question":question,"answer":encodedAnswer};
+				window.LeoObserver.recordEventAskQuestion(eventData);
+			}
+		}
 		
 		var callServer = function (index) {
 			var serverCallback = function(data) {
 				getBotUI().message.remove(index);
-	
 				if (typeof data.answer === 'string') {
-					var answerInRaw = data.answer.trim().replace(/(?:\r\n|\r|\n)/g, '<br>');
-					var answerInHtml = marked.parse(answerInRaw);
-	
-					if ('ask' === context) {
-						leoBotShowAnswer(answerInHtml);
-						// next question
-						leoBotPromptQuestion()
-					}
-					
-					// save event into LEO CDP
-					if(typeof window.LeoObserver === 'object') {
-						var eventData = {"question":content,"answer":answerInRaw};
-						window.LeoObserver.recordEventAskQuestion(eventData);
-					}
+					var answer = data.answer;
+					processAnswer(answer);
 				}
 				else if (data.error) {
 					alert(data.error)				
@@ -80,16 +81,21 @@ var sendQuestionToLeoAI = function(context, content) {
 					alert('LEO BOT is getting a system error !')
 				}
 			};
-
-			var lang = $('#leobot_answer_in_language').val()
-			var prompt = content;
-			var userLogin = currentUserProfile.userLogin;		
-			var payload = { 'prompt': prompt, 'content': content, 'usersession': getUserSession(), 'userlogin': userLogin, 'answer_in_language': lang };
+	
+			var payload = { 'prompt': question, 'question': question };
+			payload['usersession'] = getUserSession();
+			payload['userlogin'] = currentUserProfile.userLogin;
+			payload['answer_in_language'] = $('#leobot_answer_in_language').val()
+			payload['answer_in_format'] = 'html';
+			payload['context'] = 'leobotweb';
 			callPostApi(BASE_URL_LEOBOT, payload, serverCallback);
-		};
-
-		getBotUI().message.add({loading: true, content:''}).then(callServer);
+		}
+		showChatBotLoader().then(callServer);
 	}
+}
+
+var showChatBotLoader = function(){
+	return getBotUI().message.add({loading: true, content:''});
 }
 
 var callPostApi = function (urlStr, data, okCallback, errorCallback) {
