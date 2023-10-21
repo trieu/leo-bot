@@ -45,7 +45,6 @@
     <!-- LEO CHATBOT CSS -->
     <link href="/resources/css/leobot.css" rel="stylesheet" media="all" >
 </head>
-
 <body>
     <div class="container text-center">
         <h1> <i class="fa fa-commenting-o" aria-hidden="true"></i> LEO ChatBot </h1>
@@ -63,7 +62,7 @@
             </select>
         </div>
     </div>
-
+    
     <div class="botui-app-container" id="LEO_ChatBot_Container" >
         <bot-ui></bot-ui>
     </div>
@@ -77,24 +76,23 @@
 
     <!-- bootstrap.js -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"  crossorigin="anonymous" ></script>
-    <!-- marked.js to parse markdown code into HTML -->
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.2/marked.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" async="true"></script>
-    <!-- DOMPurify XSS sanitizer for HTML -->
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" async="true" ></script>
-	
+   
     <!-- HOSTNAME to call API -->
     <script>
         const dnsDomainLeoBot = '{{ HOSTNAME }}';
         const leoBotDevMode = '{{ LEOBOT_DEV_MODE }}' === "True";         
         const leoChatBotJs = location.protocol + '//' + dnsDomainLeoBot + "/resources/js/leocdp.chatbot.js";
         const leoObserverJs = location.protocol + '//' + dnsDomainLeoBot + "/resources/js/leocdp.observer.js";
-
+        // only load LEO Observer JS in the domain leocdp.com or example.com
+        var loadLeoObserver = function(){
+            if(location.hostname ==='leobot.leocdp.com' || location.hostname ==='leobot.example.com') {
+                $.getScript(leoObserverJs); 
+            }
+        }
         // load LEO ChatBot JS
         $.getScript(leoChatBotJs, function(){
                 initLeoChatBot();                 
-                if(location.hostname ==='leobot.leocdp.com' || location.hostname ==='leobot.example.com') {
-                    $.getScript(leoObserverJs); // only load LEO Observer JS in the domain leocdp.com or example.com
-                }
+                loadLeoObserver();
             }
         );
     </script>
