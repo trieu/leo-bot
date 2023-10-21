@@ -61,7 +61,7 @@ var sendQuestionToLeoAI = function(context, question) {
 			}
 			// save event into LEO CDP
 			if(typeof window.LeoObserver === 'object') {
-				var encodedAnswer = encodeURIComponent(answer.slice(0, 200));
+				var encodedAnswer = encodeURIComponent(answer.slice(0, 999));
 				var eventData = {"question":question,"answer":encodedAnswer};
 				window.LeoObserver.recordEventAskQuestion(eventData);
 			}
