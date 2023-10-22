@@ -1,5 +1,5 @@
 import os
-
+import time
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -54,10 +54,9 @@ async def ping():
 
 @leobot.get("/", response_class=HTMLResponse)
 async def root(request: Request):
-    data = {"request": request, "HOSTNAME": HOSTNAME, "LEOBOT_DEV_MODE" : LEOBOT_DEV_MODE}
+    ts = int(time.time())
+    data = {"request": request, "HOSTNAME": HOSTNAME, "LEOBOT_DEV_MODE" : LEOBOT_DEV_MODE, 'timestamp':ts}
     return templates.TemplateResponse("index.html", data)
-
-
 
 
 # the main API of chatbot

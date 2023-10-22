@@ -1,10 +1,7 @@
-const baseLeoBotUrl = location.protocol + '//' + dnsDomainLeoBot;
 var currentUserProfile = {"userLogin":"demo", "displayName": "good friend"}		
 
-const BASE_URL_LEOBOT = baseLeoBotUrl + '/ask';
-const IS_LEO_BOT_READY = dnsDomainLeoBot !== "";
-
 window.leoBotUI = false;
+window.leoBotContext = false;
 function getBotUI(){
 	if(window.leoBotUI === false){
 		window.leoBotUI = new BotUI('LEO_ChatBot_Container');	
@@ -12,21 +9,25 @@ function getBotUI(){
 	return window.leoBotUI;
 }
 
-function initLeoChatBot(context) {
-	$('#leoChatBotDialog').modal({backdrop: 'static', keyboard: false});
-	getBotUI().message.removeAll();
+function initLeoChatBot(context, okCallback) {
+	window.leoBotContext = context;
+	window.leoBotUI = new BotUI('LEO_ChatBot_Container');
 	showLeoChatBot();
+	if(typeof okCallback === 'function'){
+		okCallback();
+	}
 }
 
 var showLeoChatBot = function() {
 	var msg = 'Hi ' + currentUserProfile.displayName + ', you may ask me for anything';
 	var msgObj = {content:msg, cssClass: 'leobot-answer'};
+	getBotUI().message.removeAll();
 	getBotUI().message.bot(msgObj).then(leoBotPromptQuestion);
 }
 
-var leoBotPromptQuestion = function() {
+var leoBotPromptQuestion = function(delay) {
 	getBotUI().action.text({
-		delay: 500,
+		delay: typeof delay === 'number' ? delay : 800,
 		action: {
 			icon: 'question-circle',
 			cssClass: 'leobot-question-input',
@@ -44,10 +45,11 @@ var leoBotShowAnswer = function(answerInHtml){
 		cssClass: 'leobot-answer',
 		content: answerInHtml, 
 		type: 'html' 
-	});
-	setTimeout(function() {
+	}).then(function(){
 		$('div.botui-message').find('a').attr('target', '_blank');
-	}, 1500);
+		var delay = answerInHtml.length > 120 ? 6000 : 2000;
+		leoBotPromptQuestion(delay);
+	});
 }
 
 var sendQuestionToLeoAI = function(context, question) {
@@ -56,12 +58,10 @@ var sendQuestionToLeoAI = function(context, question) {
 		var processAnswer = function(answer) {
 			if ('ask' === context) {
 				leoBotShowAnswer(answer);
-				// next question
-				leoBotPromptQuestion()
 			}
 			// save event into LEO CDP
 			if(typeof window.LeoObserver === 'object') {
-				var encodedAnswer = encodeURIComponent(answer.slice(0, 999));
+				var encodedAnswer = encodeURIComponent(answer.slice(0, 1000));
 				var eventData = {"question":question,"answer":encodedAnswer};
 				window.LeoObserver.recordEventAskQuestion(eventData);
 			}

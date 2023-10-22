@@ -2,15 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=yes, minimum-scale=1, maximum-scale=5">
     <base href="https://{{ HOSTNAME }}/">
-    
+    <link rel="icon" type="image/x-icon" href="//admin.leocdp.com/public/images/leocdp-icon/favicon-32x32.png">
     <link rel="apple-touch-icon" sizes="180x180" href="//admin.leocdp.com/public/images/leocdp-icon/apple-touch-icon.png">
 	<link rel="icon" type="image/png" sizes="32x32" href="//admin.leocdp.com/public/images/leocdp-icon/favicon-32x32.png">
 	<link rel="icon" type="image/png" sizes="16x16" href="//admin.leocdp.com/public/images/leocdp-icon/favicon-16x16.png">
 	<link rel="mask-icon" href="//admin.leocdp.com/public/images/leocdp-icon/safari-pinned-tab.svg" color="#5bbad5">
     
-    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=yes, minimum-scale=1, maximum-scale=5">
-
     <!-- META FOR FACEBOOK -->
     <meta property="og:site_name" content="leobot.leocdp.com"/>
     <meta property="og:rich_attachment" content="true"/>
@@ -44,6 +43,13 @@
 
     <!-- LEO CHATBOT CSS -->
     <link href="/resources/css/leobot.css" rel="stylesheet" media="all" >
+
+    <!-- LEO CHATBOT CONFIGS -->
+    <script>
+        const HOSTNAME = '{{ HOSTNAME }}';
+        const LEOBOT_DEV_MODE = '{{ LEOBOT_DEV_MODE }}' === "True";
+        const BASE_URL_LEOBOT = location.protocol + '//' + HOSTNAME + '/ask';    
+    </script>
 </head>
 <body>
     <div class="container text-center">
@@ -74,27 +80,21 @@
         or send me a message at <a target="_blank" href="https://facebook.com/tantrieuf31">facebook.com/tantrieuf31</a> 
     </div>
 
-    <!-- bootstrap.js -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"  crossorigin="anonymous" ></script>
-   
-    <!-- HOSTNAME to call API -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous" ></script>
+    <script src="/resources/js/leocdp.chatbot.js?_={{ timestamp }}" ></script>
     <script>
-        const dnsDomainLeoBot = '{{ HOSTNAME }}';
-        const leoBotDevMode = '{{ LEOBOT_DEV_MODE }}' === "True";         
-        const leoChatBotJs = location.protocol + '//' + dnsDomainLeoBot + "/resources/js/leocdp.chatbot.js";
-        const leoObserverJs = location.protocol + '//' + dnsDomainLeoBot + "/resources/js/leocdp.observer.js";
-        // only load LEO Observer JS in the domain leocdp.com or example.com
-        var loadLeoObserver = function(){
-            if(location.hostname ==='leobot.leocdp.com' || location.hostname ==='leobot.example.com') {
-                $.getScript(leoObserverJs); 
+        $(document).ready(function(){
+            // ready to load
+            var loadLeoObserver = function(){
+                var obsjs = location.protocol + '//' + HOSTNAME + "/resources/js/leocdp.observer.js";
+                var host = location.hostname;
+                // only load LEO Observer JS in the domain leocdp.com or example.com
+                if(host ==='leobot.leocdp.com' || host ==='leobot.example.com') {
+                    $.getScript(obsjs); 
+                }
             }
-        }
-        // load LEO ChatBot JS
-        $.getScript(leoChatBotJs, function(){
-                initLeoChatBot();                 
-                loadLeoObserver();
-            }
-        );
+            initLeoChatBot('default', loadLeoObserver);                 
+        });
     </script>
 </body>
 </html>
