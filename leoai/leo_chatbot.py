@@ -104,8 +104,9 @@ def ask_question(context: str, answer_in_format: str, target_language: str, ques
             if answer_in_format == 'html':
                 # format the answer in HTML
                 src_text = src_text.replace('[LEO_BOT]', '[LEO_BOT]<br/>')
-                # convert the answer in markdown into html
-                rs_html = markdown.markdown(src_text)
+                # convert the answer in markdown into html 
+                # See https://www.devdungeon.com/content/convert-markdown-html-python
+                rs_html = markdown.markdown(src_text, extensions=['fenced_code'])
                 # translate into target language
                 rs = translate_text(target_language, rs_html)
             else :
