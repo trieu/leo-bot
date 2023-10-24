@@ -1,5 +1,7 @@
 #!/bin/bash
 
+git pull
+
 # Activate your virtual environment if necessary
 SOURCE_PATH="env/bin/activate"
 source $SOURCE_PATH
