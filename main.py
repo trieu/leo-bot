@@ -3,7 +3,7 @@ import time
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -41,13 +41,14 @@ templates = Jinja2Templates(directory= FOLDER_TEMPLATES )
 
 ##### API handlers #####
 
-@leobot.get("/is-ready")
+@leobot.get("/is-ready", response_class=JSONResponse)
+@leobot.post("/is-ready", response_class=JSONResponse)
 async def is_leobot_ready():
     isReady = isinstance(GOOGLE_GENAI_API_KEY, str)
     return {"ok": isReady }
 
 
-@leobot.get("/ping")
+@leobot.get("/ping", response_class=PlainTextResponse)
 async def ping():
     return "PONG"
 
@@ -60,7 +61,7 @@ async def root(request: Request):
 
 
 # the main API of chatbot
-@leobot.post("/ask")
+@leobot.post("/ask", response_class=JSONResponse)
 async def ask(msg: Message):
     userLogin = REDIS_CLIENT.hget(msg.usersession, 'userlogin')    
     question = msg.question
@@ -95,7 +96,7 @@ async def ask(msg: Message):
     return data
 
 
-@leobot.post("/sentiment-analysis")
+@leobot.post("/sentiment-analysis", response_class=JSONResponse)
 async def sentiment_analysis(msg: Message):
     prompt = msg.prompt
     print("sentiment_analysis msg "+prompt)
