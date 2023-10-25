@@ -1,15 +1,16 @@
 from sentence_transformers import SentenceTransformer, util
 
-from chromadb.utils import embedding_functions
-import chromadb
-import hashlib
-
 import os
+import time
+import torch
+from redis import Redis
+
+REDIS_USER_SESSION_HOST = os.getenv("REDIS_USER_SESSION_HOST")
+REDIS_USER_SESSION_PORT = os.getenv("REDIS_USER_SESSION_PORT")
+REDIS_CLIENT = Redis(host=REDIS_USER_SESSION_HOST, port=REDIS_USER_SESSION_PORT, decode_responses=True)
 
 MODEL_NAME = 'sentence-transformers/msmarco-distilroberta-base-v2'
 model = SentenceTransformer(MODEL_NAME)
-sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=MODEL_NAME)
-
 
 # Corpus with example sentences
 corpus_list = ['A man is eating food.',
@@ -21,26 +22,36 @@ corpus_list = ['A man is eating food.',
           'A man is riding a white horse on an enclosed ground.',
           'A monkey is playing drums.',
           'A cheetah is running behind its prey.',
-          'God is love.'
+          'God is love.',
+          'Love is everywhere.'
           ]
 
 corpus_ids = []
 corpus_embeddings = []
 
+start = time.time()
+
 enums = enumerate(corpus_list)
 for id, corpus in enums:
-    corpus_embedding = model.encode(corpus, convert_to_tensor=True)
-    corpus_embeddings.append(corpus_embedding)    
-    corpus_ids.append(id)
-    print( str(id) + " = " + corpus)    
+    ids = str(id)
+    print(ids + " = " + corpus)
 
-# How to override an old sqlite3 module with pysqlite3 https://gist.github.com/defulmere/8b9695e415a44271061cc8e272f3c300
-chroma_client = chromadb.Client()
-#collection = chroma_client.get_or_create_collection(name="test",embedding_function=sentence_transformer_ef)
-#collection.add(documents=corpus_list, ids=corpus_ids, embeddings=corpus_embeddings)
+    # 1.147646188735962
+    #corpus_embedding = model.encode(corpus, convert_to_tensor=True)
+
+    # 0.6244969367980957
+    corpus_embedding = torch.load( './local_data/' + ids)
+
+    corpus_embeddings.append(corpus_embedding)    
+    corpus_ids.append(ids)
+    
+    #torch.save(corpus_embedding, './local_data/' + ids)
+
+end = time.time()
+print("=> execute ",end - start)
 
 # Query sentences:
-queries = ['God is the path','A man is eating pasta.', 'Someone in a gorilla costume is playing a set of drums.', 'A cheetah chases prey on across a field.']
+queries = ['Is love everywhere ?','A man is eating pasta.', 'Someone in a gorilla costume is playing a set of drums.', 'A cheetah chases prey on across a field.']
 
 # Find the closest 5 sentences of the corpus_list for each query sentence based on cosine similarity
 top_k = min(5, len(corpus_list))
