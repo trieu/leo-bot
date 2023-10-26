@@ -31,6 +31,7 @@ for sentence, embedding in zip(knowledges, embeddings):
     print("Embedding.shape: " + str(embedding.shape[0]) )
     print("")
 
+# Let's build a simple knowledge database and a semantic search engine 
 question = 'What does kitten eat ?'
 query_embedding = model.encode(question)
 
@@ -53,5 +54,5 @@ for hit in hits:
 Question:  What does kitten eat ?  
  The answers: 
 All kittens love to eat chicken pate  (ID: 5) (Score: 0.7159)
-Kitty is a small cat  (ID: 4) (Score: 0.5537)Question:  What does kitten eat ?  
+Kitty is a small cat  (ID: 4) (Score: 0.5537)
 '''
