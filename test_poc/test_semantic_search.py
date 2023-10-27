@@ -3,14 +3,20 @@ from sentence_transformers import SentenceTransformer, util
 import os
 import time
 import torch
-from redis import Redis
+from qdrant_client import QdrantClient
+from qdrant_client.http.models import Distance, VectorParams
+from qdrant_client.http.models import PointStruct
 
-REDIS_USER_SESSION_HOST = os.getenv("REDIS_USER_SESSION_HOST")
-REDIS_USER_SESSION_PORT = os.getenv("REDIS_USER_SESSION_PORT")
-REDIS_CLIENT = Redis(host=REDIS_USER_SESSION_HOST, port=REDIS_USER_SESSION_PORT, decode_responses=True)
-
+# https://huggingface.co/sentence-transformers/msmarco-distilroberta-base-v2
 MODEL_NAME = 'sentence-transformers/msmarco-distilroberta-base-v2'
+VECTOR_DIM_SIZE = 768 # the size of msmarco-distilroberta-base-v2
 model = SentenceTransformer(MODEL_NAME)
+
+qdrantClient = QdrantClient("localhost", port=6333)
+qdrantClient.recreate_collection(
+    collection_name="test_collection",
+    vectors_config=VectorParams(size=VECTOR_DIM_SIZE, distance=Distance.DOT),
+)
 
 # Corpus with example sentences
 corpus_list = ['A man is eating food.',
@@ -37,13 +43,18 @@ for id, corpus in enums:
     print(ids + " = " + corpus)
 
     # 1.147646188735962
-    #corpus_embedding = model.encode(corpus, convert_to_tensor=True)
+    corpus_embedding = model.encode(corpus, convert_to_tensor=True)
 
     # 0.6244969367980957
-    corpus_embedding = torch.load( './local_data/' + ids)
+    #corpus_embedding = torch.load( './local_data/' + ids)
 
     corpus_embeddings.append(corpus_embedding)    
     corpus_ids.append(ids)
+    operation_info = qdrantClient.upsert(
+        collection_name="test_collection",
+        wait=True,
+        points=[PointStruct(id=id, vector=corpus_embedding, payload={"corpus": corpus})]
+    )
     
     #torch.save(corpus_embedding, './local_data/' + ids)
 
@@ -69,3 +80,10 @@ for query in queries:
         corpus_id = hit['corpus_id']
         print("corpus_id: ", corpus_id)
         print(corpus_list[corpus_id], "(Score: {:.4f})".format(hit['score']))
+
+    search_result = qdrantClient.search(
+        collection_name="test_collection",
+        query_vector=query_embedding, 
+        limit=3
+    )
+    print(search_result)

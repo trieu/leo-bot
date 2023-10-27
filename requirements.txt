@@ -43,3 +43,4 @@ einops
 safetensors
 xformers
 chromadb
+qdrant-client
