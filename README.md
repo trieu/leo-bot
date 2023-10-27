@@ -1,5 +1,6 @@
 # LEO CHATBOT for LEO CDP and the World (leo-bot)
 
+- For demo, you can check the LEO Chatbot at https://leobot.leocdp.com
 - The LEO BOT works an AI chatbot with the backend using Google Generative AI (PaLM 2) and Mistral-7B
 - For the GOOGLE_GENAI_API_KEY, please check more details at https://developers.generativeai.google/guide 
 - For the GOOGLE_APPLICATION_CREDENTIALS, go to https://console.cloud.google.com/apis/api/translate.googleapis.com/credentials
@@ -37,5 +38,5 @@ DIR_PATH="/build/leo-bot/"
 ```
 6. Run ./start_app.sh
 7. The LEO BOT is started at the host 0.0.0.0 with port 8888
-8. For demo and local test, open redis-cli, run: hset demo userlogin demo
-9. Go to the HOSTNAME to test. The example of my demo at https://leobot.leocdp.com
+8. For demo and local test, need Redis Server. Open redis-cli, run: hset demo userlogin demo
+9. Go to the HOSTNAME to test your chatbot. 
