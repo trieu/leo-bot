@@ -1,6 +1,7 @@
 /env
 .env
 /local_data
+/data
 
 # Excel data file
 *.xlsx
