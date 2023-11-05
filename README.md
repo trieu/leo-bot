@@ -12,8 +12,8 @@
 1. Need Python 3.10, run following commands
 ```
 sudo apt install python-is-python3
-curl -sS https://bootstrap.pypa.io/get-pip.py | sudo python3.11
-sudo apt-get install python3.11-venv
+curl -sS https://bootstrap.pypa.io/get-pip.py | sudo python3.10
+sudo apt-get install python3.10-venv
 pip install virtualenv
 python -m venv env
 source env/bin/activate
