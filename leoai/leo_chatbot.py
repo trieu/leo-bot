@@ -76,7 +76,7 @@ if LEOAI_LOCAL_MODEL:
     torch.cuda.empty_cache() # clear GPU cache 
 
 # the main function to ask LEO
-def ask_question(context: str, answer_in_format: str, target_language: str, question: str) -> str:
+def ask_question(context: str, answer_in_format: str, target_language: str, question: str, temperature_score = TEMPERATURE_SCORE ) -> str:
     template = """<s> [INST] Your name is LEO_BOT and you are the AI bot is created by Mr.Triều at LEOCDP.com. 
     The answer should be clear from the context :
     {context} {question} [/INST] </s>
@@ -93,7 +93,7 @@ def ask_question(context: str, answer_in_format: str, target_language: str, ques
     if len(src_text) == 0:
         prompt_text = prompt_tpl.format(**prompt_data)
         try:
-            src_text = palm.generate_text(prompt=prompt_text, temperature=TEMPERATURE_SCORE).result    
+            src_text = palm.generate_text(prompt=prompt_text, temperature=temperature_score).result    
         except Exception as error:
             print("An exception occurred:", error)
         

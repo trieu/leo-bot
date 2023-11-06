@@ -98,17 +98,18 @@ async def ask(msg: Message):
 
 @leobot.post("/sentiment-analysis", response_class=JSONResponse)
 async def sentiment_analysis(msg: Message):
-    prompt = msg.prompt
-    print("sentiment_analysis msg "+prompt)
+    feedback_text = msg.prompt
+    
     userLogin = REDIS_CLIENT.hget(msg.usersession, 'userlogin')
     data = {"error": True}
     if userLogin == msg.userlogin:
-        try:
-            rs = sentiment_pipe(prompt)
-            if len(rs) > 0 :
-                data = rs[0]
-        except Exception as error:
-            print("An exception occurred:", error)
+        context = "You are the sentiment analysis system."
+        translated_feedback = translate_text('en', feedback_text) 
+        print("sentiment_analysis translated_feedback \n "+translated_feedback)
+        sentiment_command = 'Give rating score from 1 to 100 if this text is positive customer feedback: ';
+        prompt = sentiment_command + translated_feedback
+        answer = ask_question(context, "text", "en", prompt, temperature_score = 1)
+        data = {"answer": int(answer)}
     else:
         data = {"answer": "Invalid usersession", "error": True}
     return data
