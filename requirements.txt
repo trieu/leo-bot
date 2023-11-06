@@ -6,6 +6,7 @@ pytest
 requests
 python-dotenv
 
+qdrant-client
 redis
 rq
 rq-dashboard
@@ -43,4 +44,3 @@ einops
 safetensors
 xformers
 chromadb
-qdrant-client

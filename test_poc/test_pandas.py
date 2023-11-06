@@ -3,7 +3,7 @@ import pandas as pd
 import time
 import datetime
 import os.path
-import test_poc.download_test_data as test_data
+import download_test_data as test_data
 
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
