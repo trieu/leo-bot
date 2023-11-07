@@ -1,12 +1,21 @@
 // (1) LEO OBSERVER: load JavaScript code for [LEO CHATBOT]
 (function () {
-  // Observer ID
-  window.leoObserverId = "7OISrL5a6Jbqc0UaXYZVvQ";
 
-  // CDN of JS
-  window.leoObserverLogDomain = "datahub4uspa.leocdp.net";
-  window.leoObserverCdnDomain =
-    "cdn.jsdelivr.net/gh/USPA-Technology/leo-cdp-static-files@v0.8.9.21";
+  // Observer ID
+  if (location.host === "leobot.example.com") {
+    // local DEV server
+    window.leoObserverId = "3PTSSCP1IK8gPhzrWIq8hy";
+    window.leoObserverLogDomain = "obs.example.com";
+    window.leoObserverCdnDomain = "leocdp.example.com/public";
+  } else if (location.host === "leobot.leocdp.com") {
+    // Production server
+    window.leoObserverId = "7OISrL5a6Jbqc0UaXYZVvQ";
+    window.leoObserverLogDomain = "datahub4uspa.leocdp.net";
+    window.leoObserverCdnDomain = "cdn.jsdelivr.net/gh/USPA-Technology/leo-cdp-static-files@v0.8.9.21";
+  } else {
+    // skip tracking 
+    return false;
+  }
 
   // Data Touchpoint Metadata
   window.srcTouchpointName = encodeURIComponent(document.title);
