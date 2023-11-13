@@ -27,13 +27,18 @@ TEMPERATURE_SCORE = 0.69
 palm.configure(api_key=GOOGLE_GENAI_API_KEY)
 
 # Translates text into the target language.
-def translate_text(target: str, text: str) -> dict:
+def translate_text(text: str, target: str) -> dict:
     if text == "" or text is None:
         return ""
     if isinstance(text, bytes):
         text = text.decode("utf-8")
     result = translate.Client().translate(text, target_language=target)
     return result['translatedText']
+
+def format_string_for_md_slides(rs):
+    rs = rs.replace('<br/>','\n')
+    rs = rs.replace('##','## ')
+    return rs
 
 # local AI model
 def load_llm_pipeline():
@@ -93,6 +98,7 @@ def ask_question(context: str, answer_in_format: str, target_language: str, ques
     if len(src_text) == 0:
         prompt_text = prompt_tpl.format(**prompt_data)
         try:
+            # try to Google AI PaLM 2 
             src_text = palm.generate_text(prompt=prompt_text, temperature=temperature_score).result    
         except Exception as error:
             print("An exception occurred:", error)
@@ -108,13 +114,15 @@ def ask_question(context: str, answer_in_format: str, target_language: str, ques
                 # See https://www.devdungeon.com/content/convert-markdown-html-python
                 rs_html = markdown.markdown(src_text, extensions=['fenced_code'])
                 # translate into target language
-                rs = translate_text(target_language, rs_html)
+                rs = translate_text(rs_html, target_language)
             else :
-                rs = translate_text(target_language, src_text)
+                src_text = src_text.replace('\n','<br/>')
+                rs = translate_text(src_text, target_language)
+                rs = format_string_for_md_slides(rs)
             return rs
         else:
             return src_text    
     elif src_text is None:
-        return translate_text(target_language, "Sorry, I can not answer your question !") 
+        return translate_text("Sorry, I can not answer your question !", target_language) 
         # no need to translate
     return str(src_text)

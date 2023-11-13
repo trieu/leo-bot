@@ -11,7 +11,6 @@ from redis import Redis
 
 from leoai.leo_chatbot import ask_question, translate_text, GOOGLE_GENAI_API_KEY
 from leoai.leo_datamodel import Message
-from leoai.leo_analytics import sentiment_pipe
 
 VERSION = "1.0.0"
 SERVICE_NAME = "LEO BOT VERSION:" + VERSION
@@ -79,15 +78,16 @@ async def ask(msg: Message):
         # our model can only understand English
         lang = msg.answer_in_language
         format = msg.answer_in_format
+        temperature_score = msg.temperature_score
         question_in_english = prompt
 
         if lang != "en":
-            question_in_english = translate_text('en', prompt) 
+            question_in_english = translate_text(prompt, 'en') 
 
         # translate if need
         context = " LEO CDP is LEO Customer Data Platform. "
         # context = context + " Today is " + date.today().strftime("%B %d, %Y") + ". "    
-        answer = ask_question(context, format, lang, question_in_english)
+        answer = ask_question(context, format, lang, question_in_english, temperature_score)
 
         print("answer " + answer)
         data = {"question": question, "answer": answer, "userLogin": userLogin}
@@ -104,7 +104,7 @@ async def sentiment_analysis(msg: Message):
     data = {"error": True}
     if userLogin == msg.userlogin:
         context = "You are the sentiment analysis system."
-        translated_feedback = translate_text('en', feedback_text) 
+        translated_feedback = translate_text(feedback_text, 'en') 
         print("sentiment_analysis translated_feedback \n "+translated_feedback)
         sentiment_command = 'Give rating score from 1 to 100 if this text is positive customer feedback: ';
         prompt = sentiment_command + translated_feedback

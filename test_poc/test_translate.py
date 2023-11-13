@@ -1,7 +1,7 @@
 from google.cloud import translate_v2 as translate
 
 # need export GOOGLE_APPLICATION_CREDENTIALS=
-def translate_text(target: str, text: str) -> dict:
+def translate_text( text: str, target: str) -> dict:
     """Translates text into the target language.
 
     Target must be an ISO 639-1 language code.
@@ -9,7 +9,6 @@ def translate_text(target: str, text: str) -> dict:
     """
     translate_client = translate.Client()
     
-
     if isinstance(text, bytes):
         text = text.decode("utf-8")
 
@@ -23,5 +22,5 @@ def translate_text(target: str, text: str) -> dict:
 
     return result['translatedText']
 
-print(translate_text("vi","Hello"))
-print(translate_text("en","iPhone 15 chả có gì mới, Apple Watch vẫn chán như mọi khi"))
+print(translate_text("Hello", "vi"))
+print(translate_text("iPhone 15 chả có gì mới, Apple Watch vẫn chán như mọi khi", "en"))

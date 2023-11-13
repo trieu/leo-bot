@@ -13,8 +13,8 @@ def start_main_loop():
             # done
             break
         else:
-            q = leo_chatbot.translate_text('en',question) 
-            print(leo_chatbot.ask_question('vi', q))
+            q = leo_chatbot.translate_text(question, 'en') 
+            print(leo_chatbot.ask_question(q, 'vi'))
 
 # start local bot in command line
 start_main_loop()
