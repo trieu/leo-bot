@@ -52,11 +52,15 @@
     </script>
 </head>
 <body>
+    
+
     <div class="container text-center">
         <h1> <i class="fa fa-commenting-o" aria-hidden="true"></i> LEO ChatBot </h1>
         <div class="row">
+            <div id="LEO_ChatBot_Container_Loader" class="loader" ></div>
+
             <!-- BCP-47 language code https://en.wikipedia.org/wiki/IETF_language_tag  -->
-            <select id="leobot_answer_in_language" class="form-select" >
+            <select id="leobot_answer_in_language" class="form-select" style="display:none" >
                 <option value="en" selected="selected"> Answer the question in English </option>
                 <option value="vi"> Trả lời câu hỏi bằng tiếng Việt </option>
                 <option value="de"> Beantworten Sie Fragen auf Deutsch </option>
@@ -68,8 +72,7 @@
             </select>
         </div>
     </div>
-    
-    <div class="botui-app-container" id="LEO_ChatBot_Container" >
+    <div class="botui-app-container" id="LEO_ChatBot_Container" style="display:none" >
         <bot-ui></bot-ui>
     </div>
 
@@ -85,15 +88,13 @@
     <script>
         $(document).ready(function(){
             // ready to load
-            var loadLeoObserver = function(){
-                var obsjs = location.protocol + '//' + HOSTNAME + "/resources/js/leocdp.observer.js";
-                var host = location.hostname;
-                // only load LEO Observer JS in the domain leocdp.com or example.com
-                if(host ==='leobot.leocdp.com' || host ==='leobot.example.com') {
-                    $.getScript(obsjs); 
-                }
-            }
-            initLeoChatBot('default', loadLeoObserver);                 
+            var obsjs = location.protocol + '//' + HOSTNAME + "/resources/js/leocdp.observer.js";
+            var host = location.hostname;
+
+            // only load LEO Observer JS in the domain leocdp.com or example.com
+            if(host ==='leobot.leocdp.com' || host ==='leobot.example.com') {
+                $.getScript(obsjs); 
+            }               
         });
     </script>
 </body>

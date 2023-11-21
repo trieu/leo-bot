@@ -1,4 +1,4 @@
-var currentUserProfile = { userLogin: "demo", displayName: "good friend" };
+var currentUserProfile = { visitorId: "", displayName: "good friend" };
 
 window.leoBotUI = false;
 window.leoBotContext = false;
@@ -76,6 +76,7 @@ var sendQuestionToLeoAI = function (context, question) {
         getBotUI().message.remove(index);
         if (typeof data.answer === "string") {
           var answer = data.answer;
+          currentUserProfile.displayName = data.name;
           processAnswer(answer);
         } else if (data.error) {
           alert(data.error);
@@ -85,8 +86,7 @@ var sendQuestionToLeoAI = function (context, question) {
       };
 
       var payload = { prompt: question, question: question };
-      payload["usersession"] = getUserSession();
-      payload["userlogin"] = currentUserProfile.userLogin;
+      payload["visitor_id"] = currentUserProfile.visitorId;
       payload["answer_in_language"] = $("#leobot_answer_in_language").val();
       payload["answer_in_format"] = "html";
       payload["context"] = "leobotweb";
@@ -120,7 +120,11 @@ var callPostApi = function (urlStr, data, okCallback, errorCallback) {
   });
 };
 
-var getUserSession = function () {
-  // In Redis, hset demo userlogin demo
-  return "demo";
+var startLeoChatBot = function (visitorId) {
+  currentUserProfile.visitorId = visitorId;
+
+  $("#LEO_ChatBot_Container_Loader").hide();
+  $("#LEO_ChatBot_Container, #leobot_answer_in_language").show();
+
+  initLeoChatBot("website_leobot_" + visitorId);
 };
