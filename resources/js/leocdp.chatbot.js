@@ -57,6 +57,68 @@ var leoBotShowAnswer = function (answerInHtml) {
     });
 };
 
+var leoBotShowError = function (error) {
+  getBotUI()
+    .message.add({
+      human: false,
+      cssClass: "leobot-answer",
+      content: error,
+      type: "html",
+    })
+    .then(function () {
+      // skip
+    });
+};
+
+var askTheEmailOfUser = function(name){
+  getBotUI()
+  .action.text({
+    delay:0,
+    action: {
+      icon: "envelope-o",
+      cssClass: "leobot-question-input",
+      value: "", 
+      placeholder: "Input your email here",
+    },
+  })
+  .then(function (res) {
+      var email = res.value;
+      console.log(name, email)
+      var profileData = {'loginProvider': "leochatbot", 'firstName': name, 'email': email}
+      LeoObserverProxy.updateProfileBySession(profileData);
+      setTimeout(function(){
+        location.reload(true)
+      },5000)
+  });
+}
+
+var askTheNameOfUser = function(){
+  getBotUI()
+  .action.text({
+    delay:0,
+    action: {
+      icon: "user-circle-o",
+      cssClass: "leobot-question-input",
+      value: "", 
+      placeholder: "Input your name here",
+    },
+  })
+  .then(function (res) {
+    askTheEmailOfUser(res.value);
+  });
+}
+
+var askForContactInfo = function (visitor_id) {
+  var msg = 'Our system need your name and your email to register new user';
+  getBotUI()
+    .message.add({
+      human: false,
+      cssClass: "leobot-answer",
+      content: msg,
+      type: "html",
+    }).then(askTheNameOfUser);
+};
+
 var sendQuestionToLeoAI = function (context, question) {
   if (question.length > 1 && question !== "exit") {
     var processAnswer = function (answer) {
@@ -74,14 +136,17 @@ var sendQuestionToLeoAI = function (context, question) {
     var callServer = function (index) {
       var serverCallback = function (data) {
         getBotUI().message.remove(index);
-        if (typeof data.answer === "string") {
-          var answer = data.answer;
+        var error_code = data.error_code;
+        var answer = data.answer;
+        if (error_code === 0) {
           currentUserProfile.displayName = data.name;
           processAnswer(answer);
-        } else if (data.error) {
-          alert(data.error);
-        } else {
-          alert("LEO BOT is getting a system error !");
+        } 
+        else if (error_code === 404) {
+          askForContactInfo();
+        } 
+        else {
+          leoBotShowError(answer);
         }
       };
 

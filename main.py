@@ -68,11 +68,11 @@ async def root(request: Request):
 async def ask(msg: Message):
     visitor_id = msg.visitor_id
     if len(visitor_id) == 0: 
-        return {"answer": "visitor_id is empty ", "error": True}
+        return {"answer": "visitor_id is empty ", "error": True, "error_code": 500}
     
     profile_id = REDIS_CLIENT.hget(visitor_id, 'profile_id')
-    if profile_id is None: 
-        return {"answer": "Invalid visitor_id, not found any user profile ", "error": True}
+    if profile_id is None or len(profile_id) == 0: 
+        return {"answer": "Not found any profile in CDP", "error": True, "error_code": 404}
     
     name = str(REDIS_CLIENT.hget(visitor_id, 'name'))
     chatbot_ready = REDIS_CLIENT.hget(visitor_id, 'chatbot') == "ready"
@@ -84,7 +84,7 @@ async def ask(msg: Message):
     print("visitor_id: " + visitor_id)
     print("profile_id: "+profile_id)
 
-    if chatbot_ready and len(profile_id) > 0:
+    if chatbot_ready:
        # our model can only understand English
         lang = msg.answer_in_language
         format = msg.answer_in_format
@@ -100,9 +100,9 @@ async def ask(msg: Message):
                               question_in_english, temperature_score)
         print("answer " + answer)
         data = {"question": question,
-                "answer": answer, "visitor_id": visitor_id, "name": name}
+                "answer": answer, "visitor_id": visitor_id, "name": name, "error_code": 0}
     else:
-        data = {"answer": "Invalid usersession", "error": True}
+        data = {"answer": "Your profile is banned due to Violation of Terms", "error": True, "error_code": 666}
     return data
 
 
