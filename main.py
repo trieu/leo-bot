@@ -67,8 +67,14 @@ async def root(request: Request):
 @leobot.post("/ask", response_class=JSONResponse)
 async def ask(msg: Message):
     visitor_id = msg.visitor_id
+    if len(visitor_id) == 0: 
+        return {"answer": "visitor_id is empty ", "error": True}
+    
     profile_id = REDIS_CLIENT.hget(visitor_id, 'profile_id')
-    name = REDIS_CLIENT.hget(visitor_id, 'name')
+    if profile_id is None: 
+        return {"answer": "Invalid visitor_id, not found any user profile ", "error": True}
+    
+    name = str(REDIS_CLIENT.hget(visitor_id, 'name'))
     chatbot_ready = REDIS_CLIENT.hget(visitor_id, 'chatbot') == "ready"
     question = msg.question
     prompt = msg.prompt
