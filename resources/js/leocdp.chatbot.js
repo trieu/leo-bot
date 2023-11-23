@@ -9,18 +9,36 @@ function getBotUI() {
   return window.leoBotUI;
 }
 
-function initLeoChatBot(context, okCallback) {
+function initLeoChatBot(context, visitorId, okCallback) {
   window.leoBotContext = context;
+  window.currentUserProfile.visitorId = visitorId;
   window.leoBotUI = new BotUI("LEO_ChatBot_Container");
-  showLeoChatBot();
+
+  var url = BASE_URL_GET_VISITOR_INFO + "?visitor_id=" + visitorId + "&_=" + new Date().getTime();
+  $.getJSON(url, function (data) {
+    var e = data.error_code;
+    var a = data.answer;
+    console.log(data);
+    if (e === 0) {
+      var n = currentUserProfile.displayName;
+      n = a.length > 0 ? a : n;
+      currentUserProfile.displayName = n;
+      showLeoChatBot(currentUserProfile.displayName);
+    } else if (e === 404) {
+      askForContactInfo(visitorId);
+    } else {
+      leoBotShowError(a);
+    }
+  });
+
   if (typeof okCallback === "function") {
     okCallback();
   }
 }
 
-var showLeoChatBot = function () {
+var showLeoChatBot = function (displayName) {
   var msg =
-    "Hi " + currentUserProfile.displayName + ", you may ask me for anything";
+    "Hi " + displayName + ", you may ask me for anything";
   var msgObj = { content: msg, cssClass: "leobot-answer" };
   getBotUI().message.removeAll();
   getBotUI().message.bot(msgObj).then(leoBotPromptQuestion);
@@ -70,53 +88,59 @@ var leoBotShowError = function (error) {
     });
 };
 
-var askTheEmailOfUser = function(name){
+var askTheEmailOfUser = function (name) {
   getBotUI()
-  .action.text({
-    delay:0,
-    action: {
-      icon: "envelope-o",
-      cssClass: "leobot-question-input",
-      value: "", 
-      placeholder: "Input your email here",
-    },
-  })
-  .then(function (res) {
+    .action.text({
+      delay: 0,
+      action: {
+        icon: "envelope-o",
+        cssClass: "leobot-question-input",
+        value: "",
+        placeholder: "Input your email here",
+      },
+    })
+    .then(function (res) {
       var email = res.value;
-      console.log(name, email)
-      var profileData = {'loginProvider': "leochatbot", 'firstName': name, 'email': email}
+      console.log(name, email);
+      var profileData = {
+        loginProvider: "leochatbot",
+        firstName: name,
+        email: email,
+      };
       LeoObserverProxy.updateProfileBySession(profileData);
-      setTimeout(function(){
-        location.reload(true)
-      },5000)
-  });
-}
+      setTimeout(function () {
+        showLeoChatBot(name);
+      }, 5000);
+    });
+};
 
-var askTheNameOfUser = function(){
+var askTheNameOfUser = function () {
   getBotUI()
-  .action.text({
-    delay:0,
-    action: {
-      icon: "user-circle-o",
-      cssClass: "leobot-question-input",
-      value: "", 
-      placeholder: "Input your name here",
-    },
-  })
-  .then(function (res) {
-    askTheEmailOfUser(res.value);
-  });
-}
+    .action.text({
+      delay: 0,
+      action: {
+        icon: "user-circle-o",
+        cssClass: "leobot-question-input",
+        value: "",
+        placeholder: "Input your name here",
+      },
+    })
+    .then(function (res) {
+      askTheEmailOfUser(res.value);
+    });
+};
 
 var askForContactInfo = function (visitor_id) {
-  var msg = 'Our system need your name and your email to register new user';
+  var msg =
+    "Hi friend, our system need your name and your email to register new user";
   getBotUI()
     .message.add({
       human: false,
       cssClass: "leobot-answer",
       content: msg,
       type: "html",
-    }).then(askTheNameOfUser);
+    })
+    .then(askTheNameOfUser);
 };
 
 var sendQuestionToLeoAI = function (context, question) {
@@ -141,11 +165,9 @@ var sendQuestionToLeoAI = function (context, question) {
         if (error_code === 0) {
           currentUserProfile.displayName = data.name;
           processAnswer(answer);
-        } 
-        else if (error_code === 404) {
+        } else if (error_code === 404) {
           askForContactInfo();
-        } 
-        else {
+        } else {
           leoBotShowError(answer);
         }
       };
@@ -191,5 +213,5 @@ var startLeoChatBot = function (visitorId) {
   $("#LEO_ChatBot_Container_Loader").hide();
   $("#LEO_ChatBot_Container, #leobot_answer_in_language").show();
 
-  initLeoChatBot("website_leobot_" + visitorId);
+  initLeoChatBot("leobot_website", visitorId);
 };
