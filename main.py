@@ -65,6 +65,9 @@ async def root(request: Request):
 
 @leobot.get("/get-visitor-info", response_class=JSONResponse)
 async def get_visitor_info(visitor_id: str):
+    isReady = isinstance(GOOGLE_GENAI_API_KEY, str)
+    if not isReady:        
+        return {"answer": "GOOGLE_GENAI_API_KEY is empty", "error_code": 501}
     if len(visitor_id) == 0: 
         return {"answer": "visitor_id is empty ", "error": True, "error_code": 500}
     profile_id = REDIS_CLIENT.hget(visitor_id, 'profile_id')
@@ -72,7 +75,6 @@ async def get_visitor_info(visitor_id: str):
         return {"answer": "Not found any profile in CDP", "error": True, "error_code": 404}
     name = str(REDIS_CLIENT.hget(visitor_id, 'name'))
     return {"answer": name, "error_code": 0}
-
 
 # the main API of chatbot
 @leobot.post("/ask", response_class=JSONResponse)
