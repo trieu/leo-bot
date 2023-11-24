@@ -11,6 +11,8 @@ from langchain.chains import LLMChain
 # need Google translate to convert input into English
 from google.cloud import translate_v2 as translate
 
+import datetime
+
 # Try PALM from Google AI
 import markdown
 import google.generativeai as palm
@@ -42,7 +44,10 @@ def detect_language(text: str) -> str:
         text = text.decode("utf-8")
     result = translate.Client().detect_language(text)
     print(result)
-    return result['language']
+    if result['confidence'] > 0.9 :
+        return result['language']
+    else : 
+        return "en"
 
 def format_string_for_md_slides(rs):
     rs = rs.replace('<br/>','\n')
@@ -91,9 +96,10 @@ if LEOAI_LOCAL_MODEL:
 
 # the main function to ask LEO
 def ask_question(context: str, answer_in_format: str, target_language: str, question: str, temperature_score = TEMPERATURE_SCORE ) -> str:
+    context = context + '.Today, current date and time is ' + datetime.datetime.now().strftime("%c")
     template = """<s> [INST] Your name is LEO_BOT and you are the AI bot is created by Mr.Triều at LEOCDP.com. 
     The answer should be clear from the context :
-    {context} {question} [/INST] </s>
+    {context} . {question} [/INST] </s>
     """
     prompt_tpl = PromptTemplate(template=template, input_variables=["question","context"])
     # set pipeline into LLMChain with prompt and llm model

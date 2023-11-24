@@ -27,7 +27,7 @@ function initLeoChatBot(context, visitorId, okCallback) {
     } else if (e === 404) {
       askForContactInfo(visitorId);
     } else {
-      leoBotShowError(a);
+      leoBotShowError(a, leoBotPromptQuestion);
     }
   });
 
@@ -37,8 +37,7 @@ function initLeoChatBot(context, visitorId, okCallback) {
 }
 
 var showLeoChatBot = function (displayName) {
-  var msg =
-    "Hi " + displayName + ", you may ask me for anything";
+  var msg = "Hi " + displayName + ", you may ask me for anything";
   var msgObj = { content: msg, cssClass: "leobot-answer" };
   getBotUI().message.removeAll();
   getBotUI().message.bot(msgObj).then(leoBotPromptQuestion);
@@ -75,18 +74,21 @@ var leoBotShowAnswer = function (answerInHtml) {
     });
 };
 
-var leoBotShowError = function (error) {
+var leoBotShowError = function (error, nextAction) {
   getBotUI()
     .message.add({
       human: false,
-      cssClass: "leobot-answer",
+      cssClass: "leobot-error",
       content: error,
       type: "html",
     })
-    .then(function () {
-      // skip
-    });
+    .then(nextAction || function () {});
 };
+
+function isEmailValid(email) {
+  const regex = /^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+  return regex.test(email);
+}
 
 var askTheEmailOfUser = function (name) {
   getBotUI()
@@ -101,16 +103,22 @@ var askTheEmailOfUser = function (name) {
     })
     .then(function (res) {
       var email = res.value;
-      console.log(name, email);
-      var profileData = {
-        loginProvider: "leochatbot",
-        firstName: name,
-        email: email,
-      };
-      LeoObserverProxy.updateProfileBySession(profileData);
-      setTimeout(function () {
-        showLeoChatBot(name);
-      }, 5000);
+      if (isEmailValid(email)) {
+        console.log(name, email);
+        var profileData = {
+          loginProvider: "leochatbot",
+          firstName: name,
+          email: email,
+        };
+        LeoObserverProxy.updateProfileBySession(profileData);
+        setTimeout(function () {
+          showLeoChatBot(name);
+        }, 5000);
+      } else {
+        leoBotShowError(email + " is not a valid email", function () {
+          askTheEmailOfUser(name);
+        });
+      }
     });
 };
 
@@ -131,12 +139,11 @@ var askTheNameOfUser = function () {
 };
 
 var askForContactInfo = function (visitor_id) {
-  var msg =
-    "Hi friend, our system need your name and your email to register new user";
+  var msg = "Hi friend, please enter your name and email to register new user";
   getBotUI()
     .message.add({
       human: false,
-      cssClass: "leobot-answer",
+      cssClass: "leobot-question",
       content: msg,
       type: "html",
     })
@@ -168,7 +175,7 @@ var sendQuestionToLeoAI = function (context, question) {
         } else if (error_code === 404) {
           askForContactInfo();
         } else {
-          leoBotShowError(answer);
+          leoBotShowError(answer, leoBotPromptQuestion);
         }
       };
 
@@ -209,9 +216,7 @@ var callPostApi = function (urlStr, data, okCallback, errorCallback) {
 
 var startLeoChatBot = function (visitorId) {
   currentUserProfile.visitorId = visitorId;
-
   $("#LEO_ChatBot_Container_Loader").hide();
   $("#LEO_ChatBot_Container, #leobot_answer_in_language").show();
-
   initLeoChatBot("leobot_website", visitorId);
 };

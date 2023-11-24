@@ -79,6 +79,7 @@ async def get_visitor_info(visitor_id: str):
     name = str(REDIS_CLIENT.hget(visitor_id, 'name'))
     return {"answer": name, "error_code": 0}
 
+
 # the main API of chatbot
 @leobot.post("/ask", response_class=JSONResponse)
 async def ask(msg: Message):
@@ -93,6 +94,9 @@ async def ask(msg: Message):
     leobot_ready = is_visitor_ready(visitor_id)
     question = msg.question
     prompt = msg.prompt
+    
+    if len(question) > 1000 or len(prompt) > 1000 :
+        return {"answer": "Question must be less than 1000 characters!", "error": True, "error_code": 510}
 
     print("question: "+question)
     print("prompt: "+prompt)

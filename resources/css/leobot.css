@@ -31,6 +31,17 @@ div.leobot-answer .botui-message-content {
   color: #000 !important;
 }
 
+div.leobot-error .botui-message-content {
+  color: red !important;
+  border: 1px solid red;
+}
+
+div.leobot-question .botui-message-content {
+  color: blue !important;
+  border: 1px solid blue;
+}
+
+
 .botui-container {
   font-size: 14.2px !important;
 }
