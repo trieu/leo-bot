@@ -70,7 +70,7 @@ var leoBotShowAnswer = function (answerInHtml) {
     })
     .then(function () {
       $("div.botui-message").find("a").attr("target", "_blank");
-      var delay = answerInHtml.length > 120 ? 6000 : 2000;
+      var delay = answerInHtml.length > 200 ? 6000 : 1600;
       leoBotPromptQuestion(delay);
     });
 };

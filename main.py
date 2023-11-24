@@ -9,7 +9,7 @@ from fastapi.templating import Jinja2Templates
 
 from redis import Redis
 
-from leoai.leo_chatbot import ask_question, translate_text, GOOGLE_GENAI_API_KEY
+from leoai.leo_chatbot import ask_question, translate_text, detect_language, GOOGLE_GENAI_API_KEY
 from leoai.leo_datamodel import Message
 
 VERSION = "1.0.0"
@@ -39,6 +39,9 @@ leobot.add_middleware(
 leobot.mount("/resources", StaticFiles(directory=FOLDER_RESOURCES),
              name="resources")
 templates = Jinja2Templates(directory=FOLDER_TEMPLATES)
+
+def is_visitor_ready(visitor_id:str):
+    return REDIS_CLIENT.hget(visitor_id, 'chatbot') == "leobot"
 
 ##### API handlers #####
 
@@ -87,7 +90,7 @@ async def ask(msg: Message):
     if profile_id is None or len(profile_id) == 0: 
         return {"answer": "Not found any profile in CDP", "error": True, "error_code": 404}
     
-    leobot_ready = REDIS_CLIENT.hget(visitor_id, 'chatbot') == "leobot"
+    leobot_ready = is_visitor_ready(visitor_id)
     question = msg.question
     prompt = msg.prompt
 
@@ -98,18 +101,17 @@ async def ask(msg: Message):
 
     if leobot_ready:
        # our model can only understand English
-        lang = msg.answer_in_language
+        lang_of_question = detect_language(question)
         format = msg.answer_in_format
         temperature_score = msg.temperature_score
         question_in_english = prompt
 
-        if lang != "en":
+        if lang_of_question != "en":
             question_in_english = translate_text(prompt, 'en')
         # translate if need
         context = " LEO CDP is LEO Customer Data Platform. "
         # context = context + " Today is " + date.today().strftime("%B %d, %Y") + ". "
-        answer = ask_question(context, format, lang,
-                              question_in_english, temperature_score)
+        answer = ask_question(context, format, lang_of_question, question_in_english, temperature_score)
         print("answer " + answer)
         data = {"question": question,
                 "answer": answer, "visitor_id": visitor_id, "error_code": 0}

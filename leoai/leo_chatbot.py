@@ -35,6 +35,15 @@ def translate_text(text: str, target: str) -> dict:
     result = translate.Client().translate(text, target_language=target)
     return result['translatedText']
 
+def detect_language(text: str) -> str:
+    if text == "" or text is None:
+        return "en"
+    if isinstance(text, bytes):
+        text = text.decode("utf-8")
+    result = translate.Client().detect_language(text)
+    print(result)
+    return result['language']
+
 def format_string_for_md_slides(rs):
     rs = rs.replace('<br/>','\n')
     rs = rs.replace('##','## ')
