@@ -68,7 +68,16 @@ var leoBotShowAnswer = function (answerInHtml) {
       type: "html",
     })
     .then(function () {
-      $("div.botui-message").find("a").attr("target", "_blank");
+      // format all href nodes in answer
+      $("div.botui-message").find("a").each(function(){
+        $(this).attr("target", "_blank");
+        var href = $(this).attr("href");
+        if(href.indexOf('google.com')<0){
+          href = 'https://www.google.com/search?q=' + encodeURIComponent($(this).text());
+        }        
+        $(this).attr("href", href);
+      });
+      
       var delay = answerInHtml.length > 200 ? 6000 : 1600;
       leoBotPromptQuestion(delay);
     });

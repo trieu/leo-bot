@@ -113,7 +113,7 @@ def ask_question(context: str, answer_in_format: str, target_language: str, ques
     if len(src_text) == 0:
         prompt_text = prompt_tpl.format(**prompt_data)
         try:
-            # try to Google AI PaLM 2 
+            # call to Google AI PaLM 2 API
             src_text = palm.generate_text(prompt=prompt_text, temperature=temperature_score).result    
         except Exception as error:
             print("An exception occurred:", error)
@@ -132,6 +132,7 @@ def ask_question(context: str, answer_in_format: str, target_language: str, ques
                 rs = translate_text(rs_html, target_language)
             else :
                 src_text = src_text.replace('\n','<br/>')
+                src_text = src_text.replace("```", "")                
                 rs = translate_text(src_text, target_language)
                 rs = format_string_for_md_slides(rs)
             return rs
@@ -139,5 +140,5 @@ def ask_question(context: str, answer_in_format: str, target_language: str, ques
             return src_text    
     elif src_text is None:
         return translate_text("Sorry, I can not answer your question !", target_language) 
-        # no need to translate
+    # done
     return str(src_text)

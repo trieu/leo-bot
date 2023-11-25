@@ -94,6 +94,7 @@ async def ask(msg: Message):
     leobot_ready = is_visitor_ready(visitor_id)
     question = msg.question
     prompt = msg.prompt
+    lang_of_question = msg.answer_in_language
     
     if len(question) > 1000 or len(prompt) > 1000 :
         return {"answer": "Question must be less than 1000 characters!", "error": True, "error_code": 510}
@@ -103,15 +104,18 @@ async def ask(msg: Message):
     print("visitor_id: " + visitor_id)
     print("profile_id: "+profile_id)
 
-    if leobot_ready:
-       # our model can only understand English
-        lang_of_question = detect_language(question)
+    if leobot_ready:        
+        if lang_of_question == "" :
+            lang_of_question = detect_language(question)        
+             
         format = msg.answer_in_format
         temperature_score = msg.temperature_score
         question_in_english = prompt
 
         if lang_of_question != "en":
+            # our model can only understand English        
             question_in_english = translate_text(prompt, 'en')
+            
         # translate if need
         context = " LEO CDP is LEO Customer Data Platform. "
         # context = context + " Today is " + date.today().strftime("%B %d, %Y") + ". "
