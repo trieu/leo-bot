@@ -59,7 +59,7 @@ var leoBotPromptQuestion = function (delay) {
     });
 };
 
-var leoBotShowAnswer = function (answerInHtml) {
+var leoBotShowAnswer = function (answerInHtml, delay) {
   getBotUI()
     .message.add({
       human: false,
@@ -78,7 +78,7 @@ var leoBotShowAnswer = function (answerInHtml) {
         $(this).attr("href", href);
       });
       
-      var delay = answerInHtml.length > 200 ? 6000 : 1600;
+      delay = typeof delay === 'number' ? delay : ((answerInHtml.length > 200) ? 6000 : 1800);
       leoBotPromptQuestion(delay);
     });
 };
@@ -120,9 +120,9 @@ var askTheEmailOfUser = function (name) {
           email: email,
         };
         LeoObserverProxy.updateProfileBySession(profileData);
-        setTimeout(function () {
-          showLeoChatBot(name);
-        }, 5000);
+
+        var a = "Hi " + name + ", LEO is creating a new account for you. Please wait for 5 seconds...";
+        leoBotShowAnswer(a, 5000)       
       } else {
         leoBotShowError(email + " is not a valid email", function () {
           askTheEmailOfUser(name);
