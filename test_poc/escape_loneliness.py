@@ -10,7 +10,7 @@ def self_reflection():
     try:
         loneliness_level = int(input())
     except:
-        print("Please input a valibd number from 1 to 10")
+        print("Please input a valid number from 1 to 10")
     return loneliness_level
 
 
