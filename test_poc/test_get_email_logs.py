@@ -5,7 +5,7 @@ from sib_api_v3_sdk.rest import ApiException
 from pprint import pprint
 
 configuration = sib_api_v3_sdk.Configuration()
-configuration.api_key['api-key'] = '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'
+configuration.api_key['api-key'] = ''
 
 api_instance = sib_api_v3_sdk.TransactionalEmailsApi(sib_api_v3_sdk.ApiClient(configuration))
 limit = 2500
