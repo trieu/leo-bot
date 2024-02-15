@@ -3,7 +3,6 @@ import pandas as pd
 import time
 import datetime
 import os.path
-import download_test_data as test_data
 
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
@@ -69,11 +68,13 @@ def processData(groupData):
     return 1
 
 # the filename to load test data
-csv_data_filename = 'online_retail.csv'
+csv_data_filename = './data/online_retail_II.csv'
 
 # check to download test data
 if not os.path.isfile(csv_data_filename):
-    test_data.donwload_online_retail_data(csv_data_filename)
+    print(csv_data_filename + " not found !")
+    exit(1)
+    # test_data.donwload_online_retail_data(csv_data_filename)
 
 data_reader = pd.read_csv(csv_data_filename)
 dfx = pd.DataFrame(data_reader)

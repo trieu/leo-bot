@@ -30,6 +30,7 @@ html5lib
 markdown
 
 langchain
+kor
 google-generativeai
 google-cloud-translate
 
