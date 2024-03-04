@@ -2,9 +2,13 @@
 .env
 /local_data
 /data
+*/data/*
+
 
 # Excel data file
 *.xlsx
+*.db 
+*.zip
 
 # test data in CSV
 *.csv
@@ -64,3 +68,5 @@ coverage.xml
 # Sphinx documentation
 docs/_build/
 Core/__pycache__/
+leoai/ml-1m.zip.1
+leoai/ml-1m.zip.2

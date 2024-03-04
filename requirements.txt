@@ -1,4 +1,4 @@
-fastapi
+fastapi>=0.110.0
 jinja2
 uvicorn
 asyncio
@@ -6,15 +6,16 @@ pytest
 requests
 python-dotenv
 
-qdrant-client
-redis
+sqlalchemy>=2.0.27
+qdrant-client>=1.7.3
+redis>=5.0.2
 rq
 rq-dashboard
-pyarango
+pyarango>=2.0.2
 gdown
 
-numpy
-pandas
+numpy>=1.26.4
+pandas>=2.2.1
 tabulate
 seaborn
 matplotlib
