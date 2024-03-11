@@ -8,7 +8,7 @@ from qdrant_client.http.models import Distance, VectorParams
 from qdrant_client.http.models import PointStruct
 
 # https://huggingface.co/sentence-transformers/msmarco-distilroberta-base-v2
-MODEL_NAME = 'sentence-transformers/msmarco-distilroberta-base-v2'
+MODEL_NAME = 'sentence-transformers/paraphrase-multilingual-mpnet-base-v2'
 
 model = SentenceTransformer(MODEL_NAME)
 VECTOR_DIM_SIZE = model.get_sentence_embedding_dimension() # the size of msmarco-distilroberta-base-v2
