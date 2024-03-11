@@ -8,6 +8,7 @@ python-dotenv
 
 sqlalchemy>=2.0.27
 qdrant-client>=1.7.3
+fastembed
 redis>=5.0.2
 rq
 rq-dashboard
