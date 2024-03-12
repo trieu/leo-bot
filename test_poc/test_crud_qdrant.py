@@ -107,7 +107,7 @@ def test_query():
                 ),
                 models.FieldCondition(
                     key="city.travelTypes",
-                    match=models.MatchAny(any=["History","Nightlife"]),
+                    match=models.MatchAny(any=["History", "Nightlife"]),
                 ),
                 models.FieldCondition(
                     key="city",
@@ -126,8 +126,10 @@ def test_query():
     )
 
     print('\n\n\n Query: ' + query)
+    i = 0
     for rs in search_result:
-        print(rs.payload['city']['name'])
+        i = i + 1
+        print(str(i) + ":" + rs.payload['city']['name'] + ', ' + rs.payload['city']['description'])
 
 
 # main start
@@ -138,3 +140,10 @@ init_data(file_path)
 
 # 2. test
 test_query()
+
+# 3. The answer should be
+# Query: Any place with cool climate and sunny beach
+# 1:Nha Trang, A popular beach resort town with pristine beaches, vibrant nightlife, and island hopping opportunities.
+# 2:Quy Nhon, A coastal city with long stretches of beaches, historical Cham sites, and less crowded than more popular destinations.
+# 3:Hoi An, A UNESCO World Heritage city with charming ancient streets, well-preserved architecture, and a laid-back atmosphere.
+# 4:Hue, The former imperial capital of Vietnam, steeped in history with a majestic citadel, tombs of past emperors, and the serene Perfume River.
