@@ -10,13 +10,12 @@ import cityhash
 
 CITIES_DATA = "cities_data"
 
-
 def hash_string(string):
     """Hashes a string into an unsigned 64-bit integer (CityHash64 algorithm)."""
     return cityhash.CityHash64(string)
 
 
-def init_data(file_path: str):
+def index_data(file_path: str):
     first_collection = client.recreate_collection(
         collection_name=CITIES_DATA,
         vectors_config=VectorParams(
@@ -34,8 +33,7 @@ def init_data(file_path: str):
             city_embedding = model.encode(
                 corpus, convert_to_tensor=True).tolist()
 
-            print(
-                f"City: {city['name']}, Latitude: {city['lat']}, Longitude: {city['lon']}, id {id}")
+            print(f"Indexing City: {city['name']}, Latitude: {city['lat']}, Longitude: {city['lon']}, id {id}")
             # Add more fields as needed
 
             p = PointStruct(id=id, vector=city_embedding,
@@ -87,9 +85,8 @@ def read_json_file(file_path):
         return None
 
 
-def test_query():
-    query = 'Any place with cool climate and sunny beach'
-    r_in_km = 1000.0 * 1000
+def run_query(query: str, radius_in_km: int, geo_location, travelTypes = [], avg_population = 10000000):
+    r_in_km = 1000.0 * radius_in_km
     query_embedding = model.encode(query, convert_to_tensor=True).tolist()
 
     search_result = client.search(
@@ -99,22 +96,22 @@ def test_query():
                 models.FieldCondition(
                     key="city.population",
                     range=models.Range(
-                        gt=100000,
+                        gt=None,
                         gte=None,
-                        lt=5000000,
+                        lt=avg_population,
                         lte=None
                     ),
                 ),
                 models.FieldCondition(
                     key="city.travelTypes",
-                    match=models.MatchAny(any=["History", "Nightlife"]),
+                    match=models.MatchAny(any=travelTypes),
                 ),
                 models.FieldCondition(
                     key="city",
                     geo_radius=models.GeoRadius(
                         center=models.GeoPoint(
-                            lat=10.7619578,
-                            lon=106.6873586
+                            lat= geo_location['lat'],
+                            lon= geo_location['lon']
                         ),
                         radius=r_in_km,
                     ),
@@ -124,26 +121,34 @@ def test_query():
         query_vector=query_embedding,
         limit=5
     )
-
-    print('\n\n\n Query: ' + query)
-    i = 0
-    for rs in search_result:
-        i = i + 1
-        print(str(i) + ":" + rs.payload['city']['name'] + ', ' + rs.payload['city']['description'])
+    return search_result
 
 
 # main start
 file_path = './data/top_cities_vietnam.json'
 
-# 1. create collecion and init data
-init_data(file_path)
+# 1. create collecion and index data
+index_data(file_path)
 
-# 2. test
-test_query()
+# 2. run_query
+query = 'Any travel place with cool climate and sunny beach'
+radius_in_km = 1000
+avg_population = 1000000
+geo_location = {'lat':10.7619578, 'lon': 106.6873586}
+categories = ["History", "Nightlife"]
+search_result = run_query(query, radius_in_km, geo_location, categories, avg_population)
 
-# 3. The answer should be
-# Query: Any place with cool climate and sunny beach
+# 3. Print results
+print('\n\n Query: ' + query)
+i = 0
+for rs in search_result:
+    i = i + 1
+    print(str(i) + ":" + rs.payload['city']['name'] + ', ' + rs.payload['city']['description'])
+
+# The answer should be
+#  Query: Any travel place with cool climate and sunny beach
 # 1:Nha Trang, A popular beach resort town with pristine beaches, vibrant nightlife, and island hopping opportunities.
 # 2:Quy Nhon, A coastal city with long stretches of beaches, historical Cham sites, and less crowded than more popular destinations.
-# 3:Hoi An, A UNESCO World Heritage city with charming ancient streets, well-preserved architecture, and a laid-back atmosphere.
-# 4:Hue, The former imperial capital of Vietnam, steeped in history with a majestic citadel, tombs of past emperors, and the serene Perfume River.
+# 3:Con Dao, An archipelago with pristine beaches, historical sites of former prisons, and protected natural areas for hiking and diving.
+# 4:Hoi An, A UNESCO World Heritage city with charming ancient streets, well-preserved architecture, and a laid-back atmosphere.
+# 5:Hue, The former imperial capital of Vietnam, steeped in history with a majestic citadel, tombs of past emperors, and the serene Perfume River.
