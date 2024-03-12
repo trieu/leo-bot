@@ -2,8 +2,8 @@
     {
         "name": "Hanoi",
         "description": "Vietnam's bustling capital, known for its rich history, French colonial architecture, vibrant street life, and delicious cuisine.",
-        "latitude": 21.0278,
-        "longitude": 105.8342,
+        "lat": 21.0278,
+        "lon": 105.8342,
         "population": 8053663,
         "travelTypes": [
             "History",
@@ -15,8 +15,8 @@
     {
         "name": "Ho Chi Minh City (Saigon)",
         "description": "A dynamic metropolis with a mix of modern skyscrapers, historical landmarks, and a lively atmosphere.",
-        "latitude": 10.8231,
-        "longitude": 106.6297,
+        "lat": 10.8231,
+        "lon": 106.6297,
         "population": 8993082,
         "travelTypes": [
             "City",
@@ -29,8 +29,8 @@
     {
         "name": "Hoi An",
         "description": "A UNESCO World Heritage city with charming ancient streets, well-preserved architecture, and a laid-back atmosphere.",
-        "latitude": 15.8776,
-        "longitude": 108.3253,
+        "lat": 15.8776,
+        "lon": 108.3253,
         "population": 120000,
         "travelTypes": [
             "History",
@@ -42,8 +42,8 @@
     {
         "name": "Da Nang",
         "description": "A modern coastal city with beautiful beaches, stunning natural landscapes like the Marble Mountains, and a growing culinary scene.",
-        "latitude": 16.0471,
-        "longitude": 108.2208,
+        "lat": 16.0471,
+        "lon": 108.2208,
         "population": 1007419,
         "travelTypes": [
             "Beach",
@@ -55,8 +55,8 @@
     {
         "name": "Hue",
         "description": "The former imperial capital of Vietnam, steeped in history with a majestic citadel, tombs of past emperors, and the serene Perfume River.",
-        "latitude": 16.4637,
-        "longitude": 107.5909,
+        "lat": 16.4637,
+        "lon": 107.5909,
         "population": 339822,
         "travelTypes": [
             "History",
@@ -66,8 +66,8 @@
     {
         "name": "Nha Trang",
         "description": "A popular beach resort town with pristine beaches, vibrant nightlife, and island hopping opportunities.",
-        "latitude": 12.2451,
-        "longitude": 109.1948,
+        "lat": 12.2451,
+        "lon": 109.1948,
         "population": 535864,
         "travelTypes": [
             "Beach",
@@ -79,8 +79,8 @@
     {
         "name": "Sapa",
         "description": "A mountain town in northern Vietnam known for its cascading rice terraces, cool climate, trekking routes, and encounters with hill tribe communities.",
-        "latitude": 22.3403,
-        "longitude": 103.8447,
+        "lat": 22.3403,
+        "lon": 103.8447,
         "population": 81785,
         "travelTypes": [
             "Nature",
@@ -92,8 +92,8 @@
     {
         "name": "Da Lat",
         "description": "Known as the 'City of Eternal Spring' for its cool climate, pine forests, waterfalls, and French colonial villas.",
-        "latitude": 11.9465,
-        "longitude": 108.4419,
+        "lat": 11.9465,
+        "lon": 108.4419,
         "population": 406105,
         "travelTypes": [
             "Nature",
@@ -105,8 +105,8 @@
     {
         "name": "Phu Quoc",
         "description": "The largest island in Vietnam with breathtaking beaches, lush national park, and opportunities for snorkeling and diving.",
-        "latitude": 10.2223,
-        "longitude": 103.9541,
+        "lat": 10.2223,
+        "lon": 103.9541,
         "population": 179480,
         "travelTypes": [
             "Beach",
@@ -118,8 +118,8 @@
     {
         "name": "Can Tho",
         "description": "The largest city in the Mekong Delta, known for its floating markets, lush river landscapes, and local life along the waterways.",
-        "latitude": 10.0359,
-        "longitude": 105.7831,
+        "lat": 10.0359,
+        "lon": 105.7831,
         "population": 1237300,
         "travelTypes": [
             "Culture",
@@ -130,8 +130,8 @@
     {
         "name": "Ha Long Bay",
         "description": "A UNESCO World Heritage site famous for its thousands of limestone karst islands rising from emerald waters.",
-        "latitude": 20.9517,
-        "longitude": 107.0823,
+        "lat": 20.9517,
+        "lon": 107.0823,
         "population": 221426,
         "travelTypes": [
             "Nature",
@@ -142,8 +142,8 @@
     {
         "name": "Ninh Binh",
         "description": "Called 'Ha Long Bay on land' for its scenic limestone karsts and rice paddies. Explore by boat through caves and ancient temples.",
-        "latitude": 20.2539,
-        "longitude": 105.9747,
+        "lat": 20.2539,
+        "lon": 105.9747,
         "population": 130517,
         "travelTypes": [
             "Nature",
@@ -154,8 +154,8 @@
     {
         "name": "Mui Ne",
         "description": "A coastal town popular for water sports like kitesurfing and windsurfing, boasting unique sand dunes.",
-        "latitude": 10.9366,
-        "longitude": 108.1959,
+        "lat": 10.9366,
+        "lon": 108.1959,
         "population": 35000,
         "travelTypes": [
             "Beach",
@@ -166,8 +166,8 @@
     {
         "name": "Phong Nha-Ke Bang National Park",
         "description": "Home to the world's largest cave, Son Doong, and a network of spectacular cave systems and underground rivers.",
-        "latitude": 17.5359,
-        "longitude": 106.1722,
+        "lat": 17.5359,
+        "lon": 106.1722,
         "population": 101383,
         "travelTypes": [
             "Nature",
@@ -178,8 +178,8 @@
     {
         "name": "Con Dao",
         "description": "An archipelago with pristine beaches, historical sites of former prisons, and protected natural areas for hiking and diving.",
-        "latitude": 8.6910,
-        "longitude": 106.6091,
+        "lat": 8.6910,
+        "lon": 106.6091,
         "population": 11465,
         "travelTypes": [
             "Beach",
@@ -192,8 +192,8 @@
     {
         "name": "Ha Giang",
         "description": "A mountainous province in far-north Vietnam with majestic landscapes, winding roads, and ethnic minority villages.",
-        "latitude": 22.8312,
-        "longitude": 104.9847,
+        "lat": 22.8312,
+        "lon": 104.9847,
         "population": 854000,
         "travelTypes": [
             "Nature",
@@ -205,8 +205,8 @@
     {
         "name": "Quy Nhon",
         "description": "A coastal city with long stretches of beaches, historical Cham sites, and less crowded than more popular destinations.",
-        "latitude": 13.7765,
-        "longitude": 109.2236,
+        "lat": 13.7765,
+        "lon": 109.2236,
         "population": 280180,
         "travelTypes": [
             "Beach",
@@ -217,8 +217,8 @@
     {
         "name": "Buon Ma Thuot",
         "description": "The coffee capital of Vietnam, located in the Central Highlands with options to visit coffee plantations and waterfalls.",
-        "latitude": 12.6660,
-        "longitude": 108.0501,
+        "lat": 12.6660,
+        "lon": 108.0501,
         "population": 502170,
         "travelTypes": [
             "Nature",
@@ -229,8 +229,8 @@
     {
         "name": "My Tho",
         "description": "A Mekong Delta town known for boat trips through canals, tropical fruit orchards, and insights into local life.",
-        "latitude": 10.3500,
-        "longitude": 106.3500,
+        "lat": 10.3500,
+        "lon": 106.3500,
         "population": 220299,
         "travelTypes": [
             "Nature",
@@ -241,8 +241,8 @@
     {
         "name": "Chau Doc",
         "description": "Mekong Delta town on the Cambodian border, known for its floating markets, diverse religious communities (including Cham Muslims), and Sam Mountain with its temples and views.",
-        "latitude": 10.7003,
-        "longitude": 105.1156,
+        "lat": 10.7003,
+        "lon": 105.1156,
         "population": 157298,
         "travelTypes": [
             "cultural",

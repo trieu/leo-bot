@@ -4,6 +4,8 @@
 /data
 */data/*
 
+# qdrant db
+qdrant_storage
 
 # Excel data file
 *.xlsx
