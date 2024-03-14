@@ -36,7 +36,7 @@ REDIS_USER_SESSION_PORT=6480
 ```
 DIR_PATH="/build/leo-bot/"
 ```
-6. Run ./start_app.sh
+6. Run ./start_app.sh for PRODUCTION or ./start_dev.sh for DEVELOPMENT
 7. The LEO BOT is started at the host 0.0.0.0 with port 8888
 8. For demo and local test, need Redis Server. Open redis-cli, run: hset demo userlogin demo
 9. Go to the HOSTNAME to test your chatbot. 
