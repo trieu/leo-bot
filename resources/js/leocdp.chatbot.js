@@ -14,7 +14,12 @@ function initLeoChatBot(context, visitorId, okCallback) {
   window.currentUserProfile.visitorId = visitorId;
   window.leoBotUI = new BotUI("LEO_ChatBot_Container");
 
-  var url = BASE_URL_GET_VISITOR_INFO + "?visitor_id=" + visitorId + "&_=" + new Date().getTime();
+  var url =
+    BASE_URL_GET_VISITOR_INFO +
+    "?visitor_id=" +
+    visitorId +
+    "&_=" +
+    new Date().getTime();
   $.getJSON(url, function (data) {
     var e = data.error_code;
     var a = data.answer;
@@ -69,16 +74,25 @@ var leoBotShowAnswer = function (answerInHtml, delay) {
     })
     .then(function () {
       // format all href nodes in answer
-      $("div.botui-message").find("a").each(function(){
-        $(this).attr("target", "_blank");
-        var href = $(this).attr("href");
-        if(href.indexOf('google.com')<0){
-          href = 'https://www.google.com/search?q=' + encodeURIComponent($(this).text());
-        }        
-        $(this).attr("href", href);
-      });
-      
-      delay = typeof delay === 'number' ? delay : ((answerInHtml.length > 200) ? 6000 : 1800);
+      $("div.botui-message")
+        .find("a")
+        .each(function () {
+          $(this).attr("target", "_blank");
+          var href = $(this).attr("href");
+          if (href.indexOf("google.com") < 0) {
+            href =
+              "https://www.google.com/search?q=" +
+              encodeURIComponent($(this).text());
+          }
+          $(this).attr("href", href);
+        });
+
+      delay =
+        typeof delay === "number"
+          ? delay
+          : answerInHtml.length > 200
+          ? 6000
+          : 1800;
       leoBotPromptQuestion(delay);
     });
 };
@@ -95,7 +109,8 @@ var leoBotShowError = function (error, nextAction) {
 };
 
 function isEmailValid(email) {
-  const regex = /^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+  const regex =
+    /^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
   return regex.test(email);
 }
 
@@ -121,8 +136,11 @@ var askTheEmailOfUser = function (name) {
         };
         LeoObserverProxy.updateProfileBySession(profileData);
 
-        var a = "Hi " + name + ", LEO is creating a new account for you. Please wait for 5 seconds...";
-        leoBotShowAnswer(a, 5000)       
+        var a =
+          "Hi " +
+          name +
+          ", LEO is creating a new account for you. Please wait for 5 seconds...";
+        leoBotShowAnswer(a, 5000);
       } else {
         leoBotShowError(email + " is not a valid email", function () {
           askTheEmailOfUser(name);

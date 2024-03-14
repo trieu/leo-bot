@@ -1,5 +1,6 @@
 import os
 import time
+from dotenv import load_dotenv
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +13,8 @@ from redis import Redis
 from leoai.leo_chatbot import ask_question, translate_text, detect_language, GOOGLE_GENAI_API_KEY
 from leoai.leo_datamodel import Message
 
+load_dotenv(override=True)
+
 VERSION = "1.0.0"
 SERVICE_NAME = "LEO BOT VERSION:" + VERSION
 
@@ -20,9 +23,11 @@ HOSTNAME = os.getenv("HOSTNAME")
 REDIS_USER_SESSION_HOST = os.getenv("REDIS_USER_SESSION_HOST")
 REDIS_USER_SESSION_PORT = os.getenv("REDIS_USER_SESSION_PORT")
 
+print("HOSTNAME " + HOSTNAME)
+print("LEOBOT_DEV_MODE " + str(LEOBOT_DEV_MODE))
+
 # Redis Client to get User Session
-REDIS_CLIENT = Redis(host=REDIS_USER_SESSION_HOST,
-                     port=REDIS_USER_SESSION_PORT, decode_responses=True)
+REDIS_CLIENT = Redis(host=REDIS_USER_SESSION_HOST,  port=REDIS_USER_SESSION_PORT, decode_responses=True)
 FOLDER_RESOURCES = os.path.dirname(os.path.abspath(__file__)) + "/resources/"
 FOLDER_TEMPLATES = FOLDER_RESOURCES + "templates"
 
@@ -36,12 +41,11 @@ leobot.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-leobot.mount("/resources", StaticFiles(directory=FOLDER_RESOURCES),
-             name="resources")
+leobot.mount("/resources", StaticFiles(directory=FOLDER_RESOURCES), name="resources")
 templates = Jinja2Templates(directory=FOLDER_TEMPLATES)
 
 def is_visitor_ready(visitor_id:str):
-    return REDIS_CLIENT.hget(visitor_id, 'chatbot') == "leobot"
+    return REDIS_CLIENT.hget(visitor_id, 'chatbot') == "leobot" or LEOBOT_DEV_MODE
 
 ##### API handlers #####
 
@@ -61,8 +65,7 @@ async def ping():
 @leobot.get("/", response_class=HTMLResponse)
 async def root(request: Request):
     ts = int(time.time())
-    data = {"request": request, "HOSTNAME": HOSTNAME,
-            "LEOBOT_DEV_MODE": LEOBOT_DEV_MODE, 'timestamp': ts}
+    data = {"request": request, "HOSTNAME": HOSTNAME, "LEOBOT_DEV_MODE": LEOBOT_DEV_MODE, 'timestamp': ts}
     return templates.TemplateResponse("index.html", data)
 
 
@@ -75,7 +78,10 @@ async def get_visitor_info(visitor_id: str):
         return {"answer": "visitor_id is empty ", "error": True, "error_code": 500}
     profile_id = REDIS_CLIENT.hget(visitor_id, 'profile_id')
     if profile_id is None or len(profile_id) == 0: 
-        return {"answer": "Not found any profile in CDP", "error": True, "error_code": 404}
+        if LEOBOT_DEV_MODE : 
+            return {"answer": "local_dev", "error_code": 0}
+        else:
+            return {"answer": "Not found any profile in CDP", "error": True, "error_code": 404}
     name = str(REDIS_CLIENT.hget(visitor_id, 'name'))
     return {"answer": name, "error_code": 0}
 
@@ -87,9 +93,12 @@ async def ask(msg: Message):
     if len(visitor_id) == 0: 
         return {"answer": "visitor_id is empty ", "error": True, "error_code": 500}
     
-    profile_id = REDIS_CLIENT.hget(visitor_id, 'profile_id')
-    if profile_id is None or len(profile_id) == 0: 
-        return {"answer": "Not found any profile in CDP", "error": True, "error_code": 404}
+    if LEOBOT_DEV_MODE:
+        profile_id = "0"
+    else:
+        profile_id = REDIS_CLIENT.hget(visitor_id, 'profile_id')
+        if profile_id is None or len(profile_id) == 0: 
+            return {"answer": "Not found any profile in CDP", "error": True, "error_code": 404}
     
     leobot_ready = is_visitor_ready(visitor_id)
     question = msg.question

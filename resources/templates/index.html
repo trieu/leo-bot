@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=yes, minimum-scale=1, maximum-scale=5">
-    <base href="https://{{ HOSTNAME }}/">
+    <base href="//{{ HOSTNAME }}/">
     <link rel="icon" type="image/x-icon" href="//admin.leocdp.com/public/images/leocdp-icon/favicon-32x32.png">
     <link rel="apple-touch-icon" sizes="180x180" href="//admin.leocdp.com/public/images/leocdp-icon/apple-touch-icon.png">
 	<link rel="icon" type="image/png" sizes="32x32" href="//admin.leocdp.com/public/images/leocdp-icon/favicon-32x32.png">
@@ -53,10 +53,8 @@
     </script>
 </head>
 <body>
-    
-
     <div class="container text-center">
-        <h1> <i class="fa fa-commenting-o" aria-hidden="true"></i> LEO ChatBot </h1>
+        <h1> <i class="fa fa-commenting-o" aria-hidden="true"></i> LEO BOT </h1>
         <div class="row">
             <div id="LEO_ChatBot_Container_Loader" class="loader" ></div>
 
@@ -77,14 +75,13 @@
     <div class="botui-app-container" id="LEO_ChatBot_Container" style="display:none" >
         <bot-ui></bot-ui>
     </div>
-
     <div id="leobot_info_box" class="alert alert-light" role="alert" >
         <i class="fa fa-info-circle" aria-hidden="true"></i>
         This chatbot is developed by Trieu Nguyen for <a target="_blank" href="https://leocdp.com">LEO CDP</a> <br>
         If you have any questions, please contact me at <a href="mailto:trieu@leocdp.com">trieu@leocdp.com</a>
         or send me a message at <a target="_blank" href="https://facebook.com/leocdp.net">facebook.com/leocdp.net</a> 
     </div>
-
+    <!-- load all JS files  -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" ></script>
     <script src="/resources/js/leocdp.chatbot.js?_={{ timestamp }}" ></script>
     <script>
@@ -92,11 +89,14 @@
             // ready to load
             var obsjs = location.protocol + '//' + HOSTNAME + "/resources/js/leocdp.observer.js";
             var host = location.hostname;
-
             // only load LEO Observer JS in the domain leocdp.com or example.com
             if(host ==='leobot.leocdp.com' || host ==='leobot.example.com') {
                 $.getScript(obsjs); 
-            }               
+            } 
+            else {
+                window.startLeoChatBot('local_dev');
+                currentUserProfile.visitorId = '0'
+            }              
         });
     </script>
 </body>
