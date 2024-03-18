@@ -126,7 +126,7 @@ async def ask(msg: Message):
             question_in_english = translate_text(prompt, 'en')
             
         # translate if need
-        context = " LEO CDP is LEO Customer Data Platform. "
+        context = "CDP is Customer Data Platform."
         # context = context + " Today is " + date.today().strftime("%B %d, %Y") + ". "
         answer = ask_question(context, format, lang_of_question, question_in_english, temperature_score)
         print("answer " + answer)

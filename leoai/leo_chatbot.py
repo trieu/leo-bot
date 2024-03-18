@@ -97,7 +97,7 @@ if LEOAI_LOCAL_MODEL:
 # the main function to ask LEO
 def ask_question(context: str, answer_in_format: str, target_language: str, question: str, temperature_score = TEMPERATURE_SCORE ) -> str:
     context = context + '.Today, current date and time is ' + datetime.datetime.now().strftime("%c")
-    template = """<s> [INST] Your name is LEO_BOT and you are the AI bot is created by Mr.Triều at LEOCDP.com. 
+    template = """<s> [INST] Your name is LEO and you are the AI bot is created by Mr.Triều at bigdatavietnam.org. 
     The answer should be clear from the context :
     {context} . {question} [/INST] </s>
     """
