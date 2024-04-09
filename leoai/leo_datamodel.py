@@ -13,3 +13,10 @@ class Message(BaseModel):
     temperature_score: float = Field(TEMPERATURE_SCORE, description="the temperature score of LLM ")
     prompt: str
     visitor_id: str
+    
+# Data models
+class UpdateProfileEvent(BaseModel):
+    profile_id: str = Field("", description="the ID of CDP profile")
+    tracking_event_id: str = Field("", description="the ID of tracking event")
+    asset_group_id: str = Field("", description="the ID of Digital Asset Group")
+    asset_type: int = Field("", description="the type of Digital Asset")

@@ -12,6 +12,7 @@ from redis import Redis
 
 from leoai.leo_chatbot import ask_question, translate_text, detect_language, GOOGLE_GENAI_API_KEY
 from leoai.leo_datamodel import Message
+from leoai.leo_datamodel import UpdateProfileEvent
 
 load_dotenv(override=True)
 
@@ -141,6 +142,23 @@ async def ask(msg: Message):
 async def sentiment_analysis(msg: Message):
     feedback_text = msg.prompt
     userLogin = REDIS_CLIENT.hget(msg.usersession, 'userlogin')
+    data = {"error": True}
+    if userLogin == msg.userlogin:
+        context = "You are a sentiment analysis system."
+        translated_feedback = translate_text(feedback_text, 'en')
+        # print("sentiment_analysis translated_feedback \n "+translated_feedback)
+        sentiment_command = 'Give rating score from 1 to 100 if this text is positive customer feedback: '
+        prompt = sentiment_command + translated_feedback
+        answer = ask_question(context, "text", "en", prompt, 1)
+        data = {"answer": int(answer)}
+    else:
+        data = {"answer": "Invalid usersession", "error": True}
+    return data
+
+@leobot.post("/profile-analysis", response_class=JSONResponse)
+async def profile_analysis(e: UpdateProfileEvent):
+    profile_id = e.profile_id
+    userLogin = REDIS_CLIENT.hget(e.usersession, 'userlogin')
     data = {"error": True}
     if userLogin == msg.userlogin:
         context = "You are a sentiment analysis system."
