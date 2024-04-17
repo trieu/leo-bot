@@ -158,9 +158,10 @@ async def sentiment_analysis(msg: Message):
 @leobot.post("/profile-analysis", response_class=JSONResponse)
 async def profile_analysis(e: UpdateProfileEvent):
     profile_id = e.profile_id
-    userLogin = REDIS_CLIENT.hget(e.usersession, 'userlogin')
+    # get profile features from ArangoDB by profile_id 
+    # LINK: https://g.co/gemini/share/b34bf889420b
     data = {"error": True}
-    if userLogin == msg.userlogin:
+    if len(profile_id) > 0 :
         context = "You are a sentiment analysis system."
         translated_feedback = translate_text(feedback_text, 'en')
         # print("sentiment_analysis translated_feedback \n "+translated_feedback)
