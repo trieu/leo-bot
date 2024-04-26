@@ -52,7 +52,7 @@ def upsert_contact(contact_data):
 
     else:  # Contact not found
         res = hubspot_api_client.crm.contacts.basic_api.create(
-            simple_public_object_input=record)
+            simple_public_object_input_for_create=record)
     return int(res.id)
 
 
@@ -89,7 +89,7 @@ contact_data = {
     'firstname': 'Trieu',
     'lastname': 'Nguyen',
     'phone': '555-555-5555',
-    'jobtitle': 'Tester',
+    'jobtitle': 'Engineer',
     'lifecyclestage': 'lead',
     'cdp_data_labels': 'demo',
     'hubspot_contact_id': 0
