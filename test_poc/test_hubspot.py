@@ -3,7 +3,6 @@
 @author: tantrieu31
 """
 
-
 from hubspot import HubSpot
 from hubspot.crm.contacts import ApiException
 
@@ -62,9 +61,7 @@ def save_hubspot_contact(contact_data):
         hsp_contact_id = contact_data['hubspot_contact_id']
         del contact_data['hubspot_contact_id']
 
-        record = SimplePublicObjectInputForCreate(
-            properties=contact_data
-        )
+        record = SimplePublicObjectInputForCreate(properties=contact_data)
 
         if hsp_contact_id > 0:
             res = hubspot_api_client.crm.contacts.basic_api.update(
@@ -96,14 +93,43 @@ contact_data = {
 }
 
 # set a valid hubspot_contact_id to test update
-contact_data['hubspot_contact_id'] = 0
+# contact_data['hubspot_contact_id'] = 0
 
 # test save API
-contact_id = save_hubspot_contact(contact_data)
+def test_save_api(contact_data):
+    contact_id = save_hubspot_contact(contact_data)
 
-if contact_id > 0:
-    print("Contact created successfully. Contact ID: " + str(contact_id))
-elif contact_id == 0:
-    print("Contact already exists." + str(contact_id))
-else:
-    print("Contact creation failed." + str(contact_id))
+    if contact_id > 0:
+        print("Contact saved successfully. Contact ID: " + str(contact_id))
+    elif contact_id == 0:
+        print("Contact already exists." + str(contact_id))
+    else:
+        print("Contact creation failed." + str(contact_id))
+
+
+def process_json_object(json_object):
+    """Processes a single JSON object and returns a simplified contact_data dict."""
+    contact_data = {
+        'email': json_object.get('primaryEmail', ''),
+        'firstname': json_object.get('firstName', ''),
+        'lastname': json_object.get('lastName', ''),
+        'phone': json_object.get('primaryPhone', ''),
+        'jobtitle': ', '.join(json_object.get('jobTitles', [])),  # Extract the first job title
+        'lifecyclestage': 'lead',  # You can adjust this if needed
+        'cdp_data_labels': ', '.join(json_object.get('dataLabels', [])),
+        'hubspot_contact_id': 0  # Assuming no HubSpot integration initially
+    }
+    return contact_data
+
+# **File Reading**
+with open('./data/llo-all-contacts.json', 'r') as file:
+    data = json.load(file)
+
+# **Conversion**
+contact_list = [process_json_object(obj) for obj in data]
+
+# **Using the contact_list**
+for contact in contact_list:
+    print(contact)  # Example: Print the list of contacts 
+    test_save_api(contact)
+
