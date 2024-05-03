@@ -4,8 +4,8 @@
 - The LEO BOT works an AI chatbot with the backend using Google Generative AI (PaLM 2) and Mistral-7B
 - For the GOOGLE_GENAI_API_KEY, please check more details at https://developers.generativeai.google/guide 
 - For the GOOGLE_APPLICATION_CREDENTIALS, go to https://console.cloud.google.com/apis/api/translate.googleapis.com/credentials
-- Author: Trieu Nguyen at https://LEOCDP.com (my Github https://github.com/trieu)
-- Follow my YouTube channel for more knowledge: https://www.youtube.com/@trieu.leocdp
+- Author: Trieu Nguyen at https://github.com/trieu
+- Follow my YouTube channel for more knowledge: https://www.youtube.com/@bigdatavn
 
 ## In Ubuntu server, follow this checklist to run LEO BOT
 
