@@ -1,4 +1,7 @@
 from datetime import date
+import textwrap
+import json
+import os
 
 # Local AI LLM Model
 import torch
@@ -10,12 +13,13 @@ from langchain.chains import LLMChain
 
 # need Google translate to convert input into English
 from google.cloud import translate_v2 as translate
+import pprint
 
 import datetime
 
-# Try PALM from Google AI
+# use Google AI
 import markdown
-import google.generativeai as palm
+import google.generativeai as genai
 import os
 from dotenv import load_dotenv
 load_dotenv()
@@ -23,10 +27,19 @@ load_dotenv()
 # to use local model "Mistral-7B", export LEOAI_LOCAL_MODEL=true
 LEOAI_LOCAL_MODEL = os.getenv("LEOAI_LOCAL_MODEL") == "true"
 GOOGLE_GENAI_API_KEY = os.getenv("GOOGLE_GENAI_API_KEY")
-TEMPERATURE_SCORE = 0.69
+TEMPERATURE_SCORE = 0.7
+
+# default model names
+GEMINI_1_0_MODEL = 'models/gemini-1.0-pro-latest'
+GEMINI_1_5_MODEL = 'models/gemini-1.5-pro-latest'
 
 # init PaLM client as backup AI
-palm.configure(api_key=GOOGLE_GENAI_API_KEY)
+genai.configure(api_key=GOOGLE_GENAI_API_KEY)
+
+# List all models
+def list_models():
+    for model in genai.list_models():
+        pprint.pprint(model)
 
 # Translates text into the target language.
 def translate_text(text: str, target: str) -> dict:
@@ -97,9 +110,9 @@ if LEOAI_LOCAL_MODEL:
 # the main function to ask LEO
 def ask_question(context: str, answer_in_format: str, target_language: str, question: str, temperature_score = TEMPERATURE_SCORE ) -> str:
     context = context + '.Today, current date and time is ' + datetime.datetime.now().strftime("%c")
-    template = """<s> [INST] Your name is LEO and you are the AI chatbot from BigDataVietnam.org. 
-    The answer should be from the context :
-    {context} . {question} [/INST] </s>
+    template = """<s> [INST] Your name is LEO and you are the AI chatbot. 
+    The response should answer for the question and context :
+     {question} . {context} [/INST] </s>
     """
     prompt_tpl = PromptTemplate(template=template, input_variables=["question","context"])
     # set pipeline into LLMChain with prompt and llm model
@@ -114,7 +127,10 @@ def ask_question(context: str, answer_in_format: str, target_language: str, ques
         prompt_text = prompt_tpl.format(**prompt_data)
         try:
             # call to Google AI PaLM 2 API
-            src_text = palm.generate_text(prompt=prompt_text, temperature=temperature_score).result    
+            gemini_text_model = genai.GenerativeModel(model_name=GEMINI_1_0_MODEL)
+            model_config = genai.GenerationConfig(temperature=temperature_score)
+            response = gemini_text_model.generate_content(prompt_text, generation_config=model_config)
+            src_text = response.text    
         except Exception as error:
             print("An exception occurred:", error)
         
@@ -142,3 +158,40 @@ def ask_question(context: str, answer_in_format: str, target_language: str, ques
         return translate_text("Sorry, I can not answer your question !", target_language) 
     # done
     return str(src_text)
+
+def extract_json_data(content: str) -> dict:
+    gemini_model = genai.GenerativeModel(model_name=GEMINI_1_5_MODEL)
+    response = gemini_model.generate_content(
+    textwrap.dedent("""\
+        Please return JSON describing the the people, places, things and relationships from this story using the following schema:
+
+        {"people": list[PERSON], "places":list[PLACE], "things":list[THING], "relationships": list[RELATIONSHIP],"order_details": list[ORDER_DETAILS]}
+
+        PERSON = {"name": str, "description": str, "phone_number": str, "email": str, "address": str, "start_place_name": str, "end_place_name": str}
+        PLACE = {"name": str, "description": str}
+        THING = {"name": str, "description": str, "start_place_name": str, "end_place_name": str}
+        ORDER_DETAILS = {"product_name": str, quality: int}
+        RELATIONSHIP = {"person_1_name": str, "person_2_name": str, "relationship": str}
+
+        All fields are required.
+        Important: Only return a single piece of valid JSON text.
+        Here is the story:
+
+        """) + content, generation_config={'response_mime_type':'application/json'}
+    )
+
+    # parse response into JSON
+    extracted_data = json.loads(response.text)
+    return extracted_data
+
+
+story = """
+    Cho tôi đặt hàng gấp 10 áo sơ mi trắng của shop 
+    Vui lòng giao hàng đến địa chỉ 123 Đường ABC, Quận 1, TP. HCM.
+    Điện thoại của tôi là 0987654321, tên của tôi là Nguyễn Văn A.
+"""
+extracted_data = extract_json_data(story)
+
+# Print the pretty-printed JSON string
+json_str = json.dumps(extracted_data, indent=4, ensure_ascii=False)
+print(json_str)

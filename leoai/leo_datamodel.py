@@ -12,7 +12,7 @@ class Message(BaseModel):
     question: str = Field("", description="the question for Q&A ")
     temperature_score: float = Field(TEMPERATURE_SCORE, description="the temperature score of LLM ")
     prompt: str
-    visitor_id: str
+    visitor_id: str = Field("", description="the visitor id ")
     
 # Data models
 class UpdateProfileEvent(BaseModel):

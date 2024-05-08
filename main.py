@@ -10,7 +10,7 @@ from fastapi.templating import Jinja2Templates
 
 from redis import Redis
 
-from leoai.leo_chatbot import ask_question, translate_text, detect_language, GOOGLE_GENAI_API_KEY
+from leoai.leo_chatbot import ask_question, translate_text, detect_language, extract_json_data, GOOGLE_GENAI_API_KEY
 from leoai.leo_datamodel import Message
 from leoai.leo_datamodel import UpdateProfileEvent
 
@@ -172,3 +172,17 @@ async def profile_analysis(e: UpdateProfileEvent):
     else:
         data = {"answer": "Invalid usersession", "error": True}
     return data
+
+@leobot.post("/extract-json-data", response_class=JSONResponse)
+async def extract_json_data(content: str):
+    story = """
+        Cho tôi đặt hàng gấp 10 áo sơ mi trắng của shop 
+        Vui lòng giao hàng đến địa chỉ 123 Đường ABC, Quận 1, TP. HCM.
+        Điện thoại của tôi là 0987654321, tên của tôi là Nguyễn Văn A.
+    """
+    extracted_data = extract_json_data(story)
+
+    # Print the pretty-printed JSON string
+    # json_str = json.dumps(extracted_data, indent=4, ensure_ascii=False)
+    # print(json_str)
+    return extracted_data
