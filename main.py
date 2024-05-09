@@ -10,9 +10,8 @@ from fastapi.templating import Jinja2Templates
 
 from redis import Redis
 
-from leoai.leo_chatbot import ask_question, translate_text, detect_language, extract_json_data, GOOGLE_GENAI_API_KEY
-from leoai.leo_datamodel import Message
-from leoai.leo_datamodel import UpdateProfileEvent
+from leoai.leo_chatbot import ask_question, translate_text, detect_language, extract_data_from_chat_message_by_ai, GOOGLE_GENAI_API_KEY
+from leoai.leo_datamodel import Message, UpdateProfileEvent, ChatMessage
 
 load_dotenv(override=True)
 
@@ -158,29 +157,20 @@ async def sentiment_analysis(msg: Message):
 @leobot.post("/profile-analysis", response_class=JSONResponse)
 async def profile_analysis(e: UpdateProfileEvent):
     profile_id = e.profile_id
+    event_id = e.event_id
     # get profile features from ArangoDB by profile_id 
     # LINK: https://g.co/gemini/share/b34bf889420b
     data = {"error": True}
     if len(profile_id) > 0 :
-        context = "You are a sentiment analysis system."
-        translated_feedback = translate_text(feedback_text, 'en')
-        # print("sentiment_analysis translated_feedback \n "+translated_feedback)
-        sentiment_command = 'Give rating score from 1 to 100 if this text is positive customer feedback: '
-        prompt = sentiment_command + translated_feedback
-        answer = ask_question(context, "text", "en", prompt, 1)
-        data = {"answer": int(answer)}
+        context = "You are a profile analysis system."
     else:
         data = {"answer": "Invalid usersession", "error": True}
     return data
 
-@leobot.post("/extract-json-data", response_class=JSONResponse)
-async def extract_json_data(content: str):
-    story = """
-        Cho tôi đặt hàng gấp 10 áo sơ mi trắng của shop 
-        Vui lòng giao hàng đến địa chỉ 123 Đường ABC, Quận 1, TP. HCM.
-        Điện thoại của tôi là 0987654321, tên của tôi là Nguyễn Văn A.
-    """
-    extracted_data = extract_json_data(story)
+@leobot.post("/extract-data-from-chat-event", response_class=JSONResponse)
+async def extract_data_from_chat_event(msg: ChatMessage):
+    # Extract data from the chat message
+    extracted_data = extract_data_from_chat_message_by_ai(msg)
 
     # Print the pretty-printed JSON string
     # json_str = json.dumps(extracted_data, indent=4, ensure_ascii=False)

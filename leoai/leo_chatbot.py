@@ -3,6 +3,8 @@ import textwrap
 import json
 import os
 
+from leoai.leo_datamodel import ChatMessage
+
 # Local AI LLM Model
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
@@ -159,30 +161,40 @@ def ask_question(context: str, answer_in_format: str, target_language: str, ques
     # done
     return str(src_text)
 
-def extract_json_data(content: str) -> dict:
-    gemini_model = genai.GenerativeModel(model_name=GEMINI_1_5_MODEL)
-    response = gemini_model.generate_content(
-    textwrap.dedent("""\
-        Please return JSON describing the the people, places, things and relationships from this story using the following schema:
+def extract_data_from_chat_message_by_ai(msg: ChatMessage) -> dict:
+    print(msg)
+    content = msg.content
+    if content is None:
+        return {}
+    
+    prompt = textwrap.dedent("""\
+            Please return JSON describing the the people, places, things and relationships from this story using the following schema:
 
-        {"people": list[PERSON], "places":list[PLACE], "things":list[THING], "relationships": list[RELATIONSHIP],"order_details": list[ORDER_DETAILS]}
+            {"people": list[PERSON], "places":list[PLACE], "things":list[THING], "relationships": list[RELATIONSHIP],"order_details": list[ORDER_DETAILS]}
 
-        PERSON = {"name": str, "description": str, "phone_number": str, "email": str, "address": str, "start_place_name": str, "end_place_name": str}
-        PLACE = {"name": str, "description": str}
-        THING = {"name": str, "description": str, "start_place_name": str, "end_place_name": str}
-        ORDER_DETAILS = {"product_name": str, quality: int}
-        RELATIONSHIP = {"person_1_name": str, "person_2_name": str, "relationship": str}
+            PERSON = {"name": str, "description": str, "phone_number": str, "email": str, "address": str, "start_place_name": str, "end_place_name": str}
+            PLACE = {"name": str, "description": str}
+            THING = {"name": str, "description": str, "start_place_name": str, "end_place_name": str}
+            ORDER_DETAILS = {"product_name": str, quality: int}
+            RELATIONSHIP = {"person_1_name": str, "person_2_name": str, "relationship": str}
 
-        All fields are required.
-        Important: Only return a single piece of valid JSON text.
-        Here is the story:
+            All fields are required.
+            Important: Only return a single piece of valid JSON text.
+            Here is the story:
 
-        """) + content, generation_config={'response_mime_type':'application/json'}
-    )
+            """) + content
+    try:
+        gemini_model = genai.GenerativeModel(model_name=GEMINI_1_5_MODEL)
+        response = gemini_model.generate_content(prompt, generation_config={'response_mime_type':'application/json'})
 
-    # parse response into JSON
-    extracted_data = json.loads(response.text)
-    return extracted_data
+        # parse response into JSON
+        extracted_data = json.loads(response.text)
+        return extracted_data
+    except Exception as error:
+        print("An exception occurred:", error)
+    
+    return {}
+    
 
 
 story = """
@@ -190,7 +202,8 @@ story = """
     Vui lòng giao hàng đến địa chỉ 123 Đường ABC, Quận 1, TP. HCM.
     Điện thoại của tôi là 0987654321, tên của tôi là Nguyễn Văn A.
 """
-extracted_data = extract_json_data(story)
+msg = ChatMessage(content=story)
+extracted_data = extract_data_from_chat_message_by_ai(msg)
 
 # Print the pretty-printed JSON string
 json_str = json.dumps(extracted_data, indent=4, ensure_ascii=False)
