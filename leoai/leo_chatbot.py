@@ -162,25 +162,21 @@ def ask_question(context: str, answer_in_format: str, target_language: str, ques
     return str(src_text)
 
 def extract_data_from_chat_message_by_ai(msg: ChatMessage) -> dict:
-    print(msg)
     content = msg.content
     if content is None:
         return {}
-    
     prompt = textwrap.dedent("""\
-            Please return JSON describing the the people, places, things and relationships from this story using the following schema:
+            Return JSON describing the the contact, places, things and relationships from content using the following schema:
 
-            {"people": list[PERSON], "places":list[PLACE], "things":list[THING], "relationships": list[RELATIONSHIP],"order_details": list[ORDER_DETAILS]}
+            {"contact": list[CONTACT], "places":list[PLACE], "order_details": list[ORDER_DETAILS]}
 
-            PERSON = {"name": str, "description": str, "phone_number": str, "email": str, "address": str, "start_place_name": str, "end_place_name": str}
+            CONTACT = {"first_name": str, "last_name": str, "description": str, "phone_number": str, "email": str, "address": str}
             PLACE = {"name": str, "description": str}
-            THING = {"name": str, "description": str, "start_place_name": str, "end_place_name": str}
-            ORDER_DETAILS = {"product_name": str, quality: int}
-            RELATIONSHIP = {"person_1_name": str, "person_2_name": str, "relationship": str}
+            ORDER_DETAILS = {"product_name": str, quality: int, value: int, description: str}
 
             All fields are required.
             Important: Only return a single piece of valid JSON text.
-            Here is the story:
+            Here is the content:
 
             """) + content
     try:
@@ -195,16 +191,3 @@ def extract_data_from_chat_message_by_ai(msg: ChatMessage) -> dict:
     
     return {}
     
-
-
-story = """
-    Cho tôi đặt hàng gấp 10 áo sơ mi trắng của shop 
-    Vui lòng giao hàng đến địa chỉ 123 Đường ABC, Quận 1, TP. HCM.
-    Điện thoại của tôi là 0987654321, tên của tôi là Nguyễn Văn A.
-"""
-msg = ChatMessage(content=story)
-extracted_data = extract_data_from_chat_message_by_ai(msg)
-
-# Print the pretty-printed JSON string
-json_str = json.dumps(extracted_data, indent=4, ensure_ascii=False)
-print(json_str)
