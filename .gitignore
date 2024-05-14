@@ -73,3 +73,6 @@ Core/__pycache__/
 leoai/ml-1m.zip.1
 leoai/ml-1m.zip.2
 application_default_credentials.json
+
+# dedupe
+dedupe_settings

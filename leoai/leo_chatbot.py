@@ -166,7 +166,7 @@ def extract_data_from_chat_message_by_ai(msg: ChatMessage) -> dict:
     if content is None:
         return {}
     prompt = textwrap.dedent("""\
-            Return JSON describing the the contact, places, things and relationships from content using the following schema:
+            Return JSON describing the contacts, places, things from content using the following schema:
 
             {"contact": list[CONTACT], "places":list[PLACE], "order_details": list[ORDER_DETAILS]}
 
@@ -174,8 +174,7 @@ def extract_data_from_chat_message_by_ai(msg: ChatMessage) -> dict:
             PLACE = {"name": str, "description": str}
             ORDER_DETAILS = {"product_name": str, quality: int, value: int, description: str}
 
-            All fields are required.
-            Important: Only return a single piece of valid JSON text.
+            All fields are required. Important: Only return a single piece of valid JSON text.
             Here is the content:
 
             """) + content

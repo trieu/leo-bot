@@ -24,6 +24,8 @@ matplotlib
 plotly
 squarify
 openpyxl
+dedupe
+unidecode
 
 Faker
 selenium
