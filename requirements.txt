@@ -7,17 +7,17 @@ requests
 python-dotenv
 
 sqlalchemy>=2.0.27
-qdrant-client>=1.7.3
+qdrant-client>=1.9.1
 cityhash
 fastembed
 redis>=5.0.2
 rq
 rq-dashboard
-pyarango>=2.0.2
+pyarango>=2.1.1
 gdown
 
 numpy>=1.26.4
-pandas>=2.2.1
+pandas>=2.2.2
 tabulate
 seaborn
 matplotlib
@@ -36,8 +36,8 @@ markdown
 
 langchain
 kor
-google-generativeai
-google-cloud-translate
+google-generativeai>=0.5.3
+google-cloud-translate>=3.15.3
 
 torch
 transformers
@@ -51,5 +51,5 @@ safetensors
 xformers
 chromadb
 
-sib_api_v3_sdk
-hubspot-api-client
+sib_api_v3_sdk>=7.6.0
+hubspot-api-client>=9.0.0
