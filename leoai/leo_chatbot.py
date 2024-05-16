@@ -29,7 +29,7 @@ load_dotenv()
 # to use local model "Mistral-7B", export LEOAI_LOCAL_MODEL=true
 LEOAI_LOCAL_MODEL = os.getenv("LEOAI_LOCAL_MODEL") == "true"
 GOOGLE_GENAI_API_KEY = os.getenv("GOOGLE_GENAI_API_KEY")
-TEMPERATURE_SCORE = 0.7
+TEMPERATURE_SCORE = 0.86
 
 # default model names
 GEMINI_1_0_MODEL = 'models/gemini-1.0-pro-latest'
@@ -135,7 +135,10 @@ def ask_question(context: str, answer_in_format: str, target_language: str, ques
             src_text = response.text    
         except Exception as error:
             print("An exception occurred:", error)
-        
+            src_text = "That's an interesting question.";
+            src_text += "I have no answer by you can click here to check <a target='_blank' href='https://www.google.com/search?q=" + question + "'> "
+            src_text +=   "Google</a> ?"
+
     # translate into target_language 
     if isinstance(target_language, str) and isinstance(src_text, str):
         if len(src_text) > 1:

@@ -104,10 +104,12 @@ async def ask(msg: Message):
     question = msg.question
     prompt = msg.prompt
     lang_of_question = msg.answer_in_language
-    
+    context = msg.context
+       
     if len(question) > 1000 or len(prompt) > 1000 :
         return {"answer": "Question must be less than 1000 characters!", "error": True, "error_code": 510}
 
+    print("context: "+context)
     print("question: "+question)
     print("prompt: "+prompt)
     print("visitor_id: " + visitor_id)
@@ -126,8 +128,6 @@ async def ask(msg: Message):
             question_in_english = translate_text(prompt, 'en')
             
         # translate if need
-        context = "CDP is Customer Data Platform."
-        # context = context + " Today is " + date.today().strftime("%B %d, %Y") + ". "
         answer = ask_question(context, format, lang_of_question, question_in_english, temperature_score)
         print("answer " + answer)
         data = {"question": question,

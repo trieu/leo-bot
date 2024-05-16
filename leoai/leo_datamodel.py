@@ -8,7 +8,7 @@ DEFAULT_TEMPERATURE_SCORE = 1.0
 class Message(BaseModel):
     answer_in_language: Optional[str] = Field("en") # default is English
     answer_in_format: str = Field("html", description="the format of answer")
-    context: str = Field("", description="the context of question")
+    context: str = Field("You are a creative chatbot.", description="the context of question")
     question: str = Field("", description="the question for Q&A ")
     temperature_score: float = Field(DEFAULT_TEMPERATURE_SCORE, description="the temperature score of LLM ")
     prompt: str

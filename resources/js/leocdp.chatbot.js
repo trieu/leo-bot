@@ -136,10 +136,7 @@ var askTheEmailOfUser = function (name) {
         };
         LeoObserverProxy.updateProfileBySession(profileData);
 
-        var a =
-          "Hi " +
-          name +
-          ", LEO is creating a new account for you. Please wait for 5 seconds...";
+        var a = "Hi " +  name + ", LEO is creating a new account for you. Please wait for 5 seconds...";
         leoBotShowAnswer(a, 5000);
       } else {
         leoBotShowError(email + " is not a valid email", function () {
@@ -210,7 +207,7 @@ var sendQuestionToLeoAI = function (context, question) {
       payload["visitor_id"] = currentUserProfile.visitorId;
       payload["answer_in_language"] = $("#leobot_answer_in_language").val();
       payload["answer_in_format"] = "html";
-      payload["context"] = "leobotweb";
+      payload["context"] = "I am a smart chatbot with AI capabilities.";
       callPostApi(BASE_URL_LEOBOT, payload, serverCallback);
     };
     showChatBotLoader().then(callServer);
