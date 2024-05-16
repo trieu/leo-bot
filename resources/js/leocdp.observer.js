@@ -179,7 +179,7 @@ LeoObserver.recordEventPurchase = function (
 
 // (3) LEO OBSERVER is ready
 function leoObserverProxyReady(session) {
-  // auto tracking when LEO CDP JS is ready
+  // auto tracking when CDP JS is ready
   LeoObserver.recordEventPageView();
 
   // set tracking LEO visitor ID into all a[href] nodes
