@@ -129,7 +129,7 @@ def ask_question(context: str, answer_in_format: str, target_language: str, ques
         prompt_text = prompt_tpl.format(**prompt_data)
         try:
             # call to Google AI PaLM 2 API
-            gemini_text_model = genai.GenerativeModel(model_name=GEMINI_1_0_MODEL)
+            gemini_text_model = genai.GenerativeModel(model_name=GEMINI_1_5_MODEL)
             model_config = genai.GenerationConfig(temperature=temperature_score)
             response = gemini_text_model.generate_content(prompt_text, generation_config=model_config)
             src_text = response.text    
