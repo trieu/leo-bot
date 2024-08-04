@@ -1,11 +1,13 @@
-import google.generativeai as palm
+import google.generativeai as genai
 import os
 import markdown
 from dotenv import load_dotenv
 load_dotenv()
 
+GEMINI_MODEL = 'models/gemini-1.5-flash-latest'
 GOOGLE_GENAI_API_KEY = os.getenv("GOOGLE_GENAI_API_KEY")
-palm.configure(api_key=GOOGLE_GENAI_API_KEY)
+genai.configure(api_key=GOOGLE_GENAI_API_KEY)
+gemini_text_model = genai.GenerativeModel(model_name=GEMINI_MODEL)
 
 book_title = 'Big Data and Customer Data Platform In Real Estate'
 
@@ -16,9 +18,13 @@ section = "Automated data collection"
 question_for_content = "You are the author of book '"+book_title+"'. Write a paragraph about '"+section+"'"
 
 print("\n"+question_for_content+"\n")
-result = palm.generate_text(prompt=question_for_content, temperature=0.8).result
-rs_html = markdown.markdown(result, extensions=['fenced_code'])
-print(result)
+
+model_config = genai.GenerationConfig(temperature=0.8)
+response = gemini_text_model.generate_content(question_for_content, generation_config=model_config)
+answer_text = response.text 
+
+rs_html = markdown.markdown(answer_text, extensions=['fenced_code'])
+print(answer_text)
 
 print("\n HTML: \n "+rs_html+"\n")
 
