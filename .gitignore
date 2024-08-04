@@ -76,3 +76,6 @@ application_default_credentials.json
 
 # dedupe
 dedupe_settings
+
+# facebook_scraper
+facebook-cookies.txt

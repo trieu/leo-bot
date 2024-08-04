@@ -83,12 +83,14 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" ></script>
     <script src="/resources/js/leocdp.chatbot.js?_={{ timestamp }}" ></script>
     <script>
+        const CDP_TRACKING = true;
         $(document).ready(function(){
             // ready to load
             var obsjs = location.protocol + '//' + HOSTNAME + "/resources/js/leocdp.observer.js";
             var host = location.hostname;
+            var okToLoad = host ==='leobot.leocdp.com' || host ==='leobot.example.com';
             // only load LEO Observer JS in the domain leocdp.com or example.com
-            if(host ==='leobot.leocdp.com' || host ==='leobot.example.com') {
+            if(CDP_TRACKING && okToLoad) {
                 $.getScript(obsjs); 
             } 
             else {

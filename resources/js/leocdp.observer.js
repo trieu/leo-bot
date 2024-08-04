@@ -1,6 +1,5 @@
 // (1) LEO OBSERVER: load JavaScript code for [LEO CHATBOT]
 (function () {
-
   // Observer ID
   if (location.host === "leobot.example.com") {
     // local DEV server
@@ -11,9 +10,10 @@
     // Production server
     window.leoObserverId = "7OISrL5a6Jbqc0UaXYZVvQ";
     window.leoObserverLogDomain = "datahub4uspa.leocdp.net";
-    window.leoObserverCdnDomain = "cdn.jsdelivr.net/gh/USPA-Technology/leo-cdp-static-files@v0.8.9.21";
+    window.leoObserverCdnDomain =
+      "cdn.jsdelivr.net/gh/USPA-Technology/leo-cdp-static-files@v0.8.9.21";
   } else {
-    // skip tracking 
+    // skip tracking
     return false;
   }
 
@@ -167,6 +167,7 @@ LeoObserver.recordEventPurchase = function (
   transactionValue =
     typeof transactionValue === "number" ? transactionValue : 0;
   currencyCode = typeof currencyCode === "string" ? currencyCode : "USD";
+  
   LeoObserverProxy.recordConversionEvent(
     "purchase",
     eventData,

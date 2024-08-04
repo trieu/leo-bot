@@ -134,7 +134,9 @@ var askTheEmailOfUser = function (name) {
           firstName: name,
           email: email,
         };
-        LeoObserverProxy.updateProfileBySession(profileData);
+        if(window.CDP_TRACKING === true) {
+          LeoObserverProxy.updateProfileBySession(profileData);
+        }
 
         var a = "Hi " +  name + ", LEO is creating a new account for you. Please wait for 5 seconds...";
         leoBotShowAnswer(a, 5000);
@@ -180,8 +182,8 @@ var sendQuestionToLeoAI = function (context, question) {
       if ("ask" === context) {
         leoBotShowAnswer(answer);
       }
-      // save event into LEO CDP
-      if (typeof window.LeoObserver === "object") {
+      // save event into CDP
+      if (typeof window.LeoObserver === "object" && window.CDP_TRACKING === true) {
         var encodedAnswer = encodeURIComponent(answer.slice(0, 1000));
         var eventData = { question: question, answer: encodedAnswer };
         window.LeoObserver.recordEventAskQuestion(eventData);
