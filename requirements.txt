@@ -1,5 +1,6 @@
 fastapi>=0.110.0
 jinja2
+python-multipart
 uvicorn
 asyncio
 pytest
@@ -7,7 +8,6 @@ requests
 python-dotenv
 
 sqlalchemy>=2.0.27
-qdrant-client>=1.9.1
 cityhash
 fastembed
 redis>=5.0.2

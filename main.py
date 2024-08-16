@@ -10,7 +10,7 @@ from fastapi.templating import Jinja2Templates
 
 from redis import Redis
 
-from leoai.leo_chatbot import ask_question, translate_text, detect_language, extract_data_from_chat_message_by_ai, GOOGLE_GENAI_API_KEY
+from leoai.google_ai_chatbot import ask_question, GOOGLE_GENAI_API_KEY, translate_text, detect_language, extract_data_from_chat_message_by_ai
 from leoai.leo_datamodel import Message, UpdateProfileEvent, ChatMessage
 
 load_dotenv(override=True)
