@@ -183,10 +183,12 @@ var sendQuestionToLeoAI = function (context, question) {
         leoBotShowAnswer(answer);
       }
       // save event into CDP
-      if (typeof window.LeoObserver === "object" && window.CDP_TRACKING === true) {
-        var encodedAnswer = encodeURIComponent(answer.slice(0, 1000));
-        var eventData = { question: question, answer: encodedAnswer };
-        window.LeoObserver.recordEventAskQuestion(eventData);
+      if (typeof LeoObserver === "object" && CDP_TRACKING === true) {
+        var sAnswer = answer.slice(0, 1000);
+        var eventData = { question: question, answer: sAnswer };
+        LeoObserver.recordEventAskQuestion(eventData);
+      } else {
+        console.log("SKIP LeoObserver.recordEventAskQuestion")
       }
     };
 

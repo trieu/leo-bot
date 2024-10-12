@@ -167,7 +167,7 @@ LeoObserver.recordEventPurchase = function (
   transactionValue =
     typeof transactionValue === "number" ? transactionValue : 0;
   currencyCode = typeof currencyCode === "string" ? currencyCode : "USD";
-  
+
   LeoObserverProxy.recordConversionEvent(
     "purchase",
     eventData,

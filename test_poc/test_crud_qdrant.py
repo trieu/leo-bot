@@ -64,10 +64,8 @@ def index_data(file_path: str):
 
 # Initialize the client
 client = QdrantClient("localhost", port=6333)  # For production
-client.set_model("BAAI/bge-base-en")
 
 MODEL_NAME = 'sentence-transformers/paraphrase-multilingual-mpnet-base-v2'
-
 model = SentenceTransformer(MODEL_NAME)
 VECTOR_DIM_SIZE = model.get_sentence_embedding_dimension()
 
@@ -144,6 +142,12 @@ i = 0
 for rs in search_result:
     i = i + 1
     print(str(i) + ":" + rs.payload['city']['name'] + ', ' + rs.payload['city']['description'])
+    
+city_data = client.get_po(
+    collection_name=CITIES_DATA,
+    ids=[3754852833135301533]  # Fetch the point with the given profile_id
+)
+print(city_data)
 
 # The answer should be
 #  Query: Any travel place with cool climate and sunny beach
