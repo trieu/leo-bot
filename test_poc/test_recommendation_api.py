@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from typing import List
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from test_recommendation import add_profile_to_qdrant, add_product_to_qdrant, recommend_products_for_profile
 
@@ -15,15 +15,16 @@ async def index():
 # Pydantic models for request data
 
 class ProfileRequest(BaseModel):
-    profile_id: int
+    profile_id: str
     page_view_keywords: List[str]
     purchase_keywords: List[str]
     interest_keywords: List[str]
     additional_info: dict
+    max_recommendation_size: int = Field(8, description="Default recommendation is 8")
 
 
 class ProductRequest(BaseModel):
-    product_id: int
+    product_id: str
     product_name: str
     product_category: str
     product_keywords: List[str]
@@ -45,6 +46,27 @@ async def add_profile(profile: ProfileRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# Endpoint to add profile
+@app.post("/check-profile-for-recommendation/")
+async def add_profile(profile: ProfileRequest):
+    try:
+        profile_id = add_profile_to_qdrant(
+            profile.profile_id,
+            profile.page_view_keywords,
+            profile.purchase_keywords,
+            profile.interest_keywords,
+            profile.additional_info
+        )
+        
+        rs = recommend_products_for_profile(profile_id, profile.max_recommendation_size)
+        if not rs:
+            raise HTTPException(
+                status_code=404, detail="Profile not found or no recommendations available")
+        return rs
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Endpoint to add multiple profiles
 @app.post("/add-profiles/")
@@ -96,13 +118,13 @@ async def add_products(products: List[ProductRequest]):
 
 # Endpoint to recommend products based on profile
 @app.get("/recommend/{profile_id}")
-async def recommend(profile_id: int, top_n: int = 5):
+async def recommend(profile_id: str, top_n: int = 8):
     try:
-        recommendations = recommend_products_for_profile(profile_id, top_n)
-        if not recommendations:
+        rs = recommend_products_for_profile(profile_id, top_n)
+        if not rs:
             raise HTTPException(
                 status_code=404, detail="Profile not found or no recommendations available")
-        return {"recommendations": recommendations}
+        return rs
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

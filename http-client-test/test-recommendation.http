@@ -1,0 +1,17 @@
+
+### check profile for recommendation
+
+POST http://localhost:8000/check-profile-for-recommendation/
+content-type: application/json
+
+{
+        "profile_id": "crm_99",
+        "page_view_keywords": ["Camera","travel", "Drone"],
+        "purchase_keywords": ["lenovo", "nvidia"],
+        "interest_keywords": ["adventure", "reading"],
+        "additional_info": {"age": 38, "location": "Vietnam"}
+}
+
+### get recommendation for profile by ID 
+
+GET http://localhost:8000/recommend/crm_12

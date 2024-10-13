@@ -5,6 +5,8 @@ from qdrant_client import QdrantClient
 from qdrant_client.http.models import PointStruct
 from qdrant_client.http.models import VectorParams, Distance
 from sentence_transformers import SentenceTransformer
+import hashlib
+
 
 # Initialize Qdrant client (Assuming Qdrant is running locally)
 qdrant_client = QdrantClient(host="localhost", port=6333)
@@ -31,11 +33,11 @@ def get_text_embedding(text):
     
     # Ensure tensor is on CPU before converting to NumPy
     if text_embedding.is_cuda:
-        text_embedding = text_embedding.cpu().numpy()
+        numpy_embedding = text_embedding.cpu().numpy()
     else:
-        text_embedding = text_embedding.numpy()
+        numpy_embedding = text_embedding.numpy()
     
-    return text_embedding
+    return numpy_embedding
 
 
 # Updated function to create collection in Qdrant
@@ -93,19 +95,23 @@ def build_product_vector(product_name, product_category, product_keywords):
     product_vector = np.concatenate([name_vector, category_vector, keyword_vector])
     return product_vector
 
-# Helper function to add vectors to Qdrant collection
+# Convert string to point_id using hashlib for large dataset
+def string_to_point_id(input_string):
+    # Use SHA-256 hash and convert it to an integer with 16 digits
+    # the resulting integer to a range between 0 and 99,999,999,999,999,999 (16 digits).
+    return int(hashlib.sha256(input_string.encode('utf-8')).hexdigest(), 16) % (10 ** 16) 
 
-def add_vector_to_qdrant(collection_name, point_id, vector, payload):
-    #print(vector)
+# Helper function to add vectors to Qdrant collection
+def add_vector_to_qdrant(collection_name:str, object_id, vector, payload):
+    point_id = string_to_point_id(str(object_id))
+    point = PointStruct(
+        id=point_id,  # Use profile_id as the point ID
+        vector=vector.tolist(),  # Store the vector
+        payload=payload
+    )    
     qdrant_client.upsert(
         collection_name=collection_name,
-        points=[
-            {
-                "id": point_id,
-                "vector": vector.tolist(),
-                "payload": payload
-            }
-        ]
+        points=[point]
     )
 
 # Function to add profile to Qdrant
@@ -123,6 +129,7 @@ def add_profile_to_qdrant(profile_id, page_view_keywords, purchase_keywords, int
     payload['interest_keywords'] = interest_keywords
     add_vector_to_qdrant(PROFILE_COLLECTION, profile_id, profile_vector, payload)
     print(f"Profile {profile_id} added to Qdrant")
+    return profile_id
 
 
 # Function to add product to Qdrant
@@ -138,14 +145,16 @@ def add_product_to_qdrant(product_id, product_name, product_category, product_ke
                "category": product_category, "additional_info": additional_info}
     add_vector_to_qdrant(PRODUCT_COLLECTION, product_id, product_vector, payload)
     print(f"Product {product_id} added to Qdrant")
+    return product_id
 
 
 # Recommend products based on profile vector
-def recommend_products_for_profile(profile_id, top_n=5):
+def recommend_products_for_profile(profile_id, top_n=8):
     try:
+        point_id = string_to_point_id(profile_id)
         profile_data = qdrant_client.retrieve(
             collection_name=PROFILE_COLLECTION,
-            ids=[profile_id]  # Fetch the point with the given profile_id
+            ids=[point_id]  # Fetch the point with the given profile_id
         )
         print(profile_data)
 
@@ -179,6 +188,9 @@ def recommend_products_for_profile(profile_id, top_n=5):
             {
                 "product_id": result.payload.get('product_id'),
                 "product_name": result.payload.get('name'),
+                "product_category": result.payload.get('category'),
+                "brand": result.payload.get('additional_info')['brand'],
+                "price": result.payload.get('additional_info')['price'],
                 "score": result.score
             }
             for result in search_results
