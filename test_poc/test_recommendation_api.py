@@ -8,12 +8,13 @@ from test_recommendation import add_profile_to_qdrant, add_product_to_qdrant, re
 # FastAPI initialization
 app = FastAPI()
 
+# default
 @app.get("/")
 async def index():
     return {"message": "API of CDP Recommendation"}
 
-# Pydantic models for request data
 
+# Pydantic models for request data
 class ProfileRequest(BaseModel):
     profile_id: str
     page_view_keywords: List[str]
@@ -46,7 +47,8 @@ async def add_profile(profile: ProfileRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Endpoint to add profile
+
+# Endpoint to check profile and get recommendation in real-time
 @app.post("/check-profile-for-recommendation/")
 async def add_profile(profile: ProfileRequest):
     try:
@@ -56,8 +58,7 @@ async def add_profile(profile: ProfileRequest):
             profile.purchase_keywords,
             profile.interest_keywords,
             profile.additional_info
-        )
-        
+        )        
         rs = recommend_products_for_profile(profile_id, profile.max_recommendation_size)
         if not rs:
             raise HTTPException(
@@ -65,8 +66,7 @@ async def add_profile(profile: ProfileRequest):
         return rs
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+
 
 # Endpoint to add multiple profiles
 @app.post("/add-profiles/")
@@ -84,6 +84,7 @@ async def add_profiles(profiles: List[ProfileRequest]):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # Endpoint to add product
 @app.post("/add-product/")
 async def add_product(product: ProductRequest):
@@ -98,6 +99,7 @@ async def add_product(product: ProductRequest):
         return {"status": "Product added successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # Endpoint to add multiple products
 @app.post("/add-products/")
@@ -118,15 +120,17 @@ async def add_products(products: List[ProductRequest]):
 
 # Endpoint to recommend products based on profile
 @app.get("/recommend/{profile_id}")
-async def recommend(profile_id: str, top_n: int = 8):
+async def recommend(profile_id: str, top_n: int = 8, except_product_ids: str = ""):
     try:
-        rs = recommend_products_for_profile(profile_id, top_n)
+        rs = recommend_products_for_profile(profile_id, top_n, except_product_ids.split(","))
         if not rs:
             raise HTTPException(
                 status_code=404, detail="Profile not found or no recommendations available")
         return rs
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
 
 # Run the FastAPI app
 if __name__ == "__main__":

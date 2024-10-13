@@ -2,8 +2,8 @@
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from qdrant_client import QdrantClient
-from qdrant_client.http.models import PointStruct
-from qdrant_client.http.models import VectorParams, Distance
+from qdrant_client.http.models import PointStruct, MatchExcept, Filter
+from qdrant_client.http.models import VectorParams, Distance, FieldCondition
 from sentence_transformers import SentenceTransformer
 import hashlib
 
@@ -149,7 +149,7 @@ def add_product_to_qdrant(product_id, product_name, product_category, product_ke
 
 
 # Recommend products based on profile vector
-def recommend_products_for_profile(profile_id, top_n=8):
+def recommend_products_for_profile(profile_id, top_n=8, except_product_ids=[]):
     try:
         point_id = string_to_point_id(profile_id)
         profile_data = qdrant_client.retrieve(
@@ -179,7 +179,14 @@ def recommend_products_for_profile(profile_id, top_n=8):
         # Use profile vector to search for closest products in the product collection
         search_results = qdrant_client.search(
             collection_name=PRODUCT_COLLECTION,
-            query_vector= vector,
+            query_vector= vector,            
+            query_filter=Filter(
+                must=[
+                    FieldCondition(
+                       key="product_id", match=MatchExcept(**{"except": except_product_ids})
+                    )
+                ]
+            ),
             limit=top_n
         )
 

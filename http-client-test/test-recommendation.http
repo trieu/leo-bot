@@ -15,3 +15,7 @@ content-type: application/json
 ### get recommendation for profile by ID 
 
 GET http://localhost:8000/recommend/crm_12
+
+### get recommendation for profile by ID with top_n, except_product_ids
+
+GET http://localhost:8000/recommend/crm_12?top_n=2&except_product_ids=item_1,item_6
