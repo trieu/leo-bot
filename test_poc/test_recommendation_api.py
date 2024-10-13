@@ -22,6 +22,7 @@ class ProfileRequest(BaseModel):
     interest_keywords: List[str]
     additional_info: dict
     max_recommendation_size: int = Field(8, description="Default recommendation is 8")
+    except_product_ids: List[str]
 
 
 class ProductRequest(BaseModel):
@@ -59,7 +60,9 @@ async def add_profile(profile: ProfileRequest):
             profile.interest_keywords,
             profile.additional_info
         )        
-        rs = recommend_products_for_profile(profile_id, profile.max_recommendation_size)
+        top_n = profile.max_recommendation_size
+        except_product_ids = profile.except_product_ids
+        rs = recommend_products_for_profile(profile_id, top_n, except_product_ids)
         if not rs:
             raise HTTPException(
                 status_code=404, detail="Profile not found or no recommendations available")
