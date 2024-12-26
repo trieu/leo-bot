@@ -33,18 +33,18 @@ class ChatMessage(BaseModel):
     
 # UTM model
 class UTMData(BaseModel):
-    utmsource: str
-    utmmedium: str
-    utmcampaign: str
+    utmsource: Optional[str]
+    utmmedium: Optional[str]
+    utmcampaign: Optional[str]
     utmterm: Optional[str]
     utmcontent: Optional[str]
 
 # EventData model
 class EventData(BaseModel):
-    phone: str
-    first_name: str
-    living_district: str
-    living_city: str
+    phone: Optional[str]
+    first_name: Optional[str]
+    living_district: Optional[str]
+    living_city: Optional[str]
     marital_status: Optional[str]
     personal_interests: List[str]
     gift_code: Optional[str]
@@ -54,8 +54,8 @@ class Payload(BaseModel):
     datetime: datetime
     obsid: str
     mediahost: str
-    tprefurl: HttpUrl
-    tprefdomain: str
+    tprefurl: Optional[str]
+    tprefdomain: Optional[str]
     tpurl: HttpUrl
     tpname: str
     metric: str
@@ -65,5 +65,5 @@ class Payload(BaseModel):
     ctxsk: str
 
 class TrackedEvent(BaseModel):
-    utmdata: UTMData
+    utmdata: Optional[UTMData]
     payload: Payload
