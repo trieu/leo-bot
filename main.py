@@ -9,9 +9,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from redis import Redis
+from pathlib import Path
+import json
 
 from leoai.google_ai_chatbot import ask_question, GOOGLE_GENAI_API_KEY, translate_text, detect_language, extract_data_from_chat_message_by_ai
-from leoai.leo_datamodel import Message, UpdateProfileEvent, ChatMessage
+from leoai.leo_datamodel import Message, UpdateProfileEvent, ChatMessage, TrackedEvent
 
 load_dotenv(override=True)
 
@@ -60,6 +62,24 @@ async def is_leobot_ready():
 @leobot.get("/ping", response_class=PlainTextResponse)
 async def ping():
     return "PONG"
+
+
+@leobot.post("/event-game/put", response_class=JSONResponse)
+async def event_tracking(e: TrackedEvent):
+    # Use .model_dump(mode="json") to handle datetime serialization
+    event_data_dict = e.model_dump(mode="json")
+
+    # Convert the dictionary to a JSON string
+    event_data_json = json.dumps(event_data_dict, indent=4, ensure_ascii=False)
+
+    # Define the JSON file path
+    file_path = Path("tracked-event.json")
+
+    # Save the JSON string to a file, TODO save into AWS S3
+    with file_path.open("w", encoding="utf-8") as file:
+        file.write(event_data_json)
+    
+    return {"message": "Data successfully sent to Firehose", "recordId": "1"}
 
 
 @leobot.get("/", response_class=HTMLResponse)

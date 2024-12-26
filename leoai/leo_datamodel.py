@@ -2,6 +2,10 @@
 from typing import Optional
 from pydantic import BaseModel, Field
 
+from typing import List, Optional
+from pydantic import BaseModel, HttpUrl
+from datetime import datetime
+
 DEFAULT_TEMPERATURE_SCORE = 1.0
 
 # Data models
@@ -26,3 +30,40 @@ class ChatMessage(BaseModel):
     profile_id: str = Field("", description="the ID of CDP profile")
     event_id: str = Field("", description="the ID of tracking event")
     content: str = Field("", description="the content of chat message")
+    
+# UTM model
+class UTMData(BaseModel):
+    utmsource: str
+    utmmedium: str
+    utmcampaign: str
+    utmterm: Optional[str]
+    utmcontent: Optional[str]
+
+# EventData model
+class EventData(BaseModel):
+    phone: str
+    first_name: str
+    living_district: str
+    living_city: str
+    marital_status: Optional[str]
+    personal_interests: List[str]
+    gift_code: Optional[str]
+
+# Payload model
+class Payload(BaseModel):
+    datetime: datetime
+    obsid: str
+    mediahost: str
+    tprefurl: HttpUrl
+    tprefdomain: str
+    tpurl: HttpUrl
+    tpname: str
+    metric: str
+    eventdata: EventData
+    visid: str
+    fgp: str
+    ctxsk: str
+
+class TrackedEvent(BaseModel):
+    utmdata: UTMData
+    payload: Payload
