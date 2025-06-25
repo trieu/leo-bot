@@ -43,39 +43,33 @@
 
     <!-- LEO CHATBOT CSS -->
     <link href="/resources/css/leobot.css?_={{ timestamp }}" rel="stylesheet" media="all" >
-
 </head>
 <body>
-    <div class="container text-center">
-        <h1> <i class="fa fa-commenting-o" aria-hidden="true"></i> LEO BOT </h1>
-        <div class="row">
-            <div id="LEO_ChatBot_Container_Loader" class="loader" ></div>
+    <div class="container py-3 text-center">
+        <h2 class="mb-3">
+            <i class="fa fa-commenting-o me-2" aria-hidden="true"></i>LEO BOT
+        </h2>
 
-            <!-- BCP-47 language code https://en.wikipedia.org/wiki/IETF_language_tag  -->
-            <select id="leobot_answer_in_language" class="form-select" style="display:none" >
-                <option value="" selected="selected"> Automatically detect the language according to question </option>
-                <option value="en" > Answer the question in English </option>
-                <option value="vi"> Trả lời câu hỏi bằng tiếng Việt </option>
-                <option value="de"> Beantworten Sie Fragen auf Deutsch </option>
-                <option value="fr"> Répondez à la question en anglais </option>
-                <option value="es"> Responde la pregunta en español </option>
-                <option value="ja"> 質問には日本語で答える </option>
-                <option value="zh"> 用中文回答问题 </option>
-                <option value="ko"> 질문에 한국어로 답변하기 </option>
-            </select>
+        <div class="d-flex justify-content-center">
+            <div id="LEO_ChatBot_Container_Loader" class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+
+        <div class="botui-app-container mt-4" id="LEO_ChatBot_Container" style="display:none;">
+            <bot-ui></bot-ui>
+        </div>
+
+        <div id="leobot_info_box" class="alert alert-light mt-4 mb-0 small" role="alert">
+            <i class="fa fa-info-circle me-1" aria-hidden="true"></i>
+            Developed by 
+            <a target="_blank" href="https://www.facebook.com/dataism.one">Trieu Dataism</a>
         </div>
     </div>
-    <div class="botui-app-container" id="LEO_ChatBot_Container" style="display:none" >
-        <bot-ui></bot-ui>
-    </div>
-    <div id="leobot_info_box" class="alert alert-light" role="alert" >
-        <i class="fa fa-info-circle" aria-hidden="true"></i>
-        This chatbot is developed by <a target="_blank" href="https://www.facebook.com/dataism.one">Trieu Dataism</a> using Google Gemini-1.5-pro <br>
-    </div>
+
     <!-- load all JS files  -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" ></script>
-   
-     <!-- LEO CHATBOT CONFIGS -->
+    <!-- LEO CHATBOT CONFIGS -->
     <script>
         const HOSTNAME = '{{ HOSTNAME }}';
         const LEOBOT_DEV_MODE = '{{ LEOBOT_DEV_MODE }}' === "True";
@@ -84,7 +78,6 @@
         const CDP_TRACKING = true;
     </script>
     <script src="/resources/js/leocdp.chatbot.js?_={{ timestamp }}" ></script>
-
     <script>   
         // ready to load
         $(document).ready(function(){
