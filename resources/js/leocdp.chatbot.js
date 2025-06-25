@@ -245,6 +245,6 @@ var callPostApi = function (urlStr, data, okCallback, errorCallback) {
 var startLeoChatBot = function (visitorId) {
   currentUserProfile.visitorId = visitorId;
   $("#LEO_ChatBot_Container_Loader").hide();
-  $("#LEO_ChatBot_Container, #leobot_answer_in_language").show();
+  $("#LEO_ChatBot_Container").show();
   initLeoChatBot("leobot_website", visitorId);
 };
