@@ -1,5 +1,25 @@
 var currentUserProfile = { visitorId: "", displayName: "friend" };
 
+
+function loadChatSessionWithProfile() {
+  let userProfile = {};
+  const hashData = location.hash.substring(1);
+  try {
+    userProfile = hashData ? JSON.parse(decodeURIComponent(hashData)) : {};
+    console.log("Loaded user profile from hash:", userProfile);
+  } catch (e) {
+    console.warn("Invalid profile data in hash:", e);
+    userProfile = {};
+  }
+
+  // === You can now use `userProfile` to personalize the chatbot ===
+  // Example:
+  // if (userProfile.name) greetUser(userProfile.name);
+}
+
+// Call when location.hash changes (e.g., updated by parent page)
+window.addEventListener("hashchange", loadChatSessionWithProfile);
+
 window.leoBotUI = false;
 window.leoBotContext = false;
 function getBotUI() {
@@ -9,9 +29,14 @@ function getBotUI() {
   return window.leoBotUI;
 }
 
+
+
 function initLeoChatBot(context, visitorId, okCallback) {
   window.leoBotContext = context;
+
+  loadChatSessionWithProfile()
   window.currentUserProfile.visitorId = visitorId;
+  
   window.leoBotUI = new BotUI("LEO_ChatBot_Container");
 
   var url =

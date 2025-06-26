@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <base href="//{{ HOSTNAME }}/">
+    <link
+      rel="icon"
+      type="image/x-icon"
+      href="//admin.leocdp.com/public/images/leocdp-icon/favicon-32x32.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="//admin.leocdp.com/public/images/leocdp-icon/apple-touch-icon.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="//admin.leocdp.com/public/images/leocdp-icon/favicon-32x32.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href="//admin.leocdp.com/public/images/leocdp-icon/favicon-16x16.png"
+    />
+    <link
+      rel="mask-icon"
+      href="//admin.leocdp.com/public/images/leocdp-icon/safari-pinned-tab.svg"
+      color="#5bbad5"
+    />
+
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>iShop - Your Favorite Apple Products</title>
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      crossorigin="anonymous"
+    />
+    <!-- Font Awesome for Icons -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+    <!-- Bootstrap JS Bundle -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js"
+      crossorigin="anonymous"
+    ></script>
+    <!-- ishop css -->
+    <link
+      href="/resources/css/ishop.css?_={{ timestamp }}"
+      rel="stylesheet"
+      media="all"
+    />
+  </head>
+  <body>
+    <!-- Header and Navigation Bar -->
+    <header>
+      <nav class="navbar navbar-expand-lg bg-light">
+        <div class="container">
+          <a class="navbar-brand" href="#">iShop</a>
+          <button
+            class="navbar-toggler"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#navbarNav"
+            aria-controls="navbarNav"
+            aria-expanded="false"
+            aria-label="Toggle navigation"
+          >
+            <span class="navbar-toggler-icon"></span>
+          </button>
+          <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav mx-auto">
+              <li class="nav-item"><a class="nav-link" href="#">iPhone</a></li>
+              <li class="nav-item"><a class="nav-link" href="#">iPad</a></li>
+              <li class="nav-item"><a class="nav-link" href="#">Mac</a></li>
+              <li class="nav-item"><a class="nav-link" href="#">Watch</a></li>
+              <li class="nav-item"><a class="nav-link" href="#">Audio</a></li>
+              <li class="nav-item">
+                <a class="nav-link" href="#">Accessories</a>
+              </li>
+            </ul>
+            <ul class="navbar-nav header-icons">
+              <li class="nav-item">
+                <a class="nav-link" href="#"><i class="fas fa-search"></i></a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="#"
+                  ><i class="fas fa-shopping-cart"></i
+                ></a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container my-5">
+      <!-- Hero Banner -->
+      <div
+        class="hero-banner d-flex align-items-center justify-content-between"
+      >
+        <div>
+          <h1 class="display-5 fw-bold">Chill Music Moments</h1>
+          <p class="fs-4">Get the best audio gear now!</p>
+          <a href="#" class="btn btn-primary btn-lg">Shop Now</a>
+        </div>
+        <img
+          src="https://placehold.co/300x200/f2f2f2/333?text=Headphones"
+          alt="Headphones"
+          class="d-none d-md-block"
+        />
+      </div>
+
+      <!-- Product Sections -->
+      <div class="product-section">
+        <h2>iPhone</h2>
+        <div class="row row-cols-2 row-cols-md-4 g-4">
+          <!-- Product Card -->
+          <div class="col">
+            <div class="card h-100 product-card">
+              <div class="sale-badge">Sale</div>
+              <img
+                src="https://media.itechstore.com.np/w_3072&f_jpeg/img/product/variants/1aaa9baf-6897-491c-91c9-cab700b146e8/iphone-15-pro-natural-titanium.jpg"
+                class="card-img-top"
+                alt="Product Image"
+              />
+              <div class="card-body">
+                <h5 class="card-title">iPhone 15 Pro</h5>
+                <p class="card-text">$999.00</p>
+              </div>
+            </div>
+          </div>
+          <!-- Product Card -->
+          <div class="col">
+            <div class="card h-100 product-card">
+              <img
+                src="https://cdn.iphonedoc.vn/media/8_iphone/iphone-15/iphone-15/iphone-15-128gb-xanh-duong-iphonedoc-2.jpg"
+                class="card-img-top"
+                alt="Product Image"
+              />
+              <div class="card-body">
+                <h5 class="card-title">iPhone 15</h5>
+                <p class="card-text">$799.00</p>
+              </div>
+            </div>
+          </div>
+          <!-- Product Card -->
+          <div class="col">
+            <div class="card h-100 product-card">
+              <img
+                src="https://taozinsaigon.com/files_upload/product/09_2022/thumbs/600_iphone_14_pro_max_vang_11.png"
+                class="card-img-top"
+                alt="Product Image"
+              />
+              <div class="card-body">
+                <h5 class="card-title">iPhone 14</h5>
+                <p class="card-text">$699.00</p>
+              </div>
+            </div>
+          </div>
+          <!-- Product Card -->
+          <div class="col">
+            <div class="card h-100 product-card">
+              <div class="sale-badge">Sale</div>
+              <img
+                src="https://cdn.tgdd.vn/Products/Images/42/329149/s16/iphone-16-pro-max-titan-sa-mac-thumbnew-650x650.png"
+                class="card-img-top"
+                alt="Product Image"
+              />
+              <div class="card-body">
+                <h5 class="card-title">iPhone 16 Pro Max</h5>
+                <p class="card-text">$1,199.00</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="product-section mt-5">
+        <h2>iPad</h2>
+        <div class="row row-cols-2 row-cols-md-4 g-4">
+          <!-- Product Card -->
+          <div class="col">
+            <div class="card h-100 product-card">
+              <img
+                src="https://placehold.co/300x300/ffffff/000?text=iPad+Pro"
+                class="card-img-top"
+                alt="Product Image"
+              />
+              <div class="card-body">
+                <h5 class="card-title">iPad Pro</h5>
+                <p class="card-text">$799.00</p>
+              </div>
+            </div>
+          </div>
+          <!-- Product Card -->
+          <div class="col">
+            <div class="card h-100 product-card">
+              <div class="sale-badge">Sale</div>
+              <img
+                src="https://placehold.co/300x300/ffffff/000?text=iPad+Air"
+                class="card-img-top"
+                alt="Product Image"
+              />
+              <div class="card-body">
+                <h5 class="card-title">iPad Air</h5>
+                <p class="card-text">$599.00</p>
+              </div>
+            </div>
+          </div>
+          <!-- Product Card -->
+          <div class="col">
+            <div class="card h-100 product-card">
+              <img
+                src="https://placehold.co/300x300/ffffff/000?text=iPad"
+                class="card-img-top"
+                alt="Product Image"
+              />
+              <div class="card-body">
+                <h5 class="card-title">iPad (10th gen)</h5>
+                <p class="card-text">$449.00</p>
+              </div>
+            </div>
+          </div>
+          <!-- Product Card -->
+          <div class="col">
+            <div class="card h-100 product-card">
+              <img
+                src="https://placehold.co/300x300/ffffff/000?text=iPad+mini"
+                class="card-img-top"
+                alt="Product Image"
+              />
+              <div class="card-body">
+                <h5 class="card-title">iPad mini</h5>
+                <p class="card-text">$499.00</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Info Banner -->
+      <div class="info-banner text-center">
+        <h2>Experience the Future</h2>
+        <p class="lead">
+          Discover the latest technology with our wide range of products.
+        </p>
+        <a href="#" class="btn btn-light btn-lg">Learn More</a>
+      </div>
+
+      <div class="product-section mt-5">
+        <h2>Accessories</h2>
+        <div class="row row-cols-2 row-cols-md-4 g-4">
+          <!-- Product Card -->
+          <div class="col">
+            <div class="card h-100 product-card">
+              <img
+                src="https://placehold.co/300x300/ffffff/000?text=AirPods+Pro"
+                class="card-img-top"
+                alt="Product Image"
+              />
+              <div class="card-body">
+                <h5 class="card-title">AirPods Pro (2nd Gen)</h5>
+                <p class="card-text">$249.00</p>
+              </div>
+            </div>
+          </div>
+          <!-- Product Card -->
+          <div class="col">
+            <div class="card h-100 product-card">
+              <img
+                src="https://placehold.co/300x300/ffffff/000?text=MagSafe+Charger"
+                class="card-img-top"
+                alt="Product Image"
+              />
+              <div class="card-body">
+                <h5 class="card-title">MagSafe Charger</h5>
+                <p class="card-text">$39.00</p>
+              </div>
+            </div>
+          </div>
+          <!-- Product Card -->
+          <div class="col">
+            <div class="card h-100 product-card">
+              <div class="sale-badge">Sale</div>
+              <img
+                src="https://placehold.co/300x300/ffffff/000?text=Apple+Pencil"
+                class="card-img-top"
+                alt="Product Image"
+              />
+              <div class="card-body">
+                <h5 class="card-title">Apple Pencil (2nd Gen)</h5>
+                <p class="card-text">$129.00</p>
+              </div>
+            </div>
+          </div>
+          <!-- Product Card -->
+          <div class="col">
+            <div class="card h-100 product-card">
+              <img
+                src="https://placehold.co/300x300/ffffff/000?text=Magic+Keyboard"
+                class="card-img-top"
+                alt="Product Image"
+              />
+              <div class="card-body">
+                <h5 class="card-title">Magic Keyboard</h5>
+                <p class="card-text">$299.00</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-5">
+      <div class="container">
+        <div class="row">
+          <div class="col-md-4">
+            <h5>iShop</h5>
+            <p>
+              The best place to buy your favorite Apple products. We offer a
+              wide selection and great prices.
+            </p>
+          </div>
+          <div class="col-md-2">
+            <h5>Products</h5>
+            <ul class="list-unstyled">
+              <li><a href="#">iPhone</a></li>
+              <li><a href="#">iPad</a></li>
+              <li><a href="#">Mac</a></li>
+              <li><a href="#">Watch</a></li>
+            </ul>
+          </div>
+          <div class="col-md-3">
+            <h5>Support</h5>
+            <ul class="list-unstyled">
+              <li><a href="#">Contact Us</a></li>
+              <li><a href="#">FAQ</a></li>
+              <li><a href="#">Shipping Policy</a></li>
+              <li><a href="#">Return Policy</a></li>
+            </ul>
+          </div>
+          <div class="col-md-3">
+            <h5>Contact Us</h5>
+            <p>
+              123 Tech Street, Silicon Valley, CA<br />
+              Email: support@ishop.com<br />
+              Phone: (123) 456-7890
+            </p>
+          </div>
+        </div>
+        <hr />
+        <div class="text-center">
+          <p>&copy; 2024 iShop. All Rights Reserved.</p>
+        </div>
+      </div>
+    </footer>
+
+    <script src="/resources/js/leobot.embedded.js?_={{ timestamp }}" ></script>
+    <script>
+        load_embedded_leobot({
+            leobotUrl: "https://leobot.example.com/",
+            localStorageKey: "leo_bot_state",
+            containerWidth: "400px",
+            text: {
+            header: {
+                title: "iShop Chatbot",
+                subtitle: "Chúng tôi luôn sẵn sàng giúp bạn!",
+            },
+            form: {
+                title: "Hãy để lại thông tin để được tư vấn:",
+                name: "Tên đầy đủ",
+                phone: "Số điện thoại",
+                email: "Email liên hệ",
+                question: "Bạn cần hỗ trợ gì?",
+                submit: "Gửi ngay",
+            },
+            toggleButtonText: "💬 Hỗ trợ",
+            }
+        });
+    </script>
+
+  </body>
+</html>

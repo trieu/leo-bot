@@ -88,6 +88,12 @@ async def root(request: Request):
     data = {"request": request, "HOSTNAME": HOSTNAME, "LEOBOT_DEV_MODE": LEOBOT_DEV_MODE, 'timestamp': ts}
     return templates.TemplateResponse("index.html", data)
 
+@leobot.get("/demo-chatbot-ishop", response_class=HTMLResponse)
+async def demo_chat_in_ishop(request: Request):
+    ts = int(time.time())
+    data = {"request": request, "HOSTNAME": HOSTNAME, "LEOBOT_DEV_MODE": LEOBOT_DEV_MODE, 'timestamp': ts}
+    return templates.TemplateResponse("demo-chatbot-ishop.html", data)
+
 
 @leobot.get("/get-visitor-info", response_class=JSONResponse)
 async def get_visitor_info(visitor_id: str):
