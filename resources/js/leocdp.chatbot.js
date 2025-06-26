@@ -85,7 +85,7 @@ var leoBotPromptQuestion = function (delay) {
     });
 };
 
-var leoBotShowAnswer = function (answerInHtml, delay) {
+var leoBotShowAnswer = function (answerInHtml, providedDelay) {
   getBotUI()
     .message.add({
       human: false,
@@ -114,7 +114,7 @@ var leoBotShowAnswer = function (answerInHtml, delay) {
       } else if (answerInHtml.length > 200) {
         delay = 3000;
       } else {
-        delay = 1200;
+        delay = 1500;
       }
       leoBotPromptQuestion(delay);
     });
@@ -166,7 +166,7 @@ var askTheEmailOfUser = function (name) {
         }, 3000);
 
         var s = "Chào " +  name + ", hệ thống đang đăng ký thông tin cho bạn ...";
-        leoBotShowAnswer(s, 10000);// delay 10 seconds to make chatbot do not show input box
+        leoBotShowAnswer(s, 6000);// delay 10 seconds to make chatbot do not show input box
       } else {
         leoBotShowError(email + " không là email hợp lệ", function () {
           askTheEmailOfUser(name);
