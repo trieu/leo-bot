@@ -1,4 +1,4 @@
-var currentUserProfile = { visitorId: "", displayName: "good friend" };
+var currentUserProfile = { visitorId: "", displayName: "friend" };
 
 window.leoBotUI = false;
 window.leoBotContext = false;
@@ -41,8 +41,29 @@ function initLeoChatBot(context, visitorId, okCallback) {
   }
 }
 
+/**
+ * Returns a greeting message in either English or Vietnamese.
+ *
+ * @param {string} displayName The name of the user to greet.
+ * @param {string} language The language code ('en' for English, 'vi' for Vietnamese).
+ * @returns {string} The formatted greeting message.
+ */
+function getGreetingMessage(displayName, language) {
+  let msg;
+  switch (language) {
+    case 'vi':
+      msg = "Chào " + displayName + ", bạn có thể hỏi tôi bất cứ điều gì";
+      break;
+    case 'en':
+    default: // Default to English if the language is not recognized
+      msg = "Hi " + displayName + ", you may ask me for anything";
+      break;
+  }
+  return msg;
+}
+
 var showLeoChatBot = function (displayName) {
-  var msg = "Hi " + displayName + ", you may ask me for anything";
+  var msg = getGreetingMessage(displayName, "vi");
   var msgObj = { content: msg, cssClass: "leobot-answer" };
   getBotUI().message.removeAll();
   getBotUI().message.bot(msgObj).then(leoBotPromptQuestion);
@@ -56,7 +77,7 @@ var leoBotPromptQuestion = function (delay) {
         icon: "question-circle",
         cssClass: "leobot-question-input",
         value: "", // show the prevous answer if any
-        placeholder: "Give me a question",
+        placeholder: "..................",
       },
     })
     .then(function (res) {
@@ -87,12 +108,14 @@ var leoBotShowAnswer = function (answerInHtml, delay) {
           $(this).attr("href", href);
         });
 
-      delay =
-        typeof delay === "number"
-          ? delay
-          : answerInHtml.length > 200
-          ? 6000
-          : 1800;
+      let delay;
+      if (typeof providedDelay === "number") {
+        delay = providedDelay;
+      } else if (answerInHtml.length > 200) {
+        delay = 3000;
+      } else {
+        delay = 1200;
+      }
       leoBotPromptQuestion(delay);
     });
 };
@@ -207,11 +230,18 @@ var sendQuestionToLeoAI = function (context, question) {
         }
       };
 
-      var payload = { prompt: question, question: question };
+      var context = $('#LEO_ChatBot_Container').find('.botui-message-content').slice(-3)
+              .map(function () {
+                return $(this).text();
+              }).get().join(' ; ');
+
+      var payload = {};
+      payload["context"] = context;
+      payload["question"] = question;
       payload["visitor_id"] = currentUserProfile.visitorId;
-      payload["answer_in_language"] = "";
+      payload["answer_in_language"] = "Vietnamese";
       payload["answer_in_format"] = "html";
-      payload["context"] = "I am a smart chatbot with AI capabilities.";
+      
       callPostApi(BASE_URL_LEOBOT, payload, serverCallback);
     };
     showChatBotLoader().then(callServer);

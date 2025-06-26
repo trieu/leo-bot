@@ -4,7 +4,7 @@
 #from importlib.machinery import SourceFileLoader
 #leo_chatbot = SourceFileLoader("leoai","leoai/leo_chatbot.py").load_module()
 
-from leoai import google_ai_chatbot
+from leoai import ai_chatbot
 
 def start_main_loop():
     while True:
@@ -16,7 +16,7 @@ def start_main_loop():
             # q = leo_chatbot.translate_text(question, 'en') 
             q = question
             print('the AI is thinking...')
-            rs = google_ai_chatbot.ask_question(question=q)
+            rs = ai_chatbot.ask_question(question=q)
             print(rs)
 
 # start local bot in command line

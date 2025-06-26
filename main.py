@@ -12,7 +12,7 @@ from redis import Redis
 from pathlib import Path
 import json
 
-from leoai.google_ai_chatbot import ask_question, GOOGLE_GENAI_API_KEY, translate_text, detect_language, extract_data_from_chat_message_by_ai
+from leoai.ai_chatbot import ask_question, GOOGLE_GENAI_API_KEY, translate_text, detect_language, extract_data_from_chat_message_by_ai
 from leoai.leo_datamodel import Message, UpdateProfileEvent, ChatMessage, TrackedEvent
 
 load_dotenv(override=True)
@@ -122,33 +122,25 @@ async def ask(msg: Message):
     
     leobot_ready = is_visitor_ready(visitor_id)
     question = msg.question
-    prompt = msg.prompt
-    lang_of_question = msg.answer_in_language
+    answer_in_language = msg.answer_in_language
     context = msg.context
        
-    if len(question) > 1000 or len(prompt) > 1000 :
+    if len(question) > 1000 :
         return {"answer": "Question must be less than 1000 characters!", "error": True, "error_code": 510}
 
     print("context: "+context)
     print("question: "+question)
-    print("prompt: "+prompt)
     print("visitor_id: " + visitor_id)
     print("profile_id: "+profile_id)
 
     if leobot_ready:        
-        if lang_of_question == "" :
-            lang_of_question = detect_language(question)        
-             
+                    
         format = msg.answer_in_format
         temperature_score = msg.temperature_score
-        question_in_english = prompt
-
-        if lang_of_question != "en":
-            # our model can only understand English        
-            question_in_english = translate_text(prompt, 'en')
             
         # translate if need
-        answer = ask_question(context, format, lang_of_question, question_in_english, temperature_score)
+        answer = ask_question(context=context, question=question,temperature_score=temperature_score,
+                              answer_in_format=format, target_language=answer_in_language)
         print("answer " + answer)
         data = {"question": question,
                 "answer": answer, "visitor_id": visitor_id, "error_code": 0}

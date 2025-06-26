@@ -1,7 +1,7 @@
 import json
 
-from leoai.leo_chatbot import ask_question, translate_text, detect_language, extract_data_from_chat_message_by_ai, GOOGLE_GENAI_API_KEY
-from leoai.leo_datamodel import Message, UpdateProfileEvent, ChatMessage
+from leoai.ai_chatbot import extract_data_from_chat_message_by_ai
+from leoai.leo_datamodel import ChatMessage
 
 def test_extract_data_from_chat_message_by_ai():
     story = """

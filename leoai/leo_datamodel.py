@@ -15,7 +15,6 @@ class Message(BaseModel):
     context: str = Field("You are a creative chatbot.", description="the context of question")
     question: str = Field("", description="the question for Q&A ")
     temperature_score: float = Field(DEFAULT_TEMPERATURE_SCORE, description="the temperature score of LLM ")
-    prompt: str
     visitor_id: str = Field("", description="the visitor id ")
     
 # Data models
