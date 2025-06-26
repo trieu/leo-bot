@@ -161,11 +161,12 @@ var askTheEmailOfUser = function (name) {
           LeoObserverProxy.updateProfileBySession(profileData);
         }
 
-        var s = "Chào " +  name + ", hệ thống đang đăng ký thông tin và chờ phản hồi từ chúng tôi.";
-        leoBotShowAnswer(s, 2500);
         setTimeout(function () {
           location.reload(true);
-        }, 5000);
+        }, 3000);
+
+        var s = "Chào " +  name + ", hệ thống đang đăng ký thông tin và chờ phản hồi từ chúng tôi.";
+        leoBotShowAnswer(s, 10000);// delay 10 seconds to make chatbot do not show input box
       } else {
         leoBotShowError(email + " không là email hợp lệ", function () {
           askTheEmailOfUser(name);
