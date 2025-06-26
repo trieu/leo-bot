@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 # to use local model "Mistral-7B", export LEOAI_LOCAL_MODEL=true
 LEOAI_LOCAL_MODEL = os.getenv("LEOAI_LOCAL_MODEL") == "true"
-GOOGLE_GENAI_API_KEY = os.getenv("GOOGLE_GENAI_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 TEMPERATURE_SCORE = 0.86
 
 gemini_client = GeminiClient()

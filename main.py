@@ -12,7 +12,7 @@ from redis import Redis
 from pathlib import Path
 import json
 
-from leoai.ai_chatbot import ask_question, GOOGLE_GENAI_API_KEY, translate_text, detect_language, extract_data_from_chat_message_by_ai
+from leoai.ai_chatbot import ask_question, GEMINI_API_KEY, translate_text, detect_language, extract_data_from_chat_message_by_ai
 from leoai.leo_datamodel import Message, UpdateProfileEvent, ChatMessage, TrackedEvent
 
 load_dotenv(override=True)
@@ -55,7 +55,7 @@ def is_visitor_ready(visitor_id:str):
 @leobot.get("/is-ready", response_class=JSONResponse)
 @leobot.post("/is-ready", response_class=JSONResponse)
 async def is_leobot_ready():
-    isReady = isinstance(GOOGLE_GENAI_API_KEY, str)
+    isReady = isinstance(GEMINI_API_KEY, str)
     return {"ok": isReady}
 
 
@@ -91,9 +91,9 @@ async def root(request: Request):
 
 @leobot.get("/get-visitor-info", response_class=JSONResponse)
 async def get_visitor_info(visitor_id: str):
-    isReady = isinstance(GOOGLE_GENAI_API_KEY, str)
+    isReady = isinstance(GEMINI_API_KEY, str)
     if not isReady:        
-        return {"answer": "GOOGLE_GENAI_API_KEY is empty", "error_code": 501}
+        return {"answer": "GEMINI_API_KEY is empty", "error_code": 501}
     if len(visitor_id) == 0: 
         return {"answer": "visitor_id is empty ", "error": True, "error_code": 500}
     profile_id = REDIS_CLIENT.hget(visitor_id, 'profile_id')

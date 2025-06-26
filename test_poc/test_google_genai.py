@@ -5,8 +5,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 GEMINI_MODEL = 'models/gemini-1.5-flash-latest'
-GOOGLE_GENAI_API_KEY = os.getenv("GOOGLE_GENAI_API_KEY")
-genai.configure(api_key=GOOGLE_GENAI_API_KEY)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+genai.configure(api_key=GEMINI_API_KEY)
 gemini_text_model = genai.GenerativeModel(model_name=GEMINI_MODEL)
 
 book_title = 'Big Data and Customer Data Platform In Real Estate'

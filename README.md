@@ -2,7 +2,7 @@
 
 - For chatbot demo, please go to https://leobot.leocdp.com
 - The LEO BOT works an AI chatbot with the backend using Google Generative AI (PaLM 2) and Mistral-7B
-- For the GOOGLE_GENAI_API_KEY, please check more details at https://developers.generativeai.google/guide 
+- For the GEMINI_API_KEY, please check more details at https://developers.generativeai.google/guide 
 - For the GOOGLE_APPLICATION_CREDENTIALS, go to https://console.cloud.google.com/apis/api/translate.googleapis.com/credentials
 - Author: Trieu Nguyen at https://github.com/trieu
 - Follow my YouTube channel for more knowledge: https://www.youtube.com/@bigdatavn
@@ -27,7 +27,7 @@ LEOBOT_DEV_MODE=true
 HOSTNAME=leobot.example.com
 
 GOOGLE_APPLICATION_CREDENTIALS=
-GOOGLE_GENAI_API_KEY=
+GEMINI_API_KEY=
 
 REDIS_USER_SESSION_HOST=127.0.0.1
 REDIS_USER_SESSION_PORT=6480
