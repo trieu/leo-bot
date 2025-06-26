@@ -145,7 +145,7 @@ var askTheEmailOfUser = function (name) {
         icon: "envelope-o",
         cssClass: "leobot-question-input",
         value: "",
-        placeholder: "Input your email here",
+        placeholder: "Email của bạn",
       },
     })
     .then(function (res) {
@@ -161,10 +161,13 @@ var askTheEmailOfUser = function (name) {
           LeoObserverProxy.updateProfileBySession(profileData);
         }
 
-        var a = "Hi " +  name + ", LEO is creating a new account for you. Please wait for 5 seconds...";
-        leoBotShowAnswer(a, 5000);
+        var s = "Chào " +  name + ", hệ thống đang đăng ký thông tin và chờ phản hồi từ chúng tôi.";
+        leoBotShowAnswer(s, 2500);
+        setTimeout(function () {
+          location.reload(true);
+        }, 5000);
       } else {
-        leoBotShowError(email + " is not a valid email", function () {
+        leoBotShowError(email + " không là email hợp lệ", function () {
           askTheEmailOfUser(name);
         });
       }
@@ -179,7 +182,7 @@ var askTheNameOfUser = function () {
         icon: "user-circle-o",
         cssClass: "leobot-question-input",
         value: "",
-        placeholder: "Input your name here",
+        placeholder: "Tên bạn",
       },
     })
     .then(function (res) {
@@ -188,7 +191,7 @@ var askTheNameOfUser = function () {
 };
 
 var askForContactInfo = function (visitor_id) {
-  var msg = "Hi friend, please enter your name and email to register new user";
+  var msg = "Chào bạn, vui lòng nhập tên và email để  cần hỗ trỡ";
   getBotUI()
     .message.add({
       human: false,
