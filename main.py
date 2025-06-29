@@ -12,6 +12,7 @@ from redis import Redis
 from pathlib import Path
 import json
 import logging
+import requests
 
 from leoai.ai_chatbot import ask_question, GEMINI_API_KEY, translate_text, detect_language, extract_data_from_chat_message_by_ai
 from leoai.leo_datamodel import Message, UpdateProfileEvent, ChatMessage, TrackedEvent
@@ -25,6 +26,9 @@ LEOBOT_DEV_MODE = os.getenv("LEOBOT_DEV_MODE") == "true"
 HOSTNAME = os.getenv("HOSTNAME")
 REDIS_USER_SESSION_HOST = os.getenv("REDIS_USER_SESSION_HOST")
 REDIS_USER_SESSION_PORT = os.getenv("REDIS_USER_SESSION_PORT")
+
+# Facebook Page Access Token
+PAGE_ACCESS_TOKEN = os.getenv("FB_PAGE_ACCESS_TOKEN")  
 
 print("HOSTNAME " + HOSTNAME)
 print("LEOBOT_DEV_MODE " + str(LEOBOT_DEV_MODE))
@@ -64,18 +68,59 @@ async def is_leobot_ready():
     return {"ok": isReady}
 
 
+# FB Webhook verification (GET)
 @leobot.get("/fb-webhook", response_class=JSONResponse)
+async def verify_webhook(request: Request):
+    params = request.query_params
+    mode = params.get("hub.mode")
+    token = params.get("hub.verify_token")
+    challenge = params.get("hub.challenge")
+
+    if mode == "subscribe" and token == os.getenv("FB_VERIFY_TOKEN"):
+        logger.info("FB Webhook verified successfully.")
+        return PlainTextResponse(content=challenge)
+    else:
+        logger.warning("FB Webhook verification failed.")
+        return JSONResponse(status_code=403, content={"error": "Verification failed"})
+
+# FB Webhook message receiver (POST)
 @leobot.post("/fb-webhook", response_class=JSONResponse)
 async def receive_webhook(request: Request):
-    isReady = isinstance(GEMINI_API_KEY, str)
-    body = await request.json()
-    messaging_events = body.get("entry", [])[0].get("messaging", [])
-    for event in messaging_events:
-        sender_id = event["sender"]["id"]
-        if "message" in event and "text" in event["message"]:
-            user_msg = event["message"]["text"]
-        logger.info(f"receive_webhook from FB, sender_id '{sender_id}' user_msg '{user_msg}'")
-    return {"ok": isReady}
+    try:
+        body = await request.json()
+        entries = body.get("entry", [])
+        for entry in entries:
+            messaging_events = entry.get("messaging", [])
+            for event in messaging_events:
+                sender_id = event["sender"]["id"]
+                message_data = event.get("message", {})
+                user_msg = message_data.get("text")
+
+                if user_msg:
+                    logger.info(f"FB user '{sender_id}' said: {user_msg}")
+                    # Use Gemini to answer
+                    ai_reply = ask_question(question=user_msg)
+                    logger.info(f"AI reply to '{sender_id}': {ai_reply}")
+                    send_message_to_facebook(sender_id, ai_reply)
+    except Exception as e:
+        logger.error(f"Error in FB webhook handler: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+    return {"ok": True}
+
+def send_message_to_facebook(recipient_id: str, message_text: str):
+    url = f"https://graph.facebook.com/v13.0/me/messages?access_token={PAGE_ACCESS_TOKEN}"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "recipient": {"id": recipient_id},
+        "message": {"text": message_text},
+    }
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+        logger.info(f"Sent message to {recipient_id}: {message_text}")
+    except Exception as e:
+        logger.error(f"Failed to send message to FB user {recipient_id}: {e}")
 
 
 @leobot.get("/ping", response_class=PlainTextResponse)
