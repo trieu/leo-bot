@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 from redis import Redis
 from pathlib import Path
 import json
+import logging
 
 from leoai.ai_chatbot import ask_question, GEMINI_API_KEY, translate_text, detect_language, extract_data_from_chat_message_by_ai
 from leoai.leo_datamodel import Message, UpdateProfileEvent, ChatMessage, TrackedEvent
@@ -32,6 +33,10 @@ print("LEOBOT_DEV_MODE " + str(LEOBOT_DEV_MODE))
 REDIS_CLIENT = Redis(host=REDIS_USER_SESSION_HOST,  port=REDIS_USER_SESSION_PORT, decode_responses=True)
 FOLDER_RESOURCES = os.path.dirname(os.path.abspath(__file__)) + "/resources/"
 FOLDER_TEMPLATES = FOLDER_RESOURCES + "templates"
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # init FAST API leobot
 leobot = FastAPI()
@@ -56,6 +61,20 @@ def is_visitor_ready(visitor_id:str):
 @leobot.post("/is-ready", response_class=JSONResponse)
 async def is_leobot_ready():
     isReady = isinstance(GEMINI_API_KEY, str)
+    return {"ok": isReady}
+
+
+@leobot.get("/fb-webhook", response_class=JSONResponse)
+@leobot.post("/fb-webhook", response_class=JSONResponse)
+async def receive_webhook(request: Request):
+    isReady = isinstance(GEMINI_API_KEY, str)
+    body = await request.json()
+    messaging_events = body.get("entry", [])[0].get("messaging", [])
+    for event in messaging_events:
+        sender_id = event["sender"]["id"]
+        if "message" in event and "text" in event["message"]:
+            user_msg = event["message"]["text"]
+        logger.info(f"receive_webhook from FB, sender_id '{sender_id}' user_msg '{user_msg}'")
     return {"ok": isReady}
 
 

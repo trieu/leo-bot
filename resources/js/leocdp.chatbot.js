@@ -30,7 +30,6 @@ function getBotUI() {
 }
 
 
-
 function initLeoChatBot(context, visitorId, okCallback) {
   window.leoBotContext = context;
 
@@ -46,18 +45,21 @@ function initLeoChatBot(context, visitorId, okCallback) {
     "&_=" +
     new Date().getTime();
   $.getJSON(url, function (data) {
-    var e = data.error_code;
-    var a = data.answer;
+    var error_code = data.error_code;
+    var answer = data.answer;
     console.log(data);
-    if (e === 0) {
-      var n = currentUserProfile.displayName;
-      n = a.length > 0 ? a : n;
-      currentUserProfile.displayName = n;
+
+    if (error_code === 0) {
+      var name = currentUserProfile.displayName;
+      name = answer.length > 0 ? answer : name;
+      currentUserProfile.displayName = name;
       showLeoChatBot(currentUserProfile.displayName);
-    } else if (e === 404) {
+    } 
+    else if (error_code === 404) {
       askForContactInfo(visitorId);
-    } else {
-      leoBotShowError(a, leoBotPromptQuestion);
+    } 
+    else {
+      leoBotShowError(answer, leoBotPromptQuestion);
     }
   });
 
