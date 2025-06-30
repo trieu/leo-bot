@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 import time
 from dotenv import load_dotenv
@@ -28,6 +29,7 @@ REDIS_USER_SESSION_HOST = os.getenv("REDIS_USER_SESSION_HOST")
 REDIS_USER_SESSION_PORT = os.getenv("REDIS_USER_SESSION_PORT")
 
 # Facebook Page Access Token
+BASE_URL_FB_MSG = 'https://graph.facebook.com/v13.0/me/messages'
 PAGE_ACCESS_TOKEN = os.getenv("FB_PAGE_ACCESS_TOKEN")  
 
 print("HOSTNAME " + HOSTNAME)
@@ -89,6 +91,7 @@ async def receive_webhook(request: Request):
     try:
         body = await request.json()
         entries = body.get("entry", [])
+
         for entry in entries:
             messaging_events = entry.get("messaging", [])
             for event in messaging_events:
@@ -96,20 +99,62 @@ async def receive_webhook(request: Request):
                 message_data = event.get("message", {})
                 user_msg = message_data.get("text")
 
-                if user_msg:
-                    logger.info(f"FB user '{sender_id}' said: {user_msg}")
-                    # Use Gemini to answer
-                    ai_reply = ask_question(question=user_msg)
-                    logger.info(f"AI reply to '{sender_id}': {ai_reply}")
-                    send_message_to_facebook(sender_id, ai_reply)
+                if not user_msg:
+                    continue  # skip non-text messages
+
+                logger.info(f"FB user '{sender_id}' said: {user_msg}")
+
+                # Load or init context
+                key = f"fbu:{sender_id}"
+                user_context = get_user_context(key)
+
+                # Save latest info to Redis
+                now_iso = datetime.utc().isoformat()
+                try:
+                    # Update message history
+                    history_raw = REDIS_CLIENT.hget(key, 'message_history')
+                    history = json.loads(history_raw) if history_raw else []
+                    history.append({
+                        "timestamp": now_iso,
+                        "message": user_msg
+                    })
+                    REDIS_CLIENT.hset(key, mapping={
+                        'last_message': user_msg,
+                        'last_seen': now_iso,
+                        'message_history': json.dumps(history)
+                    })
+                except Exception as redis_error:
+                    logger.error(f"Redis update error for {sender_id}: {redis_error}")
+
+                # Generate AI reply
+                ai_reply = ask_question(context=user_context, question=user_msg)
+                logger.info(f"AI reply to '{sender_id}': {ai_reply}")
+
+                # Send reply
+                send_message_to_facebook(sender_id, ai_reply)
+
     except Exception as e:
-        logger.error(f"Error in FB webhook handler: {e}")
+        logger.exception("Error in FB webhook handler")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
     return {"ok": True}
 
+
+def get_user_context(key: str) -> str:
+    try:
+        context = REDIS_CLIENT.hget(key, 'fb_user_context')
+        if context is None or len(context) == 0:
+            context = "My name is LEO BOT, the chatbot for business that developed in ReSynap Framework"
+            REDIS_CLIENT.hset(key, 'fb_user_context', context)
+        else:
+            context = context.decode() if isinstance(context, bytes) else str(context)
+        return context
+    except Exception as e:
+        logger.error(f"Error loading user context from Redis: {e}")
+        return "My name is LEO BOT, your AI assistant."
+
 def send_message_to_facebook(recipient_id: str, message_text: str):
-    url = f"https://graph.facebook.com/v13.0/me/messages?access_token={PAGE_ACCESS_TOKEN}"
+    url = f"{BASE_URL_FB_MSG}?access_token={PAGE_ACCESS_TOKEN}"
     headers = {"Content-Type": "application/json"}
     payload = {
         "recipient": {"id": recipient_id},
