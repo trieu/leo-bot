@@ -1,6 +1,6 @@
-from datetime import datetime
 import os
 import time
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 from fastapi import FastAPI, Request
@@ -109,7 +109,7 @@ async def receive_webhook(request: Request):
                 user_context = get_user_context(key)
 
                 # Save latest info to Redis
-                now_iso = datetime.utc().isoformat()
+                now_iso = datetime.now(timezone.utc).isoformat()
                 try:
                     # Update message history
                     history_raw = REDIS_CLIENT.hget(key, 'message_history')
