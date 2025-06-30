@@ -144,7 +144,7 @@ def get_user_context(key: str) -> str:
     try:
         context = REDIS_CLIENT.hget(key, 'fb_user_context')
         if context is None or len(context) == 0:
-            context = "My name is LEO BOT, the chatbot for business that developed in ReSynap Framework"
+            context ="I'm LEO BOT, designed to support your business — developed using the powerful ReSynap Framework"
             REDIS_CLIENT.hset(key, 'fb_user_context', context)
         else:
             context = context.decode() if isinstance(context, bytes) else str(context)
