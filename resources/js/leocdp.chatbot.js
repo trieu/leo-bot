@@ -56,7 +56,9 @@ function initLeoChatBot(context, visitorId, okCallback) {
       showLeoChatBot(currentUserProfile.displayName);
     } 
     else if (error_code === 404) {
-      askForContactInfo(visitorId);
+      // askTheContactOfUser();
+      currentUserProfile.displayName = '';
+      showLeoChatBot(currentUserProfile.displayName);
     } 
     else {
       leoBotShowError(answer, leoBotPromptQuestion);
@@ -218,7 +220,7 @@ var askTheNameOfUser = function () {
     });
 };
 
-var askForContactInfo = function (visitor_id) {
+var askTheContactOfUser = function () {
   var msg = "Chào bạn, vui lòng nhập tên và email để  cần hỗ trỡ";
   getBotUI()
     .message.add({
@@ -255,7 +257,9 @@ var sendQuestionToLeoAI = function (context, question) {
           currentUserProfile.displayName = data.name;
           processAnswer(answer);
         } else if (error_code === 404) {
-          askForContactInfo();
+          // askTheContactOfUser();
+          currentUserProfile.displayName = "";
+          processAnswer(answer);
         } else {
           leoBotShowError(answer, leoBotPromptQuestion);
         }

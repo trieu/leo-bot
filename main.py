@@ -46,6 +46,11 @@ logger = logging.getLogger(__name__)
 
 # init FAST API leobot
 leobot = FastAPI()
+
+# 
+SESSION_LIMIT = 20  # max messages
+WINDOW_SECONDS = 60  # time window
+
 origins = ["*"]
 leobot.add_middleware(
     CORSMiddleware,
@@ -57,8 +62,24 @@ leobot.add_middleware(
 leobot.mount("/resources", StaticFiles(directory=FOLDER_RESOURCES), name="resources")
 templates = Jinja2Templates(directory=FOLDER_TEMPLATES)
 
-def is_visitor_ready(visitor_id:str):
-    return REDIS_CLIENT.hget(visitor_id, 'chatbot') == "leobot" or LEOBOT_DEV_MODE
+def is_safe_to_answer(visitor_id: str) -> bool:
+    key = f"chat_rate_limit:{visitor_id}"
+    now = int(time.time() * 1000)  # current timestamp in ms
+    window_start = now - (WINDOW_SECONDS * 1000)
+
+    # remove entries older than the window
+    REDIS_CLIENT.zremrangebyscore(key, 0, window_start)
+    # count current entries in window
+    current_count = REDIS_CLIENT.zcard(key)
+
+    if current_count >= SESSION_LIMIT:
+        return False
+
+    # add new message timestamp
+    REDIS_CLIENT.zadd(key, {str(now): now})
+    # set expiration to auto-clean old data
+    REDIS_CLIENT.expire(key, WINDOW_SECONDS)
+    return True
 
 ##### API handlers #####
 
@@ -232,10 +253,10 @@ async def ask(msg: Message):
         profile_id = "0"
     else:
         profile_id = REDIS_CLIENT.hget(visitor_id, 'profile_id')
-        if profile_id is None or len(profile_id) == 0: 
-            return {"answer": "Not found any profile in CDP", "error": True, "error_code": 404}
+        if profile_id is not None and len(profile_id) > 0: 
+            print("TODO load vector for CDP profile_id: "+profile_id)
     
-    leobot_ready = is_visitor_ready(visitor_id)
+    safe = is_safe_to_answer(visitor_id)
     question = msg.question
     answer_in_language = msg.answer_in_language
     context = msg.context
@@ -246,9 +267,8 @@ async def ask(msg: Message):
     print("context: "+context)
     print("question: "+question)
     print("visitor_id: " + visitor_id)
-    print("profile_id: "+profile_id)
 
-    if leobot_ready:        
+    if safe:        
                     
         format = msg.answer_in_format
         temperature_score = msg.temperature_score
