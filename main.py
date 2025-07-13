@@ -17,6 +17,7 @@ import requests
 
 from leoai.ai_chatbot import ask_question, GEMINI_API_KEY, translate_text, detect_language, extract_data_from_chat_message_by_ai
 from leoai.leo_datamodel import Message, UpdateProfileEvent, ChatMessage, TrackedEvent
+from leoai.rag_agent import ask_question_rag
 
 load_dotenv(override=True)
 
@@ -148,7 +149,16 @@ async def receive_webhook(request: Request):
                     logger.error(f"Redis update error for {sender_id}: {redis_error}")
 
                 # Generate AI reply
-                ai_reply = ask_question(context=user_context, question=user_msg)
+                persona_id = "fb_user"
+                touchpoint_id = "facebook"
+
+                ai_reply = ask_question_rag(
+                    user_id=sender_id,
+                    question=user_msg,
+                    persona_id=persona_id,
+                    touchpoint_id=touchpoint_id
+                )
+                
                 logger.info(f"AI reply to '{sender_id}': {ai_reply}")
 
                 # Send reply
@@ -274,8 +284,19 @@ async def ask(msg: Message):
         temperature_score = msg.temperature_score
             
         # translate if need
-        answer = ask_question(context=context, question=question,temperature_score=temperature_score,
-                              answer_in_format=format, target_language=answer_in_language)
+        # answer = ask_question(context=context, question=question,temperature_score=temperature_score, answer_in_format=format, target_language=answer_in_language)
+        
+         # Generate AI reply
+        persona_id = "fb_user"
+        touchpoint_id = "facebook"
+
+        answer = ask_question_rag(
+            user_id=visitor_id,
+            question=question,
+            persona_id=persona_id,
+            touchpoint_id=touchpoint_id
+        )
+        
         print("answer " + answer)
         data = {"question": question,
                 "answer": answer, "visitor_id": visitor_id, "error_code": 0}

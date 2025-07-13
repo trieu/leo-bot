@@ -6,7 +6,6 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-from langchain.prompts import PromptTemplate
 
 # need Google translate to convert input into English
 from google.cloud import translate_v2 as translate
