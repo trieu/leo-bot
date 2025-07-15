@@ -108,7 +108,7 @@ url1 = 'https://www.tiktok.com/@clap_h/video/7282667642584861998'
 view1 = get_video_view(url1, selectorLikeCount, True)
 print('Video Like: ', view1)
 
-url2 = 'https://www.tiktok.com/@mouse11121/video/7267355123913952555'
+url2 = 'https://www.tiktok.com/@1longviboss/video/7517199612936015111'
 view2 = get_video_view(url2, selectorLikeCount, True)
 print('Video Like: ', view2)
 

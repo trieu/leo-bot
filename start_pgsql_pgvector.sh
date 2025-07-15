@@ -9,16 +9,23 @@ TARGET_DB="customer360"
 HOST_PORT=5432
 DATA_VOLUME="pgdata_vector"
 
-# --- Start container if not running ---
-if docker ps --format '{{.Names}}' | grep -Eq "^${CONTAINER_NAME}$"; then
-  echo "🟢 PostgreSQL container '${CONTAINER_NAME}' is already running."
+# --- Check if container exists ---
+if docker ps -a --format '{{.Names}}' | grep -Eq "^${CONTAINER_NAME}$"; then
+  # If exists but not running, start it
+  if ! docker ps --format '{{.Names}}' | grep -Eq "^${CONTAINER_NAME}$"; then
+    echo "🔄 Starting existing container '${CONTAINER_NAME}'..."
+    docker start "$CONTAINER_NAME"
+    sleep 4
+  else
+    echo "🟢 PostgreSQL container '${CONTAINER_NAME}' is already running."
+  fi
 else
   # Create volume if needed
   if ! docker volume ls | grep -q "$DATA_VOLUME"; then
     docker volume create "$DATA_VOLUME"
   fi
 
-  # Launch container with pgvector built-in
+  echo "🚀 Launching new PostgreSQL container '${CONTAINER_NAME}'..."
   docker run -d \
     --name $CONTAINER_NAME \
     -e POSTGRES_USER=$POSTGRES_USER \

@@ -37,16 +37,15 @@ markdown
 # ===================================================================
 # AI Agent Frameworks & Foundational AI Libraries
 # ===================================================================
-google-genai>=1.10.0
+google-genai>=1.25.0
 langchain>=0.2.0                # Core framework for building with LLMs
 langgraph>=0.3.25               # Building stateful, multi-actor applications (agents) with LLMs
 transformers>=4.41.0            # Hugging Face library (often needed for models/tokenizers used by other libs)
 langdetect>=1.0.9               # Basic language detection
-langchain-google-genai>=2.1.2
+langchain-google-genai>=2.1.7
 google-cloud-translate>=3.15.3
 
 torch
-transformers
 ctransformers[cuda]
 sentence-transformers
 accelerate
@@ -57,5 +56,5 @@ safetensors
 xformers
 chromadb
 
-qdrant-client>=1.12.0
+qdrant-client>=1.14.3
 psycopg[binary]
