@@ -1,60 +1,43 @@
-fastapi>=0.110.0
-jinja2
-python-multipart
-uvicorn
-asyncio
-pytest
-requests
-python-dotenv
+# === Web Framework ===
+fastapi                           # Web API framework
 
-sqlalchemy>=2.0.27
-cityhash
-fastembed
-redis>=5.0.2
-rq
-rq-dashboard
-pyarango>=2.1.1
-gdown
+# === Environment Variable Management ===
+python-dotenv                     # Load environment variables from .env
 
-numpy>=1.26.4
-pandas>=2.2.2
-tabulate
-seaborn
-matplotlib
-plotly
-squarify
-openpyxl
-dedupe
-unidecode
+# === Google Cloud AI & Translation ===
+google-cloud-translate            # Google Translate API v2
+google-api-core                   # Core support for Google Cloud APIs
+google-genai               # Google Gemini SDK (includes Schema, GenerationConfig)
 
-Faker
-selenium
-beautifulsoup4
-lxml
-html5lib
-markdown
+# === Transformers & Local AI Models ===
+transformers                      # HuggingFace Transformers (pipeline, AutoModel, etc.)
+torch                             # Required by Transformers for PyTorch models
+sentence-transformers             # Pretrained sentence embedding models
 
-# ===================================================================
-# AI Agent Frameworks & Foundational AI Libraries
-# ===================================================================
-google-genai>=1.25.0
-langchain>=0.2.0                # Core framework for building with LLMs
-langgraph>=0.3.25               # Building stateful, multi-actor applications (agents) with LLMs
-transformers>=4.41.0            # Hugging Face library (often needed for models/tokenizers used by other libs)
-langdetect>=1.0.9               # Basic language detection
-langchain-google-genai>=2.1.7
-google-cloud-translate>=3.15.3
+# === LangChain ===
+langchain                         # Orchestration framework for LLM pipelines
 
-torch
-ctransformers[cuda]
-sentence-transformers
-accelerate
-peft
-bitsandbytes
-einops
-safetensors
-xformers
-chromadb
+# === Data Validation & Models ===
+pydantic                          # Data validation and parsing using Python type hints
 
-qdrant-client>=1.14.3
-psycopg[binary]
+# === PostgreSQL & Relational DB ===
+psycopg[binary]                   # PostgreSQL client (binary version for better performance)
+sqlalchemy                        # ORM and SQL toolkit
+
+# === Vector DB (Qdrant) ===
+qdrant-client                     # Python client for Qdrant vector database
+
+# === Data Processing ===
+numpy                             # Numerical computing
+pandas                            # Dataframes and tabular data
+scikit-learn                      # TF-IDF vectorizer and other ML tools
+
+# === Caching & Realtime Data ===
+redis                             # Python client for Redis
+
+# === Markdown & Web Utilities ===
+markdown                          # Markdown to HTML rendering
+requests                          # HTTP requests (e.g., calling external APIs)
+
+# === Optional: Static Files, Templating (used in FastAPI project setup) ===
+jinja2                            # HTML templates if you use `Jinja2Templates` from FastAPI
