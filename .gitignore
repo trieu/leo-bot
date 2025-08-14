@@ -4,6 +4,11 @@
 /data
 */data/*
 
+# GenAI models
+models
+./models/*
+
+
 # qdrant db
 qdrant_storage
 
