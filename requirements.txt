@@ -25,10 +25,11 @@ langchain                         # Orchestration framework for LLM pipelines
 # === Data Validation & Models ===
 pydantic                          # Data validation and parsing using Python type hints
 
-# === PostgreSQL & Relational DB ===
+# === PostgreSQL & ArangoDB ===
 psycopg[binary]                   # PostgreSQL client (binary version for better performance)
 asyncpg                           # Asynchronous PostgreSQL client
 sqlalchemy                        # ORM and SQL toolkit
+python-arango                     # Python driver for ArangoDB
 
 # === Vector DB (Qdrant) ===
 qdrant-client                     # Python client for Qdrant vector database

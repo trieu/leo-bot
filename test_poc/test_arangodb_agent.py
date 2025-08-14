@@ -21,7 +21,6 @@ client = ArangoClient(hosts="http://localhost:8529")
 db = client.db("test_db", username="root", password="12345678")
 
 # Create a collection if it doesn't exist
-# Create a collection if it doesn't exist
 if db.has_collection("employees"):
     employees_collection = db.collection("employees")
 else:
