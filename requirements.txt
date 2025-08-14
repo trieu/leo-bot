@@ -27,6 +27,7 @@ pydantic                          # Data validation and parsing using Python typ
 
 # === PostgreSQL & Relational DB ===
 psycopg[binary]                   # PostgreSQL client (binary version for better performance)
+asyncpg                           # Asynchronous PostgreSQL client
 sqlalchemy                        # ORM and SQL toolkit
 
 # === Vector DB (Qdrant) ===
