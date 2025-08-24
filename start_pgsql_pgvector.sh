@@ -33,18 +33,23 @@ else
     -e POSTGRES_DB=$DEFAULT_DB \
     -p $HOST_PORT:5432 \
     -v $DATA_VOLUME:/var/lib/postgresql/data \
-    pgvector/pgvector:0.8.0-pg16
+    postgis/postgis:16-3.5  # ✅ includes PostgreSQL 16 + PostGIS
 
   echo "⏳ Waiting for PostgreSQL to start..."
   sleep 5
+
+  # Install pgvector inside the container
+  echo "📦 Installing pgvector extension..."
+  docker exec -u root $CONTAINER_NAME bash -c "apt-get update && apt-get install -y postgresql-16-pgvector"
 fi
 
 # --- Create DB if not exists ---
 docker exec -u postgres $CONTAINER_NAME psql -d $DEFAULT_DB -tc "SELECT 1 FROM pg_database WHERE datname = '${TARGET_DB}'" | grep -q 1 || \
   docker exec -u postgres $CONTAINER_NAME psql -d $DEFAULT_DB -c "CREATE DATABASE ${TARGET_DB};"
 
-# --- Enable pgvector extension ---
+# --- Enable extensions ---
 docker exec -u postgres $CONTAINER_NAME psql -d $TARGET_DB -c "CREATE EXTENSION IF NOT EXISTS vector;"
+docker exec -u postgres $CONTAINER_NAME psql -d $TARGET_DB -c "CREATE EXTENSION IF NOT EXISTS postgis;"
 
 # --- Create chat_messages table ---
 docker exec -u postgres $CONTAINER_NAME psql -d $TARGET_DB -c "
@@ -95,9 +100,25 @@ END
 \$\$;
 "
 
-echo "✅ PostgreSQL 16 + pgvector is ready."
+# --- Create places table (with PostGIS + PlusCode) ---
+docker exec -u postgres $CONTAINER_NAME psql -d $TARGET_DB -c "
+CREATE TABLE IF NOT EXISTS places (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    category TEXT,
+    tags TEXT[],
+    pluscode TEXT UNIQUE,
+    geom GEOMETRY(Point, 4326) NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_places_geom ON places USING GIST (geom);
+CREATE INDEX IF NOT EXISTS idx_places_pluscode ON places (pluscode);
+"
+
+echo "✅ PostgreSQL 16 + PostGIS + pgvector is ready."
 echo "   ➜ DB: customer360"
-echo "   ➜ Tables: chat_messages, chat_history_embeddings"
-echo "   ➜ Columns: user_id, persona_id, touchpoint_id, keywords"
-echo "   ➜ Vector Index: ivfflat"
+echo "   ➜ Tables: chat_messages, chat_history_embeddings, places"
+echo "   ➜ Extensions: vector, postgis"
 echo "   ➜ Port: $HOST_PORT"
