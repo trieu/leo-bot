@@ -143,12 +143,13 @@ apply_migration() {
   }
 }
 
-# --- Migration 1: Initial schema with chat tables, places, and system_users ---
+# --- Migration 1: Initial schema with chat tables, places (with hash-based id), and system_users ---
 if [ "$CURRENT_VERSION" -lt 1 ]; then
-  apply_migration 1 "Initial schema with chat tables, places, and system_users" "
+  apply_migration 1 "Initial schema with chat tables, places (hash-based id), and system_users" "
     CREATE TABLE IF NOT EXISTS chat_messages (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(36) NOT NULL,
+        tenant_id TEXT NOT NULL,
         persona_id VARCHAR(36),
         touchpoint_id VARCHAR(36),
         role TEXT CHECK (role IN ('user', 'bot')),
@@ -162,6 +163,7 @@ if [ "$CURRENT_VERSION" -lt 1 ]; then
     CREATE TABLE IF NOT EXISTS chat_history_embeddings (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(36) NOT NULL,
+        tenant_id TEXT NOT NULL,
         persona_id VARCHAR(36),
         touchpoint_id VARCHAR(36),
         role TEXT CHECK (role IN ('user', 'bot')),
@@ -187,8 +189,9 @@ if [ "$CURRENT_VERSION" -lt 1 ]; then
     \$\$;
 
     CREATE TABLE IF NOT EXISTS places (
-        id SERIAL PRIMARY KEY,
-        name TEXT NOT NULL,
+        id BIGINT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        address TEXT,
         description TEXT,
         category TEXT,
         tags TEXT[],
