@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Customer 360 Report</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <style>
+    .card { margin-bottom: 1.5rem; }
+    .sector-title { font-size: 1.25rem; margin-top: 2rem; }
+  </style>
+</head>
+<body>
+  <div class="container my-4">
+    <h2 class="text-primary">Customer 360° Profile</h2>
+
+    <!-- Basic Contact Info -->
+    <div class="card">
+      <div class="card-header bg-info text-white">Basic Contact Info</div>
+      <div class="card-body" id="basic-info">
+        <!-- Filled by JS -->
+      </div>
+    </div>
+
+    <!-- Business Sector Reports -->
+    <div id="sector-reports">
+      <!-- Filled dynamically for each business_sector_id -->
+    </div>
+
+    <!-- Recent Activities -->
+    <div class="card">
+      <div class="card-header bg-secondary text-white">Recent Activities</div>
+      <div class="card-body" id="recent-activities">
+        <!-- Filled by JS -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const customerData = {
+      profile_id: "cust-123",
+      contact: {
+        name: "Nguyen Van A",
+        email: "vana@example.com",
+        phone: "+84 912345678",
+        location: "Hanoi, Vietnam"
+      },
+      business_sector_data: {
+        finance: {
+          sentiment_score: 0.85,
+          risk_appetite: "medium",
+          investments: ["stocks", "crypto"],
+          ai_insights: ["Interested in tech ETFs", "Avoids high-volatility assets"]
+        },
+        retail: {
+          avg_order_value: 1.5e6,
+          top_categories: ["Electronics", "Books"],
+          ai_insights: ["Prefers weekend deals", "High conversion from email offers"]
+        },
+        real_estate: {
+          property_views: 12,
+          preferred_locations: ["HCMC", "Da Nang"],
+          ai_insights: ["Favors coastal properties", "Looks for long-term investment"]
+        },
+        travel: {
+          last_trip: "2025-07-01",
+          destinations: ["Tokyo", "Bali"],
+          ai_insights: ["Prefers cultural experiences", "Books 3+ months in advance"]
+        },
+        education: {
+          enrolled_courses: ["AI for Finance", "Data Visualization"],
+          progress_rate: 0.92,
+          ai_insights: ["Completes courses quickly", "Prefers video-based content"]
+        }
+      },
+      recent_activities: [
+        { time: "2025-07-28", activity: "Viewed crypto investment report" },
+        { time: "2025-07-25", activity: "Booked trip to Tokyo" },
+        { time: "2025-07-20", activity: "Completed 'AI for Finance'" },
+        { time: "2025-07-18", activity: "Purchased Samsung tablet" }
+      ]
+    };
+
+    function renderBasicInfo(contact) {
+      $("#basic-info").html(`
+        <p><strong>Name:</strong> ${contact.name}</p>
+        <p><strong>Email:</strong> ${contact.email}</p>
+        <p><strong>Phone:</strong> ${contact.phone}</p>
+        <p><strong>Location:</strong> ${contact.location}</p>
+      `);
+    }
+
+    function renderSector(sector, data) {
+      const sectorName = sector.replace("_", " ").toUpperCase();
+      const card = $(`
+        <div class="card">
+          <div class="card-header bg-primary text-white">${sectorName}</div>
+          <div class="card-body">
+            <div id="sector-${sector}" class="sector-body"></div>
+            <canvas id="chart-${sector}" height="100"></canvas>
+          </div>
+        </div>
+      `);
+
+      let html = "<ul>";
+      for (const [key, value] of Object.entries(data)) {
+        if (Array.isArray(value)) {
+          html += `<li><strong>${key}:</strong> ${value.join(", ")}</li>`;
+        } else if (typeof value === "object") {
+          html += `<li><strong>${key}:</strong> ${JSON.stringify(value)}</li>`;
+        } else {
+          html += `<li><strong>${key}:</strong> ${value}</li>`;
+        }
+      }
+      html += "</ul>";
+      card.find(".sector-body").html(html);
+      $("#sector-reports").append(card);
+
+      // Optional chart demo (randomized)
+      const ctx = document.getElementById(`chart-${sector}`).getContext("2d");
+      new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: Object.keys(data).slice(0, 4),
+          datasets: [{
+            label: "Metric Score",
+            data: Object.keys(data).slice(0, 4).map(() => Math.random() * 100),
+            backgroundColor: "rgba(54, 162, 235, 0.5)"
+          }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } } }
+      });
+    }
+
+    function renderRecentActivities(activities) {
+      let html = "<ul class='list-group'>";
+      activities.forEach(act => {
+        html += `<li class="list-group-item"><strong>${act.time}:</strong> ${act.activity}</li>`;
+      });
+      html += "</ul>";
+      $("#recent-activities").html(html);
+    }
+
+    $(document).ready(function () {
+      renderBasicInfo(customerData.contact);
+      for (const [sector, data] of Object.entries(customerData.business_sector_data)) {
+        renderSector(sector, data);
+      }
+      renderRecentActivities(customerData.recent_activities);
+    });
+  </script>
+</body>
+</html>

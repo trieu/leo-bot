@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Customer Persona Detail</title>
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+  <style>
+    body { background-color: #f9f9f9; }
+    .persona-card { margin-top: 30px; }
+    .panel-heading { font-size: 18px; font-weight: bold; }
+    .attribute-label { font-weight: bold; }
+    .tag { display: inline-block; margin: 2px 4px; padding: 4px 8px; background-color: #e8f4ff; border-radius: 4px; }
+    .edit-btn { float: right; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="persona-card panel panel-default">
+    <div class="panel-heading">
+      Customer Persona: <span id="persona-name">Investor Alpha</span>
+      <button class="btn btn-xs btn-primary edit-btn" data-toggle="modal" data-target="#editModal">
+        <span class="glyphicon glyphicon-pencil"></span> Edit
+      </button>
+    </div>
+    <div class="panel-body">
+      <div class="row">
+        <div class="col-sm-6">
+          <p><span class="attribute-label">Industry:</span> <span id="persona-industry">Finance</span></p>
+          <p><span class="attribute-label">Role:</span> <span id="persona-role">Stock Trader</span></p>
+          <p><span class="attribute-label">Profile:</span> <span id="persona-profile">Moderate</span></p>
+          <p><span class="attribute-label">Mindset:</span> <span id="persona-mindset">Data-Driven, Long-Term Growth</span></p>
+        </div>
+        <div class="col-sm-6">
+          <p><span class="attribute-label">Behavioral Traits:</span></p>
+          <div id="persona-behaviors"></div>
+          <p><span class="attribute-label">Current OKRs:</span></p>
+          <div id="persona-okrs"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div id="editModal" class="modal fade" tabindex="-1" role="dialog">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="editPersonaForm">
+        <div class="modal-header">
+          <h4 class="modal-title">Edit Persona Details</h4>
+        </div>
+        <div class="modal-body">
+          <div class="form-group"><label>Name</label>
+            <input type="text" class="form-control" id="edit-name">
+          </div>
+          <div class="form-group"><label>Industry</label>
+            <input type="text" class="form-control" id="edit-industry">
+          </div>
+          <div class="form-group"><label>Role</label>
+            <input type="text" class="form-control" id="edit-role">
+          </div>
+          <div class="form-group"><label>Profile</label>
+            <input type="text" class="form-control" id="edit-profile">
+          </div>
+          <div class="form-group"><label>Mindset</label>
+            <input type="text" class="form-control" id="edit-mindset">
+          </div>
+          <div class="form-group"><label>Behaviors (comma separated)</label>
+            <input type="text" class="form-control" id="edit-behaviors">
+          </div>
+          <div class="form-group"><label>OKRs (comma separated)</label>
+            <input type="text" class="form-control" id="edit-okrs">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-success">Save</button>
+          <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Scripts -->
+<script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+
+<script>
+  var personaData = {
+    "name": "Investor Alpha",
+    "industry": "Finance",
+    "role": "Stock Trader",
+    "profile": "Moderate",
+    "mindset": "Data-Driven, Long-Term Growth",
+    "behaviors": [
+      "Regular portfolio reviews",
+      "Prefers automated insights",
+      "Uses mobile apps for trading"
+    ],
+    "okrs": [
+      "Grow portfolio by 12% in next 6 months",
+      "Explore ESG investment options",
+      "Reduce high-risk asset allocation"
+    ]
+  };
+
+  function renderPersona() {
+    $('#persona-name').text(personaData.name);
+    $('#persona-industry').text(personaData.industry);
+    $('#persona-role').text(personaData.role);
+    $('#persona-profile').text(personaData.profile);
+    $('#persona-mindset').text(personaData.mindset);
+
+    $('#persona-behaviors').empty();
+    personaData.behaviors.forEach(b => {
+      $('#persona-behaviors').append('<span class="tag">'+b+'</span>');
+    });
+
+    $('#persona-okrs').empty();
+    personaData.okrs.forEach(o => {
+      $('#persona-okrs').append('<span class="tag">'+o+'</span>');
+    });
+  }
+
+  // Load data into form when modal opens
+  $('#editModal').on('show.bs.modal', function () {
+    $('#edit-name').val(personaData.name);
+    $('#edit-industry').val(personaData.industry);
+    $('#edit-role').val(personaData.role);
+    $('#edit-profile').val(personaData.profile);
+    $('#edit-mindset').val(personaData.mindset);
+    $('#edit-behaviors').val(personaData.behaviors.join(", "));
+    $('#edit-okrs').val(personaData.okrs.join(", "));
+  });
+
+  // Save changes
+  $('#editPersonaForm').on('submit', function(e){
+    e.preventDefault();
+    personaData.name = $('#edit-name').val();
+    personaData.industry = $('#edit-industry').val();
+    personaData.role = $('#edit-role').val();
+    personaData.profile = $('#edit-profile').val();
+    personaData.mindset = $('#edit-mindset').val();
+    personaData.behaviors = $('#edit-behaviors').val().split(',').map(s => s.trim());
+    personaData.okrs = $('#edit-okrs').val().split(',').map(s => s.trim());
+    renderPersona();
+    $('#editModal').modal('hide');
+  });
+
+  $(document).ready(renderPersona);
+</script>
+</body>
+</html>
