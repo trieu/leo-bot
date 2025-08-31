@@ -171,3 +171,4 @@ def extract_data_from_chat_message_by_ai(msg: ChatMessage) -> Dict:
     except Exception as e:
         logger.exception(f"Failed to extract data: {e}")
         return {}
+    

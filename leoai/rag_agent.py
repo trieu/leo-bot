@@ -1,29 +1,21 @@
 import os
-import torch
+
 import hashlib
 import datetime
 import logging
 import markdown
-import psycopg
+
 from typing import Optional
 from dotenv import load_dotenv
 
-from leoai.ai_core import GeminiClient
-from sentence_transformers import SentenceTransformer
+from leoai.ai_core import GeminiClient, get_embedding_model
+from leoai.db_utils import get_pg_conn
 
 load_dotenv()
 
-# --- Device Configuration ---
-if torch.cuda.is_available():
-    device = "cuda"
-elif torch.backends.mps.is_available():
-    device = "mps"
-else:
-    device = "cpu"
 
 # --- Configuration ---
-DATABASE_URL = os.getenv(
-    "POSTGRES_URL", "postgresql://postgres:password@localhost:5432/customer360")
+
 TEMPERATURE_SCORE = float(os.getenv("TEMPERATURE_SCORE", 0.86))
 VECTOR_DIMENSION = 768
 
@@ -32,16 +24,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("RAGAgent")
 
 # --- AI Components ---
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-gemini_client = GeminiClient(api_key=GEMINI_API_KEY)
-embedding_model = SentenceTransformer(
-    "intfloat/multilingual-e5-base", device=device)
-
-# --- DB Connection ---
-
-
-def get_pg_conn():
-    return psycopg.connect(DATABASE_URL)
+gemini_client = GeminiClient()
+embedding_model = get_embedding_model()
 
 # --- SHA256 hashing for duplicate check ---
 
@@ -60,9 +44,8 @@ def save_chat_message(
     touchpoint_id: Optional[str] = None,
     keywords: Optional[list[str]] = None
 ):
-    message_hash = sha256_hash(message)
-    vector = embedding_model.encode(
-        f"{role}: {message}", normalize_embeddings=True).tolist()
+    message_hash = sha256_hash(message)        
+    message_vector = embedding_model.encode(f"{role}: {message}", normalize_embeddings=True).tolist()
 
     with get_pg_conn() as conn:
         with conn.cursor() as cur:
@@ -84,16 +67,15 @@ def save_chat_message(
                 INSERT INTO chat_history_embeddings
                 (user_id, persona_id, touchpoint_id, role, message, keywords, embedding, created_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, now())
-            """, (user_id, persona_id, touchpoint_id, role, message, keywords, vector))
+            """, (user_id, persona_id, touchpoint_id, role, message, keywords, message_vector))
 
             logger.info(f"💾 Stored message + vector for user={user_id}")
 
 # --- Semantic Retrieval via raw SQL ---
 
 
-def retrieve_semantic_context(user_id: str, question: str, k: int = 20, max_length: int = 5000) -> str:
-    question_vector = embedding_model.encode(
-        f"user: {question}", normalize_embeddings=True).tolist()
+def retrieve_semantic_context(user_id: str, question: str, k: int = 20, max_length: int = 5000) -> str:    
+    question_vector = embedding_model.encode(f"user: {question}", normalize_embeddings=True).tolist()
 
     with get_pg_conn() as conn:
         with conn.cursor() as cur:

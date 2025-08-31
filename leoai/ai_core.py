@@ -8,6 +8,8 @@ from google.genai.types import GenerationConfig, HarmCategory, HarmBlockThreshol
 from google.api_core.exceptions import GoogleAPIError
 import json
 from typing import Dict, Any
+import torch
+from sentence_transformers import SentenceTransformer
 
 # Load environment variables from .env file
 load_dotenv(override=True)
@@ -110,10 +112,10 @@ class GeminiClient:
                 response_schema=json_schema
             )
             
-            response = self.model.generate_content(
-                prompt,
-                generation_config=generation_config,
-                safety_settings={HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE}
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=generation_config,
             )
 
             response_text = response.text.strip()
@@ -129,3 +131,16 @@ class GeminiClient:
         except Exception as e:
             logger.exception(f"An unexpected error occurred in generate_json: {e}")
             return {}
+
+
+# --- Device Configuration ---
+device = "cpu"
+if torch.cuda.is_available():
+    device = "cuda"
+elif torch.backends.mps.is_available():
+    device = "mps"
+    
+# default embedding_model
+def get_embedding_model():
+    embedding_model = SentenceTransformer("intfloat/multilingual-e5-base", device=device)
+    return embedding_model
