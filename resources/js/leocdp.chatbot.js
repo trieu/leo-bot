@@ -114,12 +114,12 @@ var leoBotPromptQuestion = function (delay) {
     });
 };
 
-var leoBotShowAnswer = function (answerInHtml, providedDelay) {
+var leoBotShowAnswer = function (rawAnswer, providedDelay) {
   getBotUI()
     .message.add({
       human: false,
       cssClass: "leobot-answer",
-      content: answerInHtml,
+      content:  marked.parse(rawAnswer),
       type: "html",
     })
     .then(function () {
@@ -140,7 +140,7 @@ var leoBotShowAnswer = function (answerInHtml, providedDelay) {
       let delay;
       if (typeof providedDelay === "number") {
         delay = providedDelay;
-      } else if (answerInHtml.length > 200) {
+      } else if (rawAnswer.length > 200) {
         delay = 3000;
       } else {
         delay = 1500;
@@ -234,6 +234,8 @@ var askTheContactOfUser = function () {
 
 var sendQuestionToLeoAI = function (context, question) {
   if (question.length > 1 && question !== "exit") {
+
+    //
     var processAnswer = function (answer) {
       if ("ask" === context) {
         leoBotShowAnswer(answer);

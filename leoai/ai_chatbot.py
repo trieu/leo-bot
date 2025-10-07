@@ -1,6 +1,6 @@
 import  datetime
 import logging
-from typing import Dict
+from typing import Dict, Literal, Optional
 import markdown
 import os
 from dotenv import load_dotenv
@@ -23,76 +23,92 @@ LEOAI_LOCAL_MODEL = os.getenv("LEOAI_LOCAL_MODEL") == "true"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 TEMPERATURE_SCORE = 0.86
 
-gemini_client = GeminiClient()
+
+# Define a type for format choices for better type hinting
+AnswerFormat = Literal['html', 'text']
+
+# Easier to read and modify. The [INST] tags are removed as they are not standard for Gemini.
+PROMPT_TEMPLATE = """Your name is LEO, a helpful AI assistant.
+Your response must be in the language: {target_language}.
+
+Use the following context to answer the question.
+Context: {context}
+Question: {question}
+"""
+
+def _build_prompt(question: str, context: str, target_language: str) -> str:
+    """Builds the full prompt string from the template."""
+    current_time_str = datetime.datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
+    
+    # More Pythonic check for context
+    if context:
+        full_context = f"Current date and time is {current_time_str}. {context}"
+    else:
+        full_context = f"Current date and time is {current_time_str}. The user provided no additional context."
+        
+    return PROMPT_TEMPLATE.format(
+        target_language=target_language,
+        context=full_context,
+        question=question
+    )
+
+def _format_response(answer_text: str, format: AnswerFormat) -> str:
+    """Formats the raw model output into the desired format."""
+    if format == 'html':
+        # Using extensions for features like code blocks and tables is great
+        return markdown.markdown(answer_text, extensions=['fenced_code', 'tables'])
+    # Default to returning the raw text
+    return answer_text
 
 # the main function to ask LEO
 def ask_question(
     context: str = '',
     question: str = 'Hi',
-    answer_in_format: str = 'text', # 'html' or 'text'
+    answer_format: AnswerFormat = 'text',
     target_language: str = 'Vietnamese',
-    temperature_score: float = TEMPERATURE_SCORE
+    temperature_score: float = TEMPERATURE_SCORE,
+    gemini_client: Optional[GeminiClient] = None,
 ) -> str:
-    """
-    Asks a question to the Gemini model and returns a formatted, translated answer.
+
+    """ Asks a question to the Gemini model and returns a formatted, translated answer.
 
     Args:
-        context: Additional context for the question.
-        question: The user's question.
-        answer_in_format: The desired output format ('html' or 'text').
-        target_language: The language code for the response (e.g., 'English', 'Vietnamese').
-        temperature_score: The creativity of the model's response.
+        context (str, optional): Additional context for the question. Defaults to ''.
+        question (str, optional): The user's question.. Defaults to 'Hi'.
+        answer_format (AnswerFormat, optional): The desired output format ('html' or 'text'). Defaults to 'text'.
+        target_language (str, optional): The language code for the response (e.g., 'English', 'Vietnamese'. Defaults to 'Vietnamese'.
+        temperature_score (float, optional): The creativity of the model's response.. Defaults to TEMPERATURE_SCORE.
+        gemini_client (Optional[GeminiClient], optional): the instance of GeminiClient. Defaults to None.
 
     Returns:
-        A formatted and translated string, or an error message.
+        str: A formatted and translated string, or an error message.
     """
-    # Augment context with the current date and time
-    current_time_str = datetime.datetime.now().strftime("%c")
     
-    if len(context) > 10:        
-        full_context = f"Current date and time is {current_time_str}. {context}"
-    else:
-        full_context = f"No context, just focus on the Question"
-    
-    if len(target_language) == 0:
-        target_language = 'Vietnamese'
-
-    # Simplified prompt using an f-string
-    prompt_text = f"""<s> [INST] Your name is LEO and you are the AI chatbot to answer all questions from user.    
-    The answer must be in the language: {target_language}  
-    Answer the following question based on the provided context.  
-    Context: {full_context}
-    Question: {question}
-    [/INST] </s>"""
-
     try:
-        # Initialize the generative model
-        logger.info(prompt_text)
-        answer_text = gemini_client.generate_content(prompt_text, temperature_score)
+        # Initialize the generative model client
+        client = gemini_client or GeminiClient()
+        final_prompt = _build_prompt(question, context, target_language)
+    
+        logger.info(f"Generated prompt for model:\n{final_prompt}")
+        raw_answer = client.generate_content(final_prompt, temperature_score)
+        
+        if not raw_answer:
+            logger.warning("Model returned an empty response.")
+            raw_answer = "I'm sorry, I couldn't generate a response for that."
 
-    # --- Updated Error Handling ---
     # Handle other potential exceptions
     except Exception as e:
-        print(f"An unexpected exception occurred: {e}")
+        # Log the full error for debugging, which is more useful than just printing
+        logger.exception(f"An unexpected error occurred while calling the AI model: {e}")
+        
         question_query = question.replace(" ", "+")
-        answer_text = (
-            "That's an interesting question. I don't have an answer right now, "
-            f"but you can <a target='_blank' href='https://www.google.com/search?q={question_query}'>check Google</a>."
+        # Fallback message is now a raw string, letting _format_response handle it
+        raw_answer = (
+            "That's an interesting question. I encountered an issue and can't answer right now, "
+            f"but you can try searching for it on [Google](https://www.google.com/search?q={question_query})."
         )
-        # Directly return HTML for this specific error case
-        return answer_text
 
-    # --- Formatting and Translation ---
-    if not answer_text:
-        return "Sorry, I could not answer your question."
-
-    # Apply final formatting based on the requested format
-    if answer_in_format == 'html':
-        # Convert markdown response to HTML
-        return markdown.markdown(answer_text, extensions=['fenced_code', 'tables'])
-    else: # 'text' or default
-        # Simple text formatting for slides or plain text display
-        return str(answer_text)
+    return _format_response(raw_answer, answer_format)
 
 
 # Translates text into the target language.
