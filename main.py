@@ -298,8 +298,7 @@ async def ask(msg: Message):
         )
         
         print("answer " + answer)
-        data = {"question": question,
-                "answer": answer, "visitor_id": visitor_id, "error_code": 0}
+        data = {"question": question, "answer": answer, "visitor_id": visitor_id, "error_code": 0}
     else:
         data = {"answer": "Your profile is banned due to Violation of Terms", "error": True, "error_code": 666}
     return data

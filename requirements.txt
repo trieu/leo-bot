@@ -47,5 +47,8 @@ markdown                          # Markdown to HTML rendering
 requests                          # HTTP requests (e.g., calling external APIs)
 httpx                             # modern HTTP client for Python
 
-# === Optional: Static Files, Templating (used in FastAPI project setup) ===
+# === Static Files, Templating (used in FastAPI project setup) ===
 jinja2                            # HTML templates if you use `Jinja2Templates` from FastAPI
+
+#
+matplotlib

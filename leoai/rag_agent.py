@@ -19,6 +19,31 @@ load_dotenv()
 TEMPERATURE_SCORE = float(os.getenv("TEMPERATURE_SCORE", 0.86))
 VECTOR_DIMENSION = 768
 
+PROMPT_TEMPLATE = """Your name is LEO, a helpful AI assistant.
+Your response must be in the language: {target_language}.
+
+Use the following context to answer the question.
+Context: {context}
+Question: {question}
+"""
+
+
+def _build_prompt(question: str, context: str, target_language: str) -> str:
+    """Builds the full prompt string from the template."""
+    current_time_str = datetime.datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
+    
+    # More Pythonic check for context
+    if context:
+        full_context = f"Current date and time is {current_time_str}. {context}"
+    else:
+        full_context = f"Current date and time is {current_time_str}. The user provided no additional context."
+        
+    return PROMPT_TEMPLATE.format(
+        target_language=target_language,
+        context=full_context,
+        question=question
+    )
+
 # --- Logging ---
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("RAGAgent")
@@ -145,7 +170,6 @@ def ask_question_rag(
     temperature_score: float = TEMPERATURE_SCORE,
     keywords: Optional[list[str]] = None
 ) -> str:
-    now = datetime.datetime.now().strftime("%c")
 
     try:
         # 1. save chat messages into database
@@ -159,32 +183,23 @@ def ask_question_rag(
         logger.info(f"📝 summarize_context returned length ({len(context)} chars)")
     
         # 4. Construct the final prompt
-        prompt = f"""
-<s> [INST] You are LEO, a helpful AI assistant.
-- DateTime: {now}
-- Answer in: {target_language}
-
-[User History]
-{context}
-
-[User Question]
-{question}
-[/INST] </s>
-""".strip()
+        prompt = _build_prompt(question, context, target_language)
 
         # 5. Send prompt to LLM AI model
         logger.info(f"🧠 Sending to Gemini \n {prompt} ")
         answer = gemini_client.generate_content(prompt, temperature_score)
 
-        if not answer:
-            return "❌ No answer generated."
-
-        # 6. save the answer of AI model
-        save_chat_message(user_id, "bot", answer, persona_id, touchpoint_id)
-        
-        # 7. Return the answer
-        return markdown.markdown(answer) if answer_in_format == "html" else answer
-
+        if len(answer) > 0:
+            # 6. save the answer of AI model
+            save_chat_message(user_id, "bot", answer, persona_id, touchpoint_id)
+            
+            # 7. Return the answer
+            if answer_in_format == "html":
+                return markdown.markdown(answer)
+            else:
+                return answer
+            
+        return "❌ No answer generated."
     except Exception as e:
         logger.exception("❌ RAG execution error")
         fallback = question.replace(" ", "+")
