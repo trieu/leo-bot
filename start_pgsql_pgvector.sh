@@ -233,11 +233,66 @@ if [ "$CURRENT_VERSION" -lt 1 ]; then
     CREATE INDEX IF NOT EXISTS idx_system_users_user_email ON system_users (user_email);
     CREATE INDEX IF NOT EXISTS idx_system_users_user_login ON system_users (user_login);
     CREATE INDEX IF NOT EXISTS idx_system_users_tenant_id ON system_users (tenant_id);
+
+
+    -- Create conversational_context table
+    CREATE TABLE IF NOT EXISTS conversational_context (
+        user_id           VARCHAR(36) NOT NULL,
+        touchpoint_id     VARCHAR(36) NOT NULL,
+        
+        -- Full JSON context: user profile, summary, keywords, etc.
+        context_data      JSONB NOT NULL,
+        
+        -- AI semantic representation (e.g. OpenAI or Gemini embeddings)
+        embedding         VECTOR(1536),   -- Adjust dimension to match your model
+        
+        -- Optional intent classification results
+        intent_label      VARCHAR(255),
+        intent_confidence NUMERIC(5,4),   -- e.g. 0.9876 confidence
+        
+        -- Metadata
+        created_at        TIMESTAMPTZ DEFAULT NOW(),
+        updated_at        TIMESTAMPTZ DEFAULT NOW(),
+        
+        PRIMARY KEY (user_id, touchpoint_id)
+    );
+
+    -- Maintain updated_at automatically
+    CREATE OR REPLACE FUNCTION update_conversational_context_timestamp()
+    RETURNS TRIGGER AS $$
+    BEGIN
+        NEW.updated_at = NOW();
+        RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+
+    CREATE TRIGGER conversational_context_timestamp
+    BEFORE UPDATE ON conversational_context
+    FOR EACH ROW
+    EXECUTE FUNCTION update_conversational_context_timestamp();
+
+    -- JSONB index for efficient key/value and text lookups
+    CREATE INDEX IF NOT EXISTS idx_conversational_context_jsonb
+        ON conversational_context USING GIN (context_data jsonb_path_ops);
+
+    -- Basic lookup index
+    CREATE INDEX IF NOT EXISTS idx_conversational_context_user
+        ON conversational_context (user_id);
+
+    -- Vector index for fast semantic similarity search
+    CREATE INDEX IF NOT EXISTS idx_conversational_context_embedding
+        ON conversational_context USING ivfflat (embedding vector_l2_ops)
+        WITH (lists = 100);
+
+    -- Optional: filter queries by intent
+    CREATE INDEX IF NOT EXISTS idx_conversational_context_intent
+        ON conversational_context (intent_label);
+
   "
 fi
 
 # --- Verify all tables exist ---
-TABLES=("chat_messages" "chat_history_embeddings" "places" "schema_migrations" "system_users")
+TABLES=("chat_messages" "chat_history_embeddings" "places" "schema_migrations" "system_users" "conversational_context")
 for table in "${TABLES[@]}"; do
   docker exec -u postgres $CONTAINER_NAME psql -d $TARGET_DB -tc "SELECT 1 FROM pg_tables WHERE tablename = '$table'" | grep -q 1 || {
     echo "❌ Error: Table '$table' is missing after migrations."

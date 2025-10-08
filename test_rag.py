@@ -1,6 +1,6 @@
 
 import uuid
-from leoai.rag_agent import ask_question_rag
+from leoai.rag_agent import process_chat_message
 
 def run_test():
     # Simulated user session
@@ -16,9 +16,9 @@ def run_test():
     print(f"🧪 Test RAG Agent for user: {user_id}")
     print(f"❓ Question: {question}\n")
 
-    answer = ask_question_rag(
+    answer = process_chat_message(
         user_id=user_id,
-        question=question,
+        user_message=question,
         persona_id=persona_id,
         touchpoint_id=touchpoint_id,
         target_language=target_language,
