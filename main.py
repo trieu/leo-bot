@@ -17,7 +17,7 @@ import requests
 
 from leoai.ai_chatbot import ask_question, GEMINI_API_KEY, translate_text, detect_language, extract_data_from_chat_message_by_ai
 from leoai.leo_datamodel import Message, UpdateProfileEvent, ChatMessage, TrackedEvent
-from leoai.rag_agent import ask_question_rag
+from leoai.rag_agent import process_chat_message
 
 load_dotenv(override=True)
 
@@ -152,9 +152,9 @@ async def receive_webhook(request: Request):
                 persona_id = "fb_user"
                 touchpoint_id = "facebook"
 
-                ai_reply = ask_question_rag(
+                ai_reply = process_chat_message(
                     user_id=sender_id,
-                    question=user_msg,
+                    user_message=user_msg,
                     persona_id=persona_id,
                     touchpoint_id=touchpoint_id
                 )
@@ -290,9 +290,9 @@ async def ask(msg: Message):
         persona_id = "fb_user"
         touchpoint_id = "facebook"
 
-        answer = ask_question_rag(
+        answer = process_chat_message(
             user_id=visitor_id,
-            question=question,
+            user_message=question,
             persona_id=persona_id,
             touchpoint_id=touchpoint_id
         )
