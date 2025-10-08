@@ -1,12 +1,14 @@
 import os
 import hashlib
-import datetime
+
 import logging
 import markdown
 import json
 import re
 from typing import Any, Dict, Optional, List
 from dotenv import load_dotenv
+from datetime import datetime, timedelta, timezone
+
 
 from leoai.ai_core import GeminiClient, get_embedding_model
 from leoai.db_utils import get_pg_conn
@@ -71,8 +73,14 @@ def _get_default_summary(timestamp_str: str) -> Dict[str, Any]:
         "user_context": {"datetime": timestamp_str},
         "context_keywords": []
     }
+    
+def get_date_time_now() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M")
+
 
 def summarize_context(
+    user_id: str,
+    touchpoint_id: str,
     context: str,
     max_context_length: int = 10,
     temperature_score: float = 0.8,
@@ -83,7 +91,7 @@ def summarize_context(
     Extracts user_profile, user_context, and context_keywords.
     """
     # IMPROVEMENT: Calculate datetime once at the start for consistency.
-    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    now_str = get_date_time_now()
 
     if not context:
         return _get_default_summary(now_str)
@@ -119,7 +127,9 @@ def summarize_context(
             "datetime": "{now_str}"
           }},
           "context_summary": "the summary of long conversation",
-          "context_keywords": ["list of keywords from long conversation"]
+          "context_keywords": ["list of keywords from long conversation"],
+          "intent_label":"the label of intent from long conversation",
+          "intent_confidence": a probability score between 0 and 1
         }}
 
         --- Conversation ---
@@ -144,8 +154,12 @@ def summarize_context(
         summary_json["user_context"] = {**default_summary["user_context"], **summary_json.get("user_context", {})}
         summary_json.setdefault("context_keywords", [])
         summary_json.setdefault("context_summary", "")
+        summary_json.setdefault("intent_label", "")
+        summary_json.setdefault("intent_confidence", 0)
 
         logging.info("✅ Context successfully summarized into structured JSON.")
+        
+        save_context_summary(user_id, touchpoint_id, summary_json["intent_label"], summary_json["intent_confidence"], summary_json)
         return summary_json
 
     except json.JSONDecodeError as e:
@@ -165,9 +179,9 @@ def _build_prompt(
     """
     # IMPROVEMENT: Get datetime from the context summary for consistency.
     user_context = context_model.get("user_context", {})
-    timestamp = user_context.get("datetime", datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
+    timestamp = user_context.get("datetime", get_date_time_now())
     try:
-        dt_object = datetime.datetime.strptime(timestamp, "%Y-%m-%d %H:%M")
+        dt_object = datetime.strptime(timestamp, "%Y-%m-%d %H:%M")
         current_time_str = dt_object.strftime("%A, %B %d, %Y at %I:%M %p")
     except ValueError:
         current_time_str = "Timestamp not available"
@@ -198,7 +212,8 @@ def save_chat_message(
     message: str,
     persona_id: Optional[str] = None,
     touchpoint_id: Optional[str] = None,
-    keywords: Optional[List[str]] = None
+    keywords: Optional[List[str]] = None,
+    tenant_id: Optional[str] = "default"
 ):
     """
     Store a chat message and its embedding in the database.
@@ -219,16 +234,16 @@ def save_chat_message(
         # --- Insert message ---
         cur.execute("""
             INSERT INTO chat_messages
-            (user_id, persona_id, touchpoint_id, role, message, message_hash, keywords, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, now())
-        """, (user_id, persona_id, touchpoint_id, role, message, message_hash, keywords))
+            (user_id, tenant_id, persona_id, touchpoint_id, role, message, message_hash, keywords, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, now())
+        """, (user_id, tenant_id, persona_id, touchpoint_id, role, message, message_hash, keywords))
 
         # --- Insert message embedding ---
         cur.execute("""
             INSERT INTO chat_history_embeddings
-            (user_id, persona_id, touchpoint_id, role, message, keywords, embedding, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, now())
-        """, (user_id, persona_id, touchpoint_id, role, message, keywords, message_vector))
+            (user_id, tenant_id, persona_id, touchpoint_id, role, message, keywords, embedding, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, now())
+        """, (user_id, tenant_id, persona_id, touchpoint_id, role, message, keywords, message_vector))
 
     logger.info(f"💾 Stored {role} message for user={user_id}")
 
@@ -280,24 +295,145 @@ def retrieve_semantic_context(
 
     return full_context
 
-def get_context_summary(user_id: str) -> Dict[str, Any]:
-    summarized_context = None
-    # TODO
-    return summarized_context
+
+def save_context_summary(
+    user_id: str,
+    touchpoint_id: str,
+    intent_label: str,
+    intent_confidence: float,
+    context_data: Dict[str, Any]
+) -> bool:
+    """
+    Save or update a conversational context record with embeddings.
+    """
+    try:
+        # Convert context JSON and embed it semantically for retrieval
+        context_json = json.dumps(context_data)
+        context_embedding = embedding_model.encode(context_json, normalize_embeddings=True).tolist()
+
+        with get_pg_conn() as conn, conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO conversational_context (
+                    user_id, touchpoint_id, context_data, embedding, intent_label, intent_confidence
+                )
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (user_id, touchpoint_id)
+                DO UPDATE SET
+                    context_data = EXCLUDED.context_data,
+                    embedding = EXCLUDED.embedding,
+                    intent_label = EXCLUDED.intent_label,
+                    intent_confidence = EXCLUDED.intent_confidence,
+                    updated_at = NOW();
+            """, (user_id, touchpoint_id, context_json, context_embedding, intent_label, intent_confidence))
+            conn.commit()
+
+        logger.info(f"💾 Context summary saved for user={user_id}, touchpoint={touchpoint_id}")
+        return True
+
+    except Exception as e:
+        logger.error(f"❌ Failed to save context summary: {e}")
+        return False
+
+def get_context_summary(user_id: str, touchpoint_id: str) -> Dict[str, Any]:
+    """
+    Retrieve and normalize a structured conversational context summary.
+    Ensures consistent return schema even when data is missing or incomplete.
+    """
+    try:
+        with get_pg_conn() as conn, conn.cursor() as cur:
+            cur.execute("""
+                SELECT context_data, intent_label, intent_confidence, updated_at
+                FROM conversational_context
+                WHERE user_id = %s AND touchpoint_id = %s;
+            """, (user_id, touchpoint_id))
+            row = cur.fetchone()
+
+        # Default empty structure
+        now_str = get_date_time_now()
+        base_context = {
+            "user_profile": {
+                "first_name": None,
+                "last_name": None,
+                "interests": [],
+                "personality_traits": []
+            },
+            "user_context": {
+                "location": None,
+                "datetime": now_str
+            },
+            "context_summary": "",
+            "context_keywords": [],
+            "intent_label": None,
+            "intent_confidence": 0.0
+        }
+
+        # If nothing in DB — return defaults
+        if not row:
+            logger.info(f"ℹ️ No context summary found for user={user_id}, touchpoint={touchpoint_id}")
+            return None
+
+        context_data, intent_label, intent_confidence , updated_at = row
+
+        # Merge stored JSONB fields into expected schema
+        if context_data:
+            if isinstance(context_data, str):
+                try:
+                    context_data = json.loads(context_data)
+                except json.JSONDecodeError:
+                    context_data = {}
+
+            base_context["user_profile"].update(context_data.get("user_profile", {}))
+            base_context["user_context"].update(context_data.get("user_context", {}))
+            base_context["context_summary"] = context_data.get("context_summary", "")
+            base_context["context_keywords"] = context_data.get("context_keywords", [])
+            base_context["context_keywords"] = context_data.get("context_keywords", [])
+            base_context["updated_at"] = updated_at
+
+        # Override with database-level intent info
+        base_context["intent_label"] = intent_label
+        base_context["intent_confidence"] = float(intent_confidence) if intent_confidence else 0.0
+
+        logger.info(f"ℹ️ Found context summary found for user={user_id}, touchpoint={touchpoint_id} intent_label={intent_label}")
+        return base_context
+
+    except Exception as e:
+        logger.error(f"❌ Failed to load context summary for user={user_id}, touchpoint={touchpoint_id}: {e}")
+        # Return safe empty structure if anything fails
+        now_str =  datetime.now().isoformat()
+        return None
 
 
-def build_context_summary(user_id: str,user_message: str, client: GeminiClient) -> Dict[str, Any]:
+def build_context_summary(user_id: str, touchpoint_id: str, user_message: str, client: GeminiClient) -> Dict[str, Any]:
+    logger.info(f"🧠 build_context_summary for user_id: {user_id} touchpoint_id: {touchpoint_id}")
     # --- Step 1: Get cached summarized_context for user ---
-    summarized_context = get_context_summary(user_id)
-    if summarized_context is None:
-    
-        # --- Step 2: Retrieve related past messages ---
-        retrieved_context_str = retrieve_semantic_context(user_id, user_message)
-        logger.info(f"🧠 build_context_summary for user_id: {user_id} ")
+    summarized_context = get_context_summary(user_id, touchpoint_id)
 
-        # --- Step 3: Summarize long context ---
-        summarized_context = summarize_context(context=retrieved_context_str, gemini_client=client)
-    
+    # Check if cache exists and is recent
+    needs_refresh = True
+    if summarized_context:
+        updated_at = summarized_context.get("updated_at")
+        if updated_at:
+            # updated_at is already aware from Postgres, just in UTC
+            now_utc = datetime.now(timezone.utc)  # aware UTC datetime
+            time_diff = now_utc - updated_at
+            if time_diff < timedelta(minutes=3):
+                needs_refresh = False
+
+    # --- Step 2: Refresh summary if needed ---
+    if needs_refresh:
+        logger.info("🔄 Refreshing summarized context...")
+
+        # Retrieve related past messages (semantic recall)
+        retrieved_context_str = retrieve_semantic_context(user_id, user_message)
+
+        # Summarize using Gemini or LLM
+        summarized_context = summarize_context(
+            user_id,
+            touchpoint_id,
+            context=retrieved_context_str,
+            gemini_client=client
+        )
+
     return summarized_context
 
 
@@ -333,7 +469,7 @@ def process_chat_message(
         save_chat_message(user_id, "user", user_message, persona_id, touchpoint_id, keywords)
 
         # --- Step 2: 
-        summarized_context = build_context_summary(user_id, user_message, client)
+        summarized_context = build_context_summary(user_id, touchpoint_id, user_message, client)
 
         # --- Step 3: Build final LLM prompt ---
         prompt = _build_prompt(user_message, summarized_context, target_language)
