@@ -1,15 +1,19 @@
 #!/bin/bash
 
-# --- Config ---
+# --- Docker configs ---
 CONTAINER_NAME="pgsql16_vector"
+DATA_VOLUME="pgdata_vector"
+
+# --- POSTGRES config ---
 POSTGRES_USER="postgres"
 POSTGRES_PASSWORD="password"
 DEFAULT_DB="postgres"
 TARGET_DB="customer360"
 HOST_PORT=5432
-DATA_VOLUME="pgdata_vector"
-SCHEMA_VERSION=4  # Version 0.1 (Migration 1)
-SCHEMA_DESCRIPTION="init database; create conversational_context table"
+
+# --- SQL schema config ---
+SCHEMA_VERSION=251008  # Version 251008 means year 2025 month 10 day 8
+SCHEMA_DESCRIPTION="init database schema customer360 for leo bot"
 SQL_FILE_PATH="./sql_scripts/customer360_schema.sql"
 
 # --- Function to check PostgreSQL readiness ---

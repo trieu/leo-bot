@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS conversational_context (
     user_id VARCHAR(36) NOT NULL,
     touchpoint_id VARCHAR(36) NOT NULL,
     context_data JSONB NOT NULL,
-    embedding VECTOR(1536),
+    embedding VECTOR(768),
     intent_label VARCHAR(255),
     intent_confidence NUMERIC(5, 4),
     created_at TIMESTAMPTZ DEFAULT NOW(),
