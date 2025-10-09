@@ -17,7 +17,7 @@ import requests
 
 from leoai.ai_chatbot import ask_question, GEMINI_API_KEY, translate_text, detect_language, extract_data_from_chat_message_by_ai
 from leoai.leo_datamodel import Message, UpdateProfileEvent, ChatMessage, TrackedEvent
-from leoai.rag_agent import process_chat_message
+from leoai.rag_agent import RAGAgent
 
 load_dotenv(override=True)
 
@@ -47,6 +47,9 @@ logger = logging.getLogger(__name__)
 
 # init FAST API leobot
 leobot = FastAPI()
+
+# Initialize a global RAG agent to be reused
+rag_agent = RAGAgent()
 
 # 
 SESSION_LIMIT = 20  # max messages
@@ -152,7 +155,7 @@ async def receive_webhook(request: Request):
                 persona_id = "fb_user"
                 touchpoint_id = "facebook"
 
-                ai_reply = process_chat_message(
+                ai_reply = rag_agent.process_chat_message(
                     user_id=sender_id,
                     user_message=user_msg,
                     persona_id=persona_id,
@@ -290,11 +293,13 @@ async def ask(msg: Message):
         persona_id = "fb_user"
         touchpoint_id = "facebook"
 
-        answer = process_chat_message(
+        answer = rag_agent.process_chat_message(
             user_id=visitor_id,
             user_message=question,
             persona_id=persona_id,
-            touchpoint_id=touchpoint_id
+            touchpoint_id=touchpoint_id,
+            target_language=answer_in_language,
+            answer_in_format=format
         )
         
         print("answer " + answer)
