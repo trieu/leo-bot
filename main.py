@@ -112,7 +112,7 @@ async def verify_webhook(request: Request):
 
 # FB Webhook message receiver (POST)
 @leobot.post("/fb-webhook", response_class=JSONResponse)
-async def receive_webhook(request: Request):
+async def webhook_handler(request: Request):
     try:
         body = await request.json()
         entries = body.get("entry", [])
@@ -257,7 +257,7 @@ async def get_visitor_info(visitor_id: str):
 
 # the main API of chatbot
 @leobot.post("/ask", response_class=JSONResponse)
-async def ask(msg: Message):
+async def web_handler(msg: Message):
     visitor_id = msg.visitor_id
     if len(visitor_id) == 0: 
         return {"answer": "visitor_id is empty ", "error": True, "error_code": 500}

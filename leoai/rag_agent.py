@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 
 
 from leoai.ai_core import GeminiClient, get_embedding_model
-from leoai.db_utils import get_pg_conn
+from leoai.db_utils import get_pg_conn, sha256_hash
 
 # --- Load environment variables from .env ---
 load_dotenv(override=True)
@@ -21,20 +21,11 @@ VECTOR_DIMENSION = 768
 MAX_CONTEXT_LENGTH = 5000
 MAX_SUMMARY_LENGTH = 900
 
-
 # --- Logging setup ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("RAGAgent")
 
-# =====================================================================
-# Utility functions
-# =====================================================================
-
-def sha256_hash(text: str) -> str:
-    """Generate a SHA256 hash of text to detect duplicate messages."""
-    return hashlib.sha256(text.strip().encode("utf-8")).hexdigest()
-
-
+# PROMPT
 PROMPT_TEMPLATE = """Your name is LEO, a helpful and truthful AI assistant.
 You must always respond in {target_language}.
 If the context provided is insufficient to answer the user's question, state that clearly.
@@ -443,3 +434,4 @@ class RAGAgent:
             logger.exception("❌ RAG pipeline error")
             query = user_message.replace(" ", "+")
             return f"Try <a href='https://www.google.com/search?q={query}' target='_blank'>searching Google</a>."
+        

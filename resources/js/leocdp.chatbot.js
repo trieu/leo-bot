@@ -29,22 +29,18 @@ function getBotUI() {
   return window.leoBotUI;
 }
 
+function buildUserProfileUrl(visitorId) {
+  var url = BASE_URL_GET_VISITOR_INFO +"?visitor_id=" + visitorId + "&_=" + new Date().getTime();
+  return url;
+}
 
 function initLeoChatBot(context, visitorId, okCallback) {
   window.leoBotContext = context;
-
-  loadChatSessionWithProfile()
   window.currentUserProfile.visitorId = visitorId;
-  
   window.leoBotUI = new BotUI("LEO_ChatBot_Container");
 
-  var url =
-    BASE_URL_GET_VISITOR_INFO +
-    "?visitor_id=" +
-    visitorId +
-    "&_=" +
-    new Date().getTime();
-  $.getJSON(url, function (data) {
+  loadChatSessionWithProfile()
+  $.getJSON(buildUserProfileUrl(visitorId), function (data) {
     var error_code = data.error_code;
     var answer = data.answer;
     console.log(data);
