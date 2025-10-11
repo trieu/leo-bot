@@ -129,36 +129,16 @@ async def webhook_handler(request: Request):
 
                 logger.info(f"FB user '{sender_id}' said: {user_msg}")
 
-                # Load or init context
-                key = f"fbu:{sender_id}"
-                user_context = get_user_context(key)
-
-                # Save latest info to Redis
-                now_iso = datetime.now(timezone.utc).isoformat()
-                try:
-                    # Update message history
-                    history_raw = REDIS_CLIENT.hget(key, 'message_history')
-                    history = json.loads(history_raw) if history_raw else []
-                    history.append({
-                        "timestamp": now_iso,
-                        "message": user_msg
-                    })
-                    REDIS_CLIENT.hset(key, mapping={
-                        'last_message': user_msg,
-                        'last_seen': now_iso,
-                        'message_history': json.dumps(history)
-                    })
-                except Exception as redis_error:
-                    logger.error(f"Redis update error for {sender_id}: {redis_error}")
-
                 # Generate AI reply
                 persona_id = "fb_user"
                 touchpoint_id = "facebook"
 
+                # reply by AI chatbot
                 ai_reply = await rag_agent.process_chat_message(
                     user_id=sender_id,
                     user_message=user_msg,
                     persona_id=persona_id,
+                    cdp_profile_id='',
                     touchpoint_id=touchpoint_id
                 )
                 
@@ -166,26 +146,12 @@ async def webhook_handler(request: Request):
 
                 # Send reply
                 send_message_to_facebook(sender_id, ai_reply)
-
     except Exception as e:
         logger.exception("Error in FB webhook handler")
         return JSONResponse(status_code=500, content={"error": str(e)})
-
     return {"ok": True}
 
 
-def get_user_context(key: str) -> str:
-    try:
-        context = REDIS_CLIENT.hget(key, 'fb_user_context')
-        if context is None or len(context) == 0:
-            context ="I'm LEO BOT, designed to support your business — developed using the powerful ReSynap Framework"
-            REDIS_CLIENT.hset(key, 'fb_user_context', context)
-        else:
-            context = context.decode() if isinstance(context, bytes) else str(context)
-        return context
-    except Exception as e:
-        logger.error(f"Error loading user context from Redis: {e}")
-        return "My name is LEO BOT, your AI assistant."
 
 def send_message_to_facebook(recipient_id: str, message_text: str):
     url = f"{BASE_URL_FB_MSG}?access_token={PAGE_ACCESS_TOKEN}"
@@ -240,18 +206,25 @@ async def demo_chat_in_ishop(request: Request):
 
 @leobot.get("/get-visitor-info", response_class=JSONResponse)
 async def get_visitor_info(visitor_id: str):
-    isReady = isinstance(GEMINI_API_KEY, str)
-    if not isReady:        
+    # Check GEMINI_API_KEY readiness
+    if not isinstance(GEMINI_API_KEY, str) or not GEMINI_API_KEY.strip():
         return {"answer": "GEMINI_API_KEY is empty", "error_code": 501}
-    if len(visitor_id) == 0: 
-        return {"answer": "visitor_id is empty ", "error": True, "error_code": 500}
-    profile_id = REDIS_CLIENT.hget(visitor_id, 'profile_id')
-    if profile_id is None or len(profile_id) == 0: 
-        if LEOBOT_DEV_MODE : 
-            return {"answer": "local_dev", "error_code": 0}
-        else:
-            return {"answer": "Not found any profile in CDP", "error": True, "error_code": 404}
-    name = str(REDIS_CLIENT.hget(visitor_id, 'name'))
+
+    # Validate visitor_id
+    if not visitor_id:
+        return {"answer": "visitor_id is empty", "error": True, "error_code": 500}
+
+    # Fetch profile_id from Redis
+    profile_id = REDIS_CLIENT.hget(visitor_id, "profile_id")
+    
+    # If no profile_id exists
+    if not profile_id:
+        # Initialize default values in Redis
+        REDIS_CLIENT.hset(visitor_id, mapping={"profile_id": "", "name": "user"})
+        return {"answer": "user", "error_code": 0}
+
+    # Fetch the name (ensure it is a string)
+    name = str(REDIS_CLIENT.hget(visitor_id, "name") or "user")
     return {"answer": name, "error_code": 0}
 
 
@@ -262,41 +235,27 @@ async def web_handler(msg: Message):
     if len(visitor_id) == 0: 
         return {"answer": "visitor_id is empty ", "error": True, "error_code": 500}
     
-    if LEOBOT_DEV_MODE:
-        profile_id = "0"
-    else:
-        profile_id = REDIS_CLIENT.hget(visitor_id, 'profile_id')
-        if profile_id is not None and len(profile_id) > 0: 
-            print("TODO load vector for CDP profile_id: "+profile_id)
+    # check to make sure it safe, avoid API flooding 
+    profile_id = REDIS_CLIENT.hget(visitor_id, 'profile_id')
+    safe = is_safe_to_answer(visitor_id) 
+    print("profile_id " + profile_id + " safe " + str(safe) + " visitor_id " + visitor_id)
     
-    safe = is_safe_to_answer(visitor_id)
     question = msg.question
-    answer_in_language = msg.answer_in_language
-    context = msg.context
-       
     if len(question) > 1000 :
         return {"answer": "Question must be less than 1000 characters!", "error": True, "error_code": 510}
 
-    print("context: "+context)
-    print("question: "+question)
-    print("visitor_id: " + visitor_id)
-
-    if safe:        
-                    
+    if safe and profile_id is not None:        
+        answer_in_language = msg.answer_in_language
         format = msg.answer_in_format
-        temperature_score = msg.temperature_score
-            
-        # translate if need
-        # answer = ask_question(context=context, question=question,temperature_score=temperature_score, answer_in_format=format, target_language=answer_in_language)
-        
-         # Generate AI reply
-        persona_id = "fb_user"
-        touchpoint_id = "facebook"
+        persona_id = msg.persona_id
+        touchpoint_id = msg.touchpoint_id
 
+        # Generate AI reply
         answer = await rag_agent.process_chat_message(
             user_id=visitor_id,
             user_message=question,
             persona_id=persona_id,
+            cdp_profile_id=profile_id,
             touchpoint_id=touchpoint_id,
             target_language=answer_in_language,
             answer_in_format=format

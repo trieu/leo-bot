@@ -203,6 +203,8 @@ class RAGAgent:
         user_context = context_model.get("user_context", {})
         timestamp = user_context.get("datetime", self._get_date_time_now())
         try:
+            if timestamp is None:
+                timestamp = self._get_date_time_now()
             dt_object = datetime.strptime(timestamp, "%Y-%m-%d %H:%M")
             current_time_str = dt_object.strftime("%A, %B %d, %Y at %I:%M %p")
         except ValueError:
@@ -500,7 +502,7 @@ class RAGAgent:
                 return "⚠️ I couldn't find enough information to answer that confidently."
 
             # 5 Save AI answer.
-            await self._save_chat_message(user_id, "bot", answer, '', persona_id, touchpoint_id)
+            await self._save_chat_message(user_id, 'bot', answer, 'bot', persona_id, touchpoint_id)
 
             # 6 Return formatted answer.
             return markdown.markdown(answer) if answer_in_format == "html" else answer

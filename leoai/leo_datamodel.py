@@ -16,8 +16,8 @@ class Message(BaseModel):
     question: str = Field("", description="the question for Q&A ")
     temperature_score: float = Field(DEFAULT_TEMPERATURE_SCORE, description="the temperature score of LLM ")
     visitor_id: str = Field("", description="the visitor id ")
-    persona_id: str = Field("", description="the persona id ")
-    touchpoint_id: str = Field("", description="the touchpoint id ")
+    persona_id: str = Field("web_user", description="the persona id ")
+    touchpoint_id: str = Field("web_leobot", description="the touchpoint id ")
 
     
 # Data models
