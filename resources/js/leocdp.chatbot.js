@@ -29,22 +29,18 @@ function getBotUI() {
   return window.leoBotUI;
 }
 
+function buildUserProfileUrl(visitorId) {
+  var url = BASE_URL_GET_VISITOR_INFO +"?visitor_id=" + visitorId + "&_=" + new Date().getTime();
+  return url;
+}
 
 function initLeoChatBot(context, visitorId, okCallback) {
   window.leoBotContext = context;
-
-  loadChatSessionWithProfile()
   window.currentUserProfile.visitorId = visitorId;
-  
   window.leoBotUI = new BotUI("LEO_ChatBot_Container");
 
-  var url =
-    BASE_URL_GET_VISITOR_INFO +
-    "?visitor_id=" +
-    visitorId +
-    "&_=" +
-    new Date().getTime();
-  $.getJSON(url, function (data) {
+  loadChatSessionWithProfile()
+  $.getJSON(buildUserProfileUrl(visitorId), function (data) {
     var error_code = data.error_code;
     var answer = data.answer;
     console.log(data);
@@ -309,9 +305,52 @@ var callPostApi = function (urlStr, data, okCallback, errorCallback) {
   });
 };
 
+
+// Generate RFC4122 v4 UUID (36 chars, standard)
+function generateUUID() {
+  return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+    (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+  );
+}
+
+// Retrieve or create visitor ID with expiration
+async function getVisitorId(ttlDays = 90) {
+  let id = lscache.get('visitor_id');
+
+  if (!id) {
+    id = generateUUID();
+
+    // Store with TTL (days)
+    lscache.set('visitor_id', id, ttlDays);
+
+    // Fallback cookie (optional)
+    document.cookie = `visitor_id=${id}; path=/; max-age=${ttlDays * 24 * 60 * 60}`;
+  }
+
+  return id;
+}
+
+
 var startLeoChatBot = function (visitorId) {
-  currentUserProfile.visitorId = visitorId;
-  $("#LEO_ChatBot_Container_Loader").hide();
-  $("#LEO_ChatBot_Container").show();
-  initLeoChatBot("leobot_website", visitorId);
+  lscache.setBucket('leobot');
+  
+  var setupChatBot = function (vid) {
+    currentUserProfile.visitorId = vid;
+    $("#LEO_ChatBot_Container_Loader").hide();
+    $("#LEO_ChatBot_Container").show();
+    initLeoChatBot("leobot_website", vid);
+  }
+
+  if( visitorId === undefined) {
+    getVisitorId().then(id => {
+      console.log("startLeoChatBot with Visitor ID:", id);
+      setupChatBot(id);
+    });
+  }
+  else {
+    console.log("startLeoChatBot with Visitor ID:", visitorId);
+    setupChatBot(visitorId);
+  }
+
+
 };

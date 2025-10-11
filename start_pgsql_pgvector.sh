@@ -1,14 +1,20 @@
 #!/bin/bash
 
-# --- Config ---
+# --- Docker configs ---
 CONTAINER_NAME="pgsql16_vector"
+DATA_VOLUME="pgdata_vector"
+
+# --- POSTGRES config ---
 POSTGRES_USER="postgres"
 POSTGRES_PASSWORD="password"
 DEFAULT_DB="postgres"
 TARGET_DB="customer360"
 HOST_PORT=5432
-DATA_VOLUME="pgdata_vector"
-SCHEMA_VERSION=1  # Version 0.1 (Migration 1)
+
+# --- SQL schema config ---
+SCHEMA_VERSION=251008  # Version 251008 means year 2025 month 10 day 8
+SCHEMA_DESCRIPTION="init database schema customer360 for leo bot"
+SQL_FILE_PATH="./sql_scripts/customer360_schema.sql"
 
 # --- Function to check PostgreSQL readiness ---
 wait_for_postgres() {
@@ -131,168 +137,40 @@ echo "ℹ️ Current schema version: $CURRENT_VERSION"
 apply_migration() {
   local version=$1
   local description=$2
-  local sql=$3
-  echo "🚀 Applying migration for version $version: $description..."
-  docker exec -u postgres $CONTAINER_NAME psql -d $TARGET_DB -c "$sql" || {
-    echo "❌ Error: Failed to apply migration version $version."
+  local sql_file_path=$3
+
+  echo "🚀 Applying migration for version $version: $description"
+
+  # Check if the file exists before proceeding
+  if [[ ! -f "$sql_file_path" ]]; then
+    echo "❌ Error: SQL file not found at path: $sql_file_path"
+    exit 1
+  fi
+
+  # Apply SQL migration from file
+  docker exec -i -u postgres "$CONTAINER_NAME" psql -d "$TARGET_DB" < "$sql_file_path" || {
+    echo "❌ Error: Failed to apply migration version $version from $sql_file_path."
     exit 1
   }
-  docker exec -u postgres $CONTAINER_NAME psql -d $TARGET_DB -c "INSERT INTO schema_migrations (version, description) VALUES ($version, '$description');" || {
-    echo "❌ Error: Failed to record migration version $version."
-    exit 1
-  }
+
+  # Record migration version in schema_migrations table
+  docker exec -u postgres "$CONTAINER_NAME" psql -d "$TARGET_DB" -c \
+    "INSERT INTO schema_migrations (version, description, applied_at) VALUES ($version, '$description', NOW());" || {
+      echo "❌ Error: Failed to record migration version $version."
+      exit 1
+    }
+
+  echo "✅ Migration $version applied successfully."
 }
 
+
 # --- Migration 1: Initial schema with chat tables, places (with hash-based id), and system_users ---
-if [ "$CURRENT_VERSION" -lt 1 ]; then
-  apply_migration 1 "Initial schema with chat tables, places (hash-based id), and system_users" "
-    CREATE TABLE IF NOT EXISTS chat_messages (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(36) NOT NULL,
-        tenant_id TEXT NOT NULL,
-        persona_id VARCHAR(36),
-        touchpoint_id VARCHAR(36),
-        role TEXT CHECK (role IN ('user', 'bot')),
-        message TEXT NOT NULL,
-        message_hash TEXT NOT NULL,
-        keywords TEXT[],
-        created_at TIMESTAMP DEFAULT now(),
-        UNIQUE (user_id, message_hash)
-    );
-
-    CREATE TABLE IF NOT EXISTS chat_history_embeddings (
-        id SERIAL PRIMARY KEY,
-        user_id VARCHAR(36) NOT NULL,
-        tenant_id TEXT NOT NULL,
-        persona_id VARCHAR(36),
-        touchpoint_id VARCHAR(36),
-        role TEXT CHECK (role IN ('user', 'bot')),
-        message TEXT,
-        keywords TEXT[],
-        embedding vector(768),
-        created_at TIMESTAMP DEFAULT now()
-    );
-
-    DO \$\$
-    BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM pg_indexes
-        WHERE tablename = 'chat_history_embeddings'
-          AND indexname = 'chat_history_embeddings_embedding_idx'
-      ) THEN
-        EXECUTE 'CREATE INDEX chat_history_embeddings_embedding_idx
-                 ON chat_history_embeddings
-                 USING ivfflat (embedding vector_cosine_ops)
-                 WITH (lists = 100);';
-      END IF;
-    END
-    \$\$;
-
-    CREATE TABLE IF NOT EXISTS places (
-        id BIGINT PRIMARY KEY,
-        name TEXT NOT NULL UNIQUE,
-        address TEXT,
-        description TEXT,
-        category TEXT,
-        tags TEXT[],
-        pluscode TEXT UNIQUE,
-        geom GEOMETRY(Point, 4326) NOT NULL,
-        created_at TIMESTAMP DEFAULT NOW(),
-        updated_at TIMESTAMP DEFAULT NOW()
-    );
-    CREATE INDEX IF NOT EXISTS idx_places_geom ON places USING GIST (geom);
-    CREATE INDEX IF NOT EXISTS idx_places_pluscode ON places (pluscode);
-
-    CREATE TABLE IF NOT EXISTS system_users (
-        id SERIAL PRIMARY KEY,
-        activation_key VARCHAR(64),
-        avatar_url TEXT,
-        creation_time BIGINT NOT NULL,
-        custom_data JSONB,
-        display_name TEXT NOT NULL,
-        is_online BOOLEAN DEFAULT FALSE,
-        modification_time BIGINT,
-        tenant_id TEXT NOT NULL,
-        registered_time BIGINT DEFAULT 0,
-        role INTEGER NOT NULL,
-        status INTEGER NOT NULL,
-        user_email TEXT UNIQUE NOT NULL,
-        user_login TEXT UNIQUE NOT NULL,
-        user_pass TEXT NOT NULL,
-        access_profile_fields TEXT[],
-        action_logs TEXT[],
-        in_groups TEXT[],
-        business_unit TEXT,
-        created_at TIMESTAMP DEFAULT NOW(),
-        updated_at TIMESTAMP DEFAULT NOW(),
-        CONSTRAINT check_display_name_not_empty CHECK (display_name <> ''),
-        CONSTRAINT check_user_email_not_empty CHECK (user_email <> ''),
-        CONSTRAINT check_user_login_not_empty CHECK (user_login <> ''),
-        CONSTRAINT check_user_pass_not_empty CHECK (user_pass <> '')
-    );
-    CREATE INDEX IF NOT EXISTS idx_system_users_user_email ON system_users (user_email);
-    CREATE INDEX IF NOT EXISTS idx_system_users_user_login ON system_users (user_login);
-    CREATE INDEX IF NOT EXISTS idx_system_users_tenant_id ON system_users (tenant_id);
-
-
-    -- Create conversational_context table
-    CREATE TABLE IF NOT EXISTS conversational_context (
-        user_id           VARCHAR(36) NOT NULL,
-        touchpoint_id     VARCHAR(36) NOT NULL,
-        
-        -- Full JSON context: user profile, summary, keywords, etc.
-        context_data      JSONB NOT NULL,
-        
-        -- AI semantic representation (e.g. OpenAI or Gemini embeddings)
-        embedding         VECTOR(1536),   -- Adjust dimension to match your model
-        
-        -- Optional intent classification results
-        intent_label      VARCHAR(255),
-        intent_confidence NUMERIC(5,4),   -- e.g. 0.9876 confidence
-        
-        -- Metadata
-        created_at        TIMESTAMPTZ DEFAULT NOW(),
-        updated_at        TIMESTAMPTZ DEFAULT NOW(),
-        
-        PRIMARY KEY (user_id, touchpoint_id)
-    );
-
-    -- Maintain updated_at automatically
-    CREATE OR REPLACE FUNCTION update_conversational_context_timestamp()
-    RETURNS TRIGGER AS $$
-    BEGIN
-        NEW.updated_at = NOW();
-        RETURN NEW;
-    END;
-    $$ LANGUAGE plpgsql;
-
-    CREATE TRIGGER conversational_context_timestamp
-    BEFORE UPDATE ON conversational_context
-    FOR EACH ROW
-    EXECUTE FUNCTION update_conversational_context_timestamp();
-
-    -- JSONB index for efficient key/value and text lookups
-    CREATE INDEX IF NOT EXISTS idx_conversational_context_jsonb
-        ON conversational_context USING GIN (context_data jsonb_path_ops);
-
-    -- Basic lookup index
-    CREATE INDEX IF NOT EXISTS idx_conversational_context_user
-        ON conversational_context (user_id);
-
-    -- Vector index for fast semantic similarity search
-    CREATE INDEX IF NOT EXISTS idx_conversational_context_embedding
-        ON conversational_context USING ivfflat (embedding vector_l2_ops)
-        WITH (lists = 100);
-
-    -- Optional: filter queries by intent
-    CREATE INDEX IF NOT EXISTS idx_conversational_context_intent
-        ON conversational_context (intent_label);
-
-  "
+if [ $CURRENT_VERSION -lt $SCHEMA_VERSION ]; then
+  apply_migration $SCHEMA_VERSION "$SCHEMA_DESCRIPTION" "$SQL_FILE_PATH"
 fi
 
 # --- Verify all tables exist ---
-TABLES=("chat_messages" "chat_history_embeddings" "places" "schema_migrations" "system_users" "conversational_context")
+TABLES=("chat_messages" "chat_message_embeddings" "places" "schema_migrations" "system_users" "conversational_context")
 for table in "${TABLES[@]}"; do
   docker exec -u postgres $CONTAINER_NAME psql -d $TARGET_DB -tc "SELECT 1 FROM pg_tables WHERE tablename = '$table'" | grep -q 1 || {
     echo "❌ Error: Table '$table' is missing after migrations."
