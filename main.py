@@ -15,7 +15,7 @@ import json
 import logging
 import requests
 
-from leoai.ai_chatbot import ask_question, GEMINI_API_KEY, translate_text, detect_language, extract_data_from_chat_message_by_ai
+from leoai.ai_chatbot import GEMINI_API_KEY, ask_question, translate_text, detect_language, extract_data_from_chat_message_by_ai
 from leoai.leo_datamodel import Message, UpdateProfileEvent, ChatMessage, TrackedEvent
 from leoai.rag_agent import RAGAgent
 
@@ -155,7 +155,7 @@ async def webhook_handler(request: Request):
                 persona_id = "fb_user"
                 touchpoint_id = "facebook"
 
-                ai_reply = rag_agent.process_chat_message(
+                ai_reply = await rag_agent.process_chat_message(
                     user_id=sender_id,
                     user_message=user_msg,
                     persona_id=persona_id,
@@ -293,7 +293,7 @@ async def web_handler(msg: Message):
         persona_id = "fb_user"
         touchpoint_id = "facebook"
 
-        answer = rag_agent.process_chat_message(
+        answer = await rag_agent.process_chat_message(
             user_id=visitor_id,
             user_message=question,
             persona_id=persona_id,

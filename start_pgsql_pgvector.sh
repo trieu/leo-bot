@@ -170,7 +170,7 @@ if [ $CURRENT_VERSION -lt $SCHEMA_VERSION ]; then
 fi
 
 # --- Verify all tables exist ---
-TABLES=("chat_messages" "chat_history_embeddings" "places" "schema_migrations" "system_users" "conversational_context")
+TABLES=("chat_messages" "chat_message_embeddings" "places" "schema_migrations" "system_users" "conversational_context")
 for table in "${TABLES[@]}"; do
   docker exec -u postgres $CONTAINER_NAME psql -d $TARGET_DB -tc "SELECT 1 FROM pg_tables WHERE tablename = '$table'" | grep -q 1 || {
     echo "❌ Error: Table '$table' is missing after migrations."
