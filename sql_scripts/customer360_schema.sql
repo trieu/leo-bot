@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS chat_message_embeddings (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Index for single-tenant vector similarity
+-- Index for vector similarity
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -72,29 +72,13 @@ BEGIN
             CREATE INDEX chat_message_embeddings_embedding_idx
             ON chat_message_embeddings
             USING ivfflat (embedding vector_cosine_ops)
-            WITH (lists = 100);
-        ';
-    END IF;
-END $$;
-
--- ============================================================
--- Composite Index for Multi-Tenant + Global Search
--- ============================================================
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_indexes
-        WHERE tablename = 'chat_message_embeddings'
-          AND indexname = 'chat_message_embeddings_tenant_embedding_idx'
-    ) THEN
-        EXECUTE '
-            CREATE INDEX chat_message_embeddings_tenant_embedding_idx
-            ON chat_message_embeddings
-            USING ivfflat ((tenant_id, embedding) vector_cosine_ops)
             WITH (lists = 200);
         ';
     END IF;
 END $$;
+
+
+
 
 
 -- ============================================================
