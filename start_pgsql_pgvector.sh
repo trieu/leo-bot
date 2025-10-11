@@ -12,9 +12,20 @@ TARGET_DB="customer360"
 HOST_PORT=5432
 
 # --- SQL schema config ---
-SCHEMA_VERSION=251008  # Version 251008 means year 2025 month 10 day 8
+SCHEMA_VERSION=251008
 SCHEMA_DESCRIPTION="init database schema customer360 for leo bot"
 SQL_FILE_PATH="./sql_scripts/customer360_schema.sql"
+
+# --- Parse options ---
+RESET_DB=false
+for arg in "$@"; do
+  case $arg in
+    --reset-db)
+      RESET_DB=true
+      shift
+      ;;
+  esac
+done
 
 # --- Function to check PostgreSQL readiness ---
 wait_for_postgres() {
@@ -26,7 +37,7 @@ wait_for_postgres() {
       echo "❌ Error: PostgreSQL is not ready after $max_attempts attempts."
       exit 1
     fi
-    echo "⏳ Attempt $attempt/$max_attempts: Waiting for PostgreSQL to be ready..."
+    echo "⏳ Attempt $attempt/$max_attempts: Waiting for PostgreSQL..."
     sleep 2
     ((attempt++))
   done
@@ -58,7 +69,7 @@ else
     -e POSTGRES_DB=$DEFAULT_DB \
     -p $HOST_PORT:5432 \
     -v $DATA_VOLUME:/var/lib/postgresql/data \
-    postgis/postgis:16-3.5  # ✅ includes PostgreSQL 16 + PostGIS
+    postgis/postgis:16-3.5
 
   wait_for_postgres
 
@@ -69,22 +80,22 @@ fi
 
 # --- Fix collation version mismatch ---
 echo "🔧 Checking and fixing collation version mismatch for 'postgres' and 'template1'..."
-docker exec -u postgres $CONTAINER_NAME psql -d $DEFAULT_DB -c "ALTER DATABASE postgres REFRESH COLLATION VERSION;" || {
-  echo "⚠️ Warning: Failed to refresh collation version for 'postgres'. Continuing..."
-}
-docker exec -u postgres $CONTAINER_NAME psql -d template1 -c "ALTER DATABASE template1 REFRESH COLLATION VERSION;" || {
-  echo "⚠️ Warning: Failed to refresh collation version for 'template1'. Continuing..."
-}
+docker exec -u postgres $CONTAINER_NAME psql -d $DEFAULT_DB -c "ALTER DATABASE postgres REFRESH COLLATION VERSION;" || echo "⚠️ Warning: Failed to refresh 'postgres'."
+docker exec -u postgres $CONTAINER_NAME psql -d template1 -c "ALTER DATABASE template1 REFRESH COLLATION VERSION;" || echo "⚠️ Warning: Failed to refresh 'template1'."
+
+# --- Drop DB if requested ---
+if [ "$RESET_DB" = true ]; then
+  echo "⚠️ --reset-db detected. Dropping database '${TARGET_DB}' if exists..."
+  docker exec -u postgres $CONTAINER_NAME psql -d $DEFAULT_DB -c "DROP DATABASE IF EXISTS ${TARGET_DB};"
+fi
 
 # --- Create DB if not exists ---
 echo "🔄 Checking if database '${TARGET_DB}' exists..."
-docker exec -u postgres $CONTAINER_NAME psql -d $DEFAULT_DB -tc "SELECT 1 FROM pg_database WHERE datname = '${TARGET_DB}'" | grep -q 1 || {
+DB_EXISTS=$(docker exec -u postgres $CONTAINER_NAME psql -d $DEFAULT_DB -tc "SELECT 1 FROM pg_database WHERE datname='${TARGET_DB}';" | tr -d '[:space:]')
+if [ "$DB_EXISTS" != "1" ]; then
   echo "🚀 Creating database '${TARGET_DB}'..."
-  docker exec -u postgres $CONTAINER_NAME psql -d $DEFAULT_DB -c "CREATE DATABASE ${TARGET_DB};" || {
-    echo "❌ Error: Failed to create database '${TARGET_DB}'."
-    exit 1
-  }
-}
+  docker exec -u postgres $CONTAINER_NAME psql -d $DEFAULT_DB -c "CREATE DATABASE ${TARGET_DB};"
+fi
 
 # --- Ensure connection to target database ---
 wait_for_postgres_target() {
@@ -96,7 +107,7 @@ wait_for_postgres_target() {
       echo "❌ Error: Database '${TARGET_DB}' is not accessible after $max_attempts attempts."
       exit 1
     fi
-    echo "⏳ Attempt $attempt/$max_attempts: Waiting for database '${TARGET_DB}' to be ready..."
+    echo "⏳ Attempt $attempt/$max_attempts: Waiting for database '${TARGET_DB}'..."
     sleep 2
     ((attempt++))
   done
@@ -106,16 +117,10 @@ wait_for_postgres_target
 
 # --- Enable extensions ---
 echo "🔧 Enabling extensions in '${TARGET_DB}'..."
-docker exec -u postgres $CONTAINER_NAME psql -d $TARGET_DB -c "CREATE EXTENSION IF NOT EXISTS vector;" || {
-  echo "❌ Error: Failed to enable 'vector' extension."
-  exit 1
-}
-docker exec -u postgres $CONTAINER_NAME psql -d $TARGET_DB -c "CREATE EXTENSION IF NOT EXISTS postgis;" || {
-  echo "❌ Error: Failed to enable 'postgis' extension."
-  exit 1
-}
+docker exec -u postgres $CONTAINER_NAME psql -d $TARGET_DB -c "CREATE EXTENSION IF NOT EXISTS vector;" || { echo "❌ Failed to enable 'vector'"; exit 1; }
+docker exec -u postgres $CONTAINER_NAME psql -d $TARGET_DB -c "CREATE EXTENSION IF NOT EXISTS postgis;" || { echo "❌ Failed to enable 'postgis'"; exit 1; }
 
-# --- Create schema_migrations table to track versions ---
+# --- Create schema_migrations table ---
 echo "🔧 Creating schema_migrations table..."
 docker exec -u postgres $CONTAINER_NAME psql -d $TARGET_DB -c "
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -128,9 +133,7 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 # --- Check current schema version ---
 echo "🔍 Checking current schema version..."
 CURRENT_VERSION=$(docker exec -u postgres $CONTAINER_NAME psql -d $TARGET_DB -t -c "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1;" 2>/dev/null | tr -d '[:space:]' || echo "0")
-if [ -z "$CURRENT_VERSION" ]; then
-  CURRENT_VERSION=0
-fi
+if [ -z "$CURRENT_VERSION" ]; then CURRENT_VERSION=0; fi
 echo "ℹ️ Current schema version: $CURRENT_VERSION"
 
 # --- Function to apply migration ---
@@ -141,30 +144,20 @@ apply_migration() {
 
   echo "🚀 Applying migration for version $version: $description"
 
-  # Check if the file exists before proceeding
   if [[ ! -f "$sql_file_path" ]]; then
-    echo "❌ Error: SQL file not found at path: $sql_file_path"
+    echo "❌ SQL file not found: $sql_file_path"
     exit 1
   fi
 
-  # Apply SQL migration from file
-  docker exec -i -u postgres "$CONTAINER_NAME" psql -d "$TARGET_DB" < "$sql_file_path" || {
-    echo "❌ Error: Failed to apply migration version $version from $sql_file_path."
-    exit 1
-  }
+  docker exec -i -u postgres "$CONTAINER_NAME" psql -d "$TARGET_DB" < "$sql_file_path" || { echo "❌ Failed to apply migration $version"; exit 1; }
 
-  # Record migration version in schema_migrations table
   docker exec -u postgres "$CONTAINER_NAME" psql -d "$TARGET_DB" -c \
-    "INSERT INTO schema_migrations (version, description, applied_at) VALUES ($version, '$description', NOW());" || {
-      echo "❌ Error: Failed to record migration version $version."
-      exit 1
-    }
+    "INSERT INTO schema_migrations (version, description, applied_at) VALUES ($version, '$description', NOW());" || { echo "❌ Failed to record migration $version"; exit 1; }
 
   echo "✅ Migration $version applied successfully."
 }
 
-
-# --- Migration 1: Initial schema with chat tables, places (with hash-based id), and system_users ---
+# --- Apply initial schema migration if needed ---
 if [ $CURRENT_VERSION -lt $SCHEMA_VERSION ]; then
   apply_migration $SCHEMA_VERSION "$SCHEMA_DESCRIPTION" "$SQL_FILE_PATH"
 fi
@@ -172,14 +165,11 @@ fi
 # --- Verify all tables exist ---
 TABLES=("chat_messages" "chat_message_embeddings" "places" "schema_migrations" "system_users" "conversational_context")
 for table in "${TABLES[@]}"; do
-  docker exec -u postgres $CONTAINER_NAME psql -d $TARGET_DB -tc "SELECT 1 FROM pg_tables WHERE tablename = '$table'" | grep -q 1 || {
-    echo "❌ Error: Table '$table' is missing after migrations."
-    exit 1
-  }
+  docker exec -u postgres $CONTAINER_NAME psql -d $TARGET_DB -tc "SELECT 1 FROM pg_tables WHERE tablename = '$table'" | grep -q 1 || { echo "❌ Table '$table' missing"; exit 1; }
 done
 
 echo "✅ PostgreSQL 16 + PostGIS + pgvector is ready."
-echo "   ➜ DB: customer360"
+echo "   ➜ DB: $TARGET_DB"
 echo "   ➜ Tables: ${TABLES[*]}"
 echo "   ➜ Extensions: vector, postgis"
 echo "   ➜ Schema Version: $SCHEMA_VERSION"
