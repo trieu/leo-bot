@@ -1,42 +1,238 @@
-# LEO BOT: the AI for Chatbot, Marketing Automation and Personalization Engine
+# 🤖 LeoBot — AI Chat Assistant for Businesses & Users
 
-- For chatbot demo, please go to https://leobot.leocdp.com
-- The LEO BOT works an AI chatbot with the backend using Google Generative AI (PaLM 2) and Mistral-7B
-- For the GEMINI_API_KEY, please check more details at https://developers.generativeai.google/guide 
-- For the GOOGLE_APPLICATION_CREDENTIALS, go to https://console.cloud.google.com/apis/api/translate.googleapis.com/credentials
-- Author: Trieu Nguyen at https://github.com/trieu
-- Follow my YouTube channel for more knowledge: https://www.youtube.com/@bigdatavn
+![LeoBot Screenshot](screenshot/leobot.png)
 
-## In Ubuntu server, follow this checklist to run LEO BOT
+**LeoBot** is a FastAPI-based AI chatbot platform for intelligent, real-time conversations across multiple channels — including **websites**, **Facebook Messenger**, and **Zalo Official Accounts**.
+It integrates seamlessly with **LEO CDP (Customer Data Platform)** to serve both **admins** and **end-users**, delivering contextual, personalized answers powered by **RAG (Retrieval-Augmented Generation)** and advanced AI models like **Google Gemini**.
 
-1. Need Python 3.10, run following commands
+---
+
+## 🌐 Live Chatbot Demo
+
+Try the chatbot in action:
+👉 [https://leobot.leocdp.com](https://leobot.leocdp.com)
+
+LeoBot uses the **Google Gemini API** for natural, context-aware responses.
+
+---
+
+## 🚀 Features
+
+* **Multi-channel support:** Works with Facebook Messenger and Zalo OA.
+* **Gemini-powered intelligence:** Uses Google Gemini API for high-quality understanding and generation.
+* **RAG-based reasoning:** Combines knowledge retrieval with semantic memory.
+* **FastAPI backend:** Lightweight, async, and production-ready.
+* **Redis rate limiting:** Prevents spam and message floods.
+* **Custom personas:** Supports user profiles, roles, and chat touchpoints.
+* **Prebuilt frontend demos:** Jinja2 templates for quick UI testing and embedding.
+
+---
+
+## 🧠 Architecture Overview
+
+*(Coming soon — overview diagram and explanation of key modules.)*
+
+---
+
+## 🧩 Key Components
+
+### RAGAgent
+
+Handles message understanding, context retrieval, and Gemini-based response generation.
+
+### Webhooks
+
+* `/fb-webhook` — Facebook Messenger
+* `/zalo-webhook` — Zalo Official Account
+
+### Redis Rate Limiting
+
+Uses a sorted-set time window to prevent excessive messaging per user.
+
+---
+
+## 🛠️ Setup and Installation
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/trieu/leo-bot
+cd leo-bot
 ```
-sudo apt install python-is-python3
-curl -sS https://bootstrap.pypa.io/get-pip.py | sudo python3.10
-sudo apt-get install python3.10-venv
-pip install virtualenv
+
+### 2. Start PostgreSQL + pgvector (via Docker)
+
+Make sure **Docker CLI** is installed:
+
+```bash
+docker --version
+```
+
+Then start the database:
+
+```bash
+./start_pgsql_pgvector.sh
+```
+
+This script:
+
+* Launches a PostgreSQL 16 container (`pgsql16_vector`)
+* Mounts a persistent volume (`pgdata_vector`)
+* Enables **pgvector** and **postgis** extensions
+* Creates the `customer360` database and schema
+* Handles collation version fixes automatically
+
+To **reset the database**, run:
+
+```bash
+./start_pgsql_pgvector.sh --reset-db
+```
+
+You can connect manually:
+
+```bash
+psql -h localhost -U postgres -d customer360
+```
+
+---
+
+### 3. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Configure Environment
+
+Create a `.env` file or edit `main_config.py`:
+
+```bash
+LEOBOT_DEV_MODE=false
+HOSTNAME=leobot.example.com
+POSTGRES_URL=postgresql://postgres:password@localhost:5432/customer360
+
+GOOGLE_APPLICATION_CREDENTIALS=your_credentials.json
+GEMINI_API_KEY=your_gemini_api_key
+
+REDIS_USER_SESSION_HOST=127.0.0.1
+REDIS_USER_SESSION_PORT=6480
+
+FB_VERIFY_TOKEN=
+FB_PAGE_ACCESS_TOKEN=your_facebook_access_token
+ZALO_OA_ACCESS_TOKEN=your_zalo_access_token
+```
+
+**Gemini API setup:**
+
+* Get your API key at [Google AI Studio](https://aistudio.google.com/app/library)
+* For translation and related APIs, set up credentials in the [Google Cloud Console](https://console.cloud.google.com/apis/api/translate.googleapis.com/credentials)
+
+---
+
+### 5. Python Environment (Ubuntu Example)
+
+```bash
+sudo apt install python-is-python3 python3.10-venv
 python -m venv env
 source env/bin/activate
 pip install -r requirements.txt
 ```
-2. You need to refresh the session of login shell after install python-is-python3
-3. Need to create a file .env to store environment variables
-4. In the file .env, set value like this example
-```
-LEOBOT_DEV_MODE=true
-HOSTNAME=leobot.example.com
 
-GOOGLE_APPLICATION_CREDENTIALS=
-GEMINI_API_KEY=
+After installation, refresh your shell.
 
-REDIS_USER_SESSION_HOST=127.0.0.1
-REDIS_USER_SESSION_PORT=6480
+---
+
+### 6. Run LeoBot
+
+Production mode:
+
+```bash
+./start_app.sh
 ```
-5. Set correct DIR_PATH in start_app.sh, an example like this
+
+Development mode:
+
+```bash
+./start_dev.sh
 ```
-DIR_PATH="/build/leo-bot/"
+
+LeoBot will run at `0.0.0.0:8888`.
+Open your browser and visit your configured `HOSTNAME` to test.
+
+---
+
+## 🌐 API Endpoints
+
+| Endpoint            | Method   | Description                      |
+| ------------------- | -------- | -------------------------------- |
+| `/ask`              | POST     | Main chatbot endpoint            |
+| `/is-ready`         | GET/POST | Gemini API readiness check       |
+| `/fb-webhook`       | GET/POST | Facebook Messenger webhook       |
+| `/zalo-webhook`     | POST     | Zalo OA webhook                  |
+| `/ping`             | GET      | Basic health check               |
+| `/get-visitor-info` | GET      | Retrieve visitor info from Redis |
+
+---
+
+## 🧰 Developer Notes
+
+* Built on **FastAPI** with full async I/O.
+* Message context stored in **Redis**.
+* Embeddings via **SentenceTransformer** or **Gemini Embeddings**.
+* Compatible with **pgvector** and other vector databases.
+
+To extend LeoBot:
+
+* Add webhook routes for new channels (Telegram, LINE, etc.)
+* Create custom response modules in `rag_agent`
+* Integrate new LLM APIs or plugins
+
+---
+
+## 🧪 Testing
+
+Run automated tests:
+
+```bash
+pytest
 ```
-6. Run ./start_app.sh for PRODUCTION or ./start_dev.sh for DEVELOPMENT
-7. The LEO BOT is started at the host 0.0.0.0 with port 8888
-8. For demo and local test, need Redis Server. Open redis-cli, run: hset demo userlogin demo
-9. Go to the HOSTNAME to test your chatbot. 
+
+Or test manually:
+
+```bash
+curl -X POST http://localhost:8000/ask \
+  -H "Content-Type: application/json" \
+  -d '{"visitor_id": "demo", "question": "Hello!", "persona_id": "test"}'
+```
+
+---
+
+## 🧭 Author & Resources
+
+**Author:** [Trieu Nguyen](https://github.com/trieu)
+**YouTube:** [@bigdatavn](https://www.youtube.com/@bigdatavn)
+**Demo:** [https://leobot.leocdp.com](https://leobot.leocdp.com)
+
+---
+
+## 🌱 Future Roadmap
+
+* [ ] Support Telegram, LINE, and WhatsApp
+* [ ] Add knowledge-graph search (PostgreSQL + pgvector)
+* [ ] Streaming chat via SSE/WebSocket
+* [ ] AI analytics dashboard for admins
+* [ ] Plugin SDK for external integrations
+
+---
+
+## 📜 License
+
+MIT License — free to use, modify, and share.
+Attribution is appreciated but not required.
+
+---
+
+## 💡 Vision
+
+LeoBot embodies the union of **Dataism** and **AI pragmatism** — an assistant that connects people and data through natural conversation.
+It’s not just automation; it’s augmentation — amplifying human understanding through intelligent dialogue.

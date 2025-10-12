@@ -11,6 +11,7 @@ import asyncio
 
 from leoai.ai_core import GeminiClient, get_embedding_model
 from leoai.db_utils import get_pg_conn, sha256_hash, get_async_pg_conn
+from main_config import REDIS_CLIENT
 
 # --- Load environment variables from .env ---
 load_dotenv(override=True)
@@ -51,6 +52,40 @@ If the context provided is insufficient to answer the user's question, state tha
 {question}
 """
 
+SUMMARY_PROMPT_TEMPLATE = """
+You are a data extractor. Please analyze the conversation below. Extract key information and return a single, valid JSON object
+enclosed in ```json ... ``` markdown block. Do not add any text before or after the JSON block.
+
+Your JSON object MUST have this exact structure:
+{{
+  "user_profile": {{
+    "first_name": "string or null",
+    "last_name": "string or null",
+    "primary_language": "string or null",
+    "primary_email": "string or null",
+    "primary_phone": "string or null",
+    "personal_interests": ["list of strings"],
+    "personality_traits": ["list of strings"],
+    "data_labels": ["list of strings"],
+    "in_segments": ["list of strings"],
+    "in_journey_maps": ["list of strings"],
+    "product_interests": ["list of strings"],
+    "content_interests": ["list of strings"]
+  }},
+  "user_context": {{
+    "location": "string or null",
+    "datetime": "{now_str}"
+  }},
+  "context_summary": "the summary of long conversation",
+  "context_keywords": ["list of keywords from long conversation"],
+  "intent_label": "the label of intent from long conversation",
+  "intent_confidence": "a probability score between 0 and 1"
+}}
+
+--- Conversation ---
+{context}
+"""
+
 
 # =====================================================================
 # Main RAG pipeline
@@ -75,6 +110,7 @@ async def process_chat_message(
     return await agent.process_chat_message(
         user_id=user_id,
         user_message=user_message,
+        cdp_profile_id=cdp_profile_id,
         persona_id=persona_id,
         touchpoint_id=touchpoint_id,
         target_language=target_language,
@@ -126,44 +162,10 @@ class RAGAgent:
         logging.info(f"🧩 Summarizing {len(context)} chars of context into structured JSON.")
 
         try:
-            prompt = f"""
-            You are data extractor. Please analyze the conversation below. Extract key information and return a single, valid JSON object
-            enclosed in ```json ... ``` markdown block. Do not add any text before or after the JSON block.
-
-            Your JSON object MUST have this exact structure:
-            {{
-              "user_profile": {{
-                "first_name": "string or null",
-                "last_name": "string or null",
-                "primary_language": "string or null",
-                "primary_email": "string or null",
-                "primary_phone": "string or null",
-                "last_name": "string or null",
-                "personal_interests": ["list of strings"],
-                "personality_traits": ["list of strings"]
-                "data_labels": ["list of strings"],
-                "in_segments": ["list of strings"],
-                "in_journey_maps": ["list of strings"],
-                "product_interests": ["list of strings"],
-                "content_interests": ["list of strings"]
-              }},
-              "user_context": {{
-                "location": "string or null",
-                "datetime": "{now_str}"
-              }},
-              "context_summary": "the summary of long conversation",
-              "context_keywords": ["list of keywords from long conversation"],
-              "intent_label":"the label of intent from long conversation",
-              "intent_confidence": a probability score between 0 and 1
-            }}
-
-            --- Conversation ---
-            {context}
-            """
-
+            prompt = SUMMARY_PROMPT_TEMPLATE.format(now_str=now_str, context=context)
+            # summary in event loop thread
             loop = asyncio.get_event_loop()
-            raw_output = await loop.run_in_executor(
-                None, lambda: self.client.generate_content(prompt, temperature=temperature_score))
+            raw_output = await loop.run_in_executor(None, lambda: self.client.generate_content(prompt, temperature=temperature_score))
             logging.info(f"🤖 Gemini output:\n{raw_output}")
 
             match = re.search(r"```json\s*(\{.*?\})\s*```", raw_output, re.DOTALL)
@@ -171,15 +173,20 @@ class RAGAgent:
                 logging.warning("⚠️ No valid JSON markdown block detected in Gemini summary output.")
                 return self._get_default_summary(now_str)
 
-            summary_json = json.loads(match.group(1))
+            try:
+                summary_json = json.loads(match.group(1))
+            except json.JSONDecodeError as e:
+                logging.error(f"❌ JSON decoding error in summary: {e}\nRaw JSON text: {match.group(1)}")
+                return self._get_default_summary(now_str)
 
             default_summary = self._get_default_summary(now_str)
             summary_json["user_profile"] = {**default_summary["user_profile"], **summary_json.get("user_profile", {})}
             summary_json["user_context"] = {**default_summary["user_context"], **summary_json.get("user_context", {})}
             summary_json.setdefault("context_keywords", [])
             summary_json.setdefault("context_summary", "")
-            summary_json.setdefault("intent_label", "")
-            summary_json.setdefault("intent_confidence", 0)
+            summary_json.setdefault("intent_label", None)
+            # Ensure confidence is a float
+            summary_json["intent_confidence"] = float(summary_json.get("intent_confidence", 0.0) or 0.0)
 
             logging.info("✅ Context successfully summarized into structured JSON.")
             
@@ -380,57 +387,71 @@ class RAGAgent:
             logger.error(f"❌ Failed to save context summary: {e}")
             return False
 
+    def _fetch_context_from_db(self, user_id: str, touchpoint_id: str) -> Optional[tuple]:
+        """Fetches the context summary row from the database."""
+        with get_pg_conn() as conn, conn.cursor() as cur:
+            cur.execute("""
+                SELECT context_data, intent_label, intent_confidence, updated_at
+                FROM conversational_context
+                WHERE user_id = %s AND touchpoint_id = %s;
+            """, (user_id, touchpoint_id))
+            return cur.fetchone()
+
+    def _create_base_context(self) -> Dict[str, Any]:
+        """Creates a default, empty context structure."""
+        now_str = self._get_date_time_now()
+        return {
+            "user_profile": {
+                "first_name": None, "last_name": None,
+                "primary_language": None, "primary_email": None, "primary_phone": None,
+                "personal_interests": [], "personality_traits": [],
+                "data_labels": [], "in_segments": [], "in_journey_maps": [],
+                "product_interests": [], "content_interests": []
+            },
+            "user_context": {"location": None, "datetime": now_str},
+            "context_summary": "",
+            "context_keywords": [],
+            "intent_label": None,
+            "intent_confidence": 0.0
+        }
+
+    def _parse_db_row_to_context(self, row: tuple) -> Dict[str, Any]:
+        """Parses the database row and merges it into a base context structure."""
+        base_context = self._create_base_context()
+        context_data, intent_label, intent_confidence, updated_at = row
+
+        if isinstance(context_data, str):
+            try:
+                context_data = json.loads(context_data)
+            except json.JSONDecodeError:
+                context_data = {}
+        elif not isinstance(context_data, dict):
+            context_data = {}
+
+        # Merge data into the base structure
+        base_context["user_profile"].update(context_data.get("user_profile", {}))
+        base_context["user_context"].update(context_data.get("user_context", {}))
+        base_context["context_summary"] = context_data.get("context_summary", "")
+        base_context["context_keywords"] = context_data.get("context_keywords", [])
+        base_context["updated_at"] = updated_at
+        base_context["intent_label"] = intent_label
+        base_context["intent_confidence"] = float(intent_confidence or 0.0)
+
+        return base_context
+
     def _get_context_summary(self, user_id: str, touchpoint_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve and normalize a structured conversational context summary."""
         try:
-            with get_pg_conn() as conn, conn.cursor() as cur:
-                cur.execute("""
-                    SELECT context_data, intent_label, intent_confidence, updated_at
-                    FROM conversational_context
-                    WHERE user_id = %s AND touchpoint_id = %s;
-                """, (user_id, touchpoint_id))
-                row = cur.fetchone()
-
-            now_str = self._get_date_time_now()
-            base_context = {
-                "user_profile": {
-                    "first_name": None, "last_name": None, 
-                    "primary_language": None, "primary_email": None, "primary_phone": None, 
-                    "personal_interests": [], "personality_traits": [],
-                    "data_labels": [], "in_segments": [], "in_journey_maps": [], 
-                    "product_interests": [], "content_interests": []
-                },
-                "user_context": {"location": None, "datetime": now_str},
-                "context_summary": "",
-                "context_keywords": [],
-                "intent_label": None,
-                "intent_confidence": 0.0
-            }
+            row = self._fetch_context_from_db(user_id, touchpoint_id)
 
             if not row:
                 logger.info(f"ℹ️ No context summary found for user={user_id}, touchpoint={touchpoint_id}")
                 return None
 
-            context_data, intent_label, intent_confidence, updated_at = row
+            context = self._parse_db_row_to_context(row)
 
-            if context_data:
-                if isinstance(context_data, str):
-                    try:
-                        context_data = json.loads(context_data)
-                    except json.JSONDecodeError:
-                        context_data = {}
-
-                base_context["user_profile"].update(context_data.get("user_profile", {}))
-                base_context["user_context"].update(context_data.get("user_context", {}))
-                base_context["context_summary"] = context_data.get("context_summary", "")
-                base_context["context_keywords"] = context_data.get("context_keywords", [])
-                base_context["updated_at"] = updated_at
-
-            base_context["intent_label"] = intent_label
-            base_context["intent_confidence"] = float(intent_confidence) if intent_confidence else 0.0
-
-            logger.info(f"ℹ️ Found context summary for user={user_id}, touchpoint={touchpoint_id} intent_label={intent_label}")
-            return base_context
+            logger.info(f"ℹ️ Found context summary for user={user_id}, touchpoint={touchpoint_id} intent_label={context['intent_label']}")
+            return context
 
         except Exception as e:
             logger.error(f"❌ Failed to load context summary for user={user_id}, touchpoint={touchpoint_id}: {e}")
@@ -491,6 +512,10 @@ class RAGAgent:
 
             # 2 Build summarized context.
             summarized_context = await self._build_context_summary(user_id, touchpoint_id, cdp_profile_id, user_message)
+            
+            #  TODO Update Redis with the user's first name for quick access
+            if first_name := summarized_context.get("user_profile", {}).get("first_name"):
+                REDIS_CLIENT.hset(user_id, mapping={"profile_id": "", "name": first_name})
 
             # 3 Build contextual prompt.
             final_prompt = self._build_contextual_prompt(user_message, summarized_context, target_language)
@@ -509,6 +534,6 @@ class RAGAgent:
 
         except Exception as e:
             logger.exception("❌ RAG pipeline error")
-            query = user_message.replace(" ", "+")
-            return f"Try <a href='https://www.google.com/search?q={query}' target='_blank'>searching Google</a>."
+            # A more generic, safer error message for the end-user.
+            return "I'm sorry, but I encountered an unexpected error and can't process your request right now. Please try again later."
         
