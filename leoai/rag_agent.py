@@ -244,7 +244,12 @@ class RAGAgent:
         tenant_id: Optional[str] = "default"
     ):
         """Store a chat message and its embedding in the database."""
-        message_hash = sha256_hash(message)
+        
+        if len(user_id) == 0 or len(message) == 0:
+            # skip 
+            return
+        # hash
+        message_hash = sha256_hash(f"{user_id}:{message}")
         loop = asyncio.get_event_loop()
 
         # Run embedding computation in a background thread
@@ -270,6 +275,7 @@ class RAGAgent:
                     INSERT INTO chat_messages
                     (message_hash, user_id, cdp_profile_id, tenant_id, persona_id, touchpoint_id, role, message, keywords, created_at)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                    ON CONFLICT (message_hash) DO NOTHING
                 """, (
                     message_hash, user_id, cdp_profile_id, tenant_id, persona_id,
                     touchpoint_id, role, message, keywords
@@ -280,6 +286,7 @@ class RAGAgent:
                     INSERT INTO chat_message_embeddings
                     (message_hash, tenant_id, embedding, created_at)
                     VALUES (%s, %s, %s, NOW())
+                    ON CONFLICT (message_hash) DO NOTHING
                 """, (
                     message_hash, tenant_id, message_vector
                 ))
