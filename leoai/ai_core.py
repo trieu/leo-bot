@@ -1,4 +1,6 @@
 import os
+
+from functools import lru_cache
 import logging
 from dotenv import load_dotenv
 # Imports from the Google AI SDK
@@ -141,6 +143,10 @@ elif torch.backends.mps.is_available():
     device = "mps"
     
 # default embedding_model
+
+@lru_cache(maxsize=1)
 def get_embedding_model():
+    """Lazy-Loading SentenceTransformer model once."""
+    logger.info("Loading SentenceTransformer model intfloat/multilingual-e5-base...")
     embedding_model = SentenceTransformer("intfloat/multilingual-e5-base", device=device)
     return embedding_model
