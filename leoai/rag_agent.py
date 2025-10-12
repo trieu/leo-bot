@@ -19,7 +19,7 @@ load_dotenv(override=True)
 # --- Configuration constants ---
 TEMPERATURE_SCORE = float(os.getenv("TEMPERATURE_SCORE", 0.86))
 VECTOR_DIMENSION = 768
-MAX_CONTEXT_LENGTH = 5000
+MAX_CONTEXT_LENGTH = 10000
 MAX_SUMMARY_LENGTH = 900
 DELTA_TO_REFRESH_CONTEXT = timedelta(seconds=10)
 
@@ -248,11 +248,11 @@ class RAGAgent:
         if len(user_id) == 0 or len(message) == 0:
             # skip 
             return
-        # hash
+        # Compute message hash
         message_hash = sha256_hash(f"{user_id}:{message}")
-        loop = asyncio.get_event_loop()
-
+        
         # Run embedding computation in a background thread
+        loop = asyncio.get_event_loop()
         message_vector = await loop.run_in_executor(
             None,
             lambda: self.embedding_model.encode(
@@ -262,26 +262,24 @@ class RAGAgent:
 
         async with await get_async_pg_conn() as conn:
             async with conn.cursor() as cur:
-                # Avoid duplicate messages
-                await cur.execute("""
-                    SELECT 1 FROM chat_messages WHERE message_hash = %s AND user_id = %s
-                """, (message_hash, user_id))
-                if await cur.fetchone():
-                    logger.debug(f"Duplicate message ignored (user={user_id}, role={role})")
-                    return
-
-                # Insert into chat_messages
+                # Insert message atomically
                 await cur.execute("""
                     INSERT INTO chat_messages
                     (message_hash, user_id, cdp_profile_id, tenant_id, persona_id, touchpoint_id, role, message, keywords, created_at)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
                     ON CONFLICT (message_hash) DO NOTHING
+                    RETURNING message_hash
                 """, (
                     message_hash, user_id, cdp_profile_id, tenant_id, persona_id,
                     touchpoint_id, role, message, keywords
                 ))
+                
+                inserted = await cur.fetchone()
+                if not inserted:
+                    logger.debug(f"Duplicate message ignored (user={user_id}, role={role})")
+                    return  # Duplicate, skip embedding
 
-                # Insert embedding
+                # Insert embedding atomically
                 await cur.execute("""
                     INSERT INTO chat_message_embeddings
                     (message_hash, tenant_id, embedding, created_at)
@@ -300,7 +298,7 @@ class RAGAgent:
         self,
         user_id: str,
         user_message: str,
-        k: int = 30,
+        limit: int = 50,
         max_length: int = MAX_CONTEXT_LENGTH,
         tenant_id: Optional[str] = "default"
     ) -> str:
@@ -326,7 +324,7 @@ class RAGAgent:
                     AND cm.user_id = %s
                     ORDER BY distance ASC
                     LIMIT %s;
-                """, (user_message_vector, tenant_id, user_id, k))
+                """, (user_message_vector, tenant_id, user_id, limit))
                 
                 rows = await cur.fetchall()
 
