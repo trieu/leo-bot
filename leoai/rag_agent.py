@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 import asyncio
 
+from leoai.ai_chatbot import ask_question, translate_text
 from leoai.ai_core import GeminiClient, get_embedding_model
 from leoai.db_utils import get_pg_conn, sha256_hash, get_async_pg_conn
 
@@ -49,6 +50,40 @@ If the context provided is insufficient to answer the user's question, state tha
 ---
 [User's Current Question]
 {question}
+"""
+
+SUMMARY_PROMPT_TEMPLATE = """
+You are a data extractor. Please analyze the conversation below. Extract key information and return a single, valid JSON object
+enclosed in ```json ... ``` markdown block. Do not add any text before or after the JSON block.
+
+Your JSON object MUST have this exact structure:
+{{
+  "user_profile": {{
+    "first_name": "string or null",
+    "last_name": "string or null",
+    "primary_language": "string or null",
+    "primary_email": "string or null",
+    "primary_phone": "string or null",
+    "personal_interests": ["list of strings"],
+    "personality_traits": ["list of strings"],
+    "data_labels": ["list of strings"],
+    "in_segments": ["list of strings"],
+    "in_journey_maps": ["list of strings"],
+    "product_interests": ["list of strings"],
+    "content_interests": ["list of strings"]
+  }},
+  "user_context": {{
+    "location": "string or null",
+    "datetime": "{now_str}"
+  }},
+  "context_summary": "the summary of long conversation",
+  "context_keywords": ["list of keywords from long conversation"],
+  "intent_label": "the label of intent from long conversation",
+  "intent_confidence": "a probability score between 0 and 1"
+}}
+
+--- Conversation ---
+{context}
 """
 
 
@@ -126,40 +161,7 @@ class RAGAgent:
         logging.info(f"🧩 Summarizing {len(context)} chars of context into structured JSON.")
 
         try:
-            prompt = f"""
-            You are data extractor. Please analyze the conversation below. Extract key information and return a single, valid JSON object
-            enclosed in ```json ... ``` markdown block. Do not add any text before or after the JSON block.
-
-            Your JSON object MUST have this exact structure:
-            {{
-              "user_profile": {{
-                "first_name": "string or null",
-                "last_name": "string or null",
-                "primary_language": "string or null",
-                "primary_email": "string or null",
-                "primary_phone": "string or null",
-                "last_name": "string or null",
-                "personal_interests": ["list of strings"],
-                "personality_traits": ["list of strings"]
-                "data_labels": ["list of strings"],
-                "in_segments": ["list of strings"],
-                "in_journey_maps": ["list of strings"],
-                "product_interests": ["list of strings"],
-                "content_interests": ["list of strings"]
-              }},
-              "user_context": {{
-                "location": "string or null",
-                "datetime": "{now_str}"
-              }},
-              "context_summary": "the summary of long conversation",
-              "context_keywords": ["list of keywords from long conversation"],
-              "intent_label":"the label of intent from long conversation",
-              "intent_confidence": a probability score between 0 and 1
-            }}
-
-            --- Conversation ---
-            {context}
-            """
+            prompt = SUMMARY_PROMPT_TEMPLATE.format(now_str=now_str, context=context)
 
             loop = asyncio.get_event_loop()
             raw_output = await loop.run_in_executor(
@@ -171,15 +173,20 @@ class RAGAgent:
                 logging.warning("⚠️ No valid JSON markdown block detected in Gemini summary output.")
                 return self._get_default_summary(now_str)
 
-            summary_json = json.loads(match.group(1))
+            try:
+                summary_json = json.loads(match.group(1))
+            except json.JSONDecodeError as e:
+                logging.error(f"❌ JSON decoding error in summary: {e}\nRaw JSON text: {match.group(1)}")
+                return self._get_default_summary(now_str)
 
             default_summary = self._get_default_summary(now_str)
             summary_json["user_profile"] = {**default_summary["user_profile"], **summary_json.get("user_profile", {})}
             summary_json["user_context"] = {**default_summary["user_context"], **summary_json.get("user_context", {})}
             summary_json.setdefault("context_keywords", [])
             summary_json.setdefault("context_summary", "")
-            summary_json.setdefault("intent_label", "")
-            summary_json.setdefault("intent_confidence", 0)
+            summary_json.setdefault("intent_label", None)
+            # Ensure confidence is a float
+            summary_json["intent_confidence"] = float(summary_json.get("intent_confidence", 0.0) or 0.0)
 
             logging.info("✅ Context successfully summarized into structured JSON.")
             
@@ -509,6 +516,6 @@ class RAGAgent:
 
         except Exception as e:
             logger.exception("❌ RAG pipeline error")
-            query = user_message.replace(" ", "+")
-            return f"Try <a href='https://www.google.com/search?q={query}' target='_blank'>searching Google</a>."
+            # A more generic, safer error message for the end-user.
+            return "I'm sorry, but I encountered an unexpected error and can't process your request right now. Please try again later."
         

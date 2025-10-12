@@ -138,6 +138,44 @@ def format_string_for_md_slides(rs):
     rs = rs.replace('##','## ')
     return rs
 
+def get_sentiment_score(feedback_text: str) -> int:
+        """
+        Private helper method to encapsulate the core sentiment analysis logic.
+
+        Args:
+            feedback_text: The customer feedback text to analyze.
+
+        Returns:
+            The sentiment score (1-100) as an integer.
+        """
+        # 1. Define the context for the LLM
+        context = "You are a sentiment analysis system."
+
+        # 2. Translate the feedback to English (for consistent analysis)
+        translated_feedback = translate_text(feedback_text, 'en')
+
+        # 3. Construct the prompt for the LLM
+        sentiment_command = 'Just give rating score from 1 to 100 if this text is positive customer feedback: '
+        prompt = sentiment_command + translated_feedback
+
+        # 4. Ask the LLM for the answer (temperature_score is fixed at 1 in the original logic)
+        # The original call: ask_question(context, "text", "en", prompt, 1)
+        answer = ask_question(
+            context=context,
+            answer_format="text", 
+            target_language="English",
+            question=prompt,
+            temperature_score=1
+        )
+
+        # 5. Convert the string answer to an integer score
+        try:
+            return int(answer)
+        except ValueError:
+            # Handle cases where the LLM doesn't return a valid integer
+            print(f"Warning: LLM returned non-integer answer: {answer}")
+            return 50 # Default or neutral score
+
 def extract_data_from_chat_message_by_ai(msg: ChatMessage) -> Dict:
     """
     Extracts structured data from a chat message using the GeminiClient.
