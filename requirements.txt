@@ -52,3 +52,4 @@ jinja2                            # HTML templates if you use `Jinja2Templates` 
 
 #
 matplotlib
+aiosmtplib

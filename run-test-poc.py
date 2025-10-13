@@ -1,8 +1,12 @@
+import asyncio
 import json
 import logging
+import os
 
 from leoai.ai_core import GeminiClient
 from leoai.ai_index import ContentIndex
+from leoai.email_sender import EmailSender
+from leoai.rag_agent import get_base_context
 from test_poc import test_extract_data
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -12,7 +16,9 @@ def pretty(obj):
     """Helper for beautiful JSON printing."""
     return json.dumps(obj, indent=2, ensure_ascii=False)
 
-if __name__ == "__main__":
+if __name__ == "__main__1":
+    
+    
     # Uncomment if you want to run extraction tests
     # test_extract_data.test_extract_data_from_chat_message_by_ai()
     # test_extract_data.test_extract_data_from_chat_message_by_human()
@@ -76,3 +82,24 @@ if __name__ == "__main__":
         logger.info(f"\n=== Query: {q} ===")
         results = indexer.query_similar(q, top_k=3)
         logger.info(pretty(results))
+
+# -------------------------------------------------------------------------
+# Example usage (if run standalone)
+# -------------------------------------------------------------------------
+if __name__ == "__main__":
+    async def main():
+        agent = EmailSender()
+
+        context = get_base_context()
+        context["user_profile"]["first_name"] = "Trieu"
+        context["user_context"]["location"] = "Saigon"
+
+        success = await agent.send(
+            to_email="tantrieuf31.database@gmail.com",
+            subject="AI Agent Test Email",
+            template_name="welcome_email.html",
+            context=context,
+        )
+        print("Email sent:", success)
+
+    asyncio.run(main())
