@@ -1,22 +1,24 @@
 
+import secrets
 import time
 import json
 import logging
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import requests
 
+from leoai.email_sender import EmailSender
 from leoai.leo_datamodel import Message
-from leoai.rag_agent import RAGAgent
+from leoai.rag_agent import RAGAgent, get_base_context
 from main_config import (
     HOSTNAME, LEOBOT_DEV_MODE, REDIS_CLIENT, RATE_LIMIT_WINDOW_SECONDS,
     RATE_LIMIT_MAX_MESSAGES, BASE_URL_FB_MSG, FB_PAGE_ACCESS_TOKEN, FB_VERIFY_TOKEN,
     GEMINI_API_KEY, RESOURCES_DIR, TEMPLATES_DIR,
-    ZALO_OA_ACCESS_TOKEN, leobot_lifespan
+    ZALO_OA_ACCESS_TOKEN, get_current_user, leobot_lifespan
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -230,3 +232,42 @@ async def web_handler(msg: Message):
     else:
         logger.warning(f"Rate limit exceeded for visitor_id: {visitor_id}")
         return {"answer": "You are sending messages too quickly. Please wait a moment.", "error": True, "error_code": 429}
+    
+
+
+
+@leobot.post("/email-agent", response_class=JSONResponse)
+async def email_agent(request: Request, user: str = Depends(get_current_user)):
+    try:
+        # Parse JSON input
+        data = await request.json()
+        
+        # Initialize EmailSender (with your SMTP credentials)
+        agent = EmailSender()
+
+        # Merge incoming JSON into base context
+        context = get_base_context(data)
+    
+        # Extract email params safely
+        to_email = data.get("to_email") or context.get("user_profile", {}).get("primary_email")
+        subject = data.get("subject") or "AI Agent Email"
+        template_name = data.get("template_name") or "welcome_email.html"
+
+        if not to_email:
+            return JSONResponse(status_code=400, content={"error": "Recipient email not provided"})
+
+        success = await agent.send(
+            to_email=to_email,
+            subject=subject,
+            template_name=template_name,
+            context=context
+        )
+
+        if not success:
+            return JSONResponse(status_code=500, content={"error": "Failed to send email"})
+
+        return {"ok": True, "message": "Email sent successfully"}
+
+    except Exception as e:
+        logger.exception("Error in /email-agent handler")
+        return JSONResponse(status_code=500, content={"error": str(e)})
