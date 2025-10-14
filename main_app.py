@@ -4,7 +4,7 @@ import time
 import json
 import logging
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -193,14 +193,57 @@ async def demo_chat_in_ishop(request: Request):
 
 
 @leobot.get("/get-visitor-info", response_class=JSONResponse)
-async def get_visitor_info(visitor_id: str):
+async def get_visitor_info(
+    visitor_id: str = Query(..., description="Required visitor unique ID"),
+    name: str | None = Query(None, description="Optional visitor name"),
+    touchpoint_id: str | None = Query(None, description="Optional touchpoint ID"),
+):
+    # --- Validate GEMINI_API_KEY ---
     if not isinstance(GEMINI_API_KEY, str) or not GEMINI_API_KEY.strip():
-        return {"answer": "GEMINI_API_KEY is empty", "error_code": 501}
-    if len(visitor_id) == 0:
-        return {"answer": "visitor_id is empty", "error": True, "error_code": 500}
+        return JSONResponse(
+            content={"answer": "GEMINI_API_KEY is empty", "error": True, "error_code": 501},
+            status_code=500,
+        )
 
-    name = str(REDIS_CLIENT.hget(visitor_id, "name") or "")
-    return {"answer": name, "error_code": 0}
+    # --- Validate visitor_id ---
+    visitor_id = visitor_id.strip()
+    if not visitor_id:
+        return JSONResponse(
+            content={"answer": "visitor_id is empty", "error": True, "error_code": 500},
+            status_code=400,
+        )
+
+    # --- Retrieve cached info ---
+    redis_data = REDIS_CLIENT.hgetall(visitor_id)
+    cached_name = redis_data.get(b"name").decode() if b"name" in redis_data else None
+    cached_touchpoint = redis_data.get(b"init_touchpoint_id").decode() if b"init_touchpoint_id" in redis_data else None
+
+    # --- Determine final values ---
+    final_name = name or cached_name or ""
+    final_touchpoint = touchpoint_id or cached_touchpoint or ""
+
+    # --- Cache new values if provided ---
+    updates = {}
+    if name and name != cached_name:
+        updates["name"] = name
+    if touchpoint_id and touchpoint_id != cached_touchpoint:
+        updates["init_touchpoint_id"] = touchpoint_id
+
+    if updates:
+        REDIS_CLIENT.hset(visitor_id, mapping=updates)
+
+    # --- Return final result ---
+    return JSONResponse(
+        content={
+            "visitor_id": visitor_id,
+            "name": final_name,
+            "init_touchpoint_id": final_touchpoint,
+            "cached": bool(redis_data),
+            "error": False,
+            "error_code": 0,
+        },
+        status_code=200,
+    )
 
 
 # ===== MAIN CHATBOT API =====
