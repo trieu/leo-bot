@@ -1,10 +1,9 @@
 
-import secrets
 import time
 import json
 import logging
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles

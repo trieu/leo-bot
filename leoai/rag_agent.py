@@ -11,6 +11,7 @@ import asyncio
 
 from leoai.ai_core import GeminiClient, get_embedding_model
 from leoai.db_utils import get_pg_conn, sha256_hash, get_async_pg_conn
+from leoai.leo_knowledge_graph import MAX_DOC_TEXT_LENGTH
 from main_config import REDIS_CLIENT
 
 # --- Load environment variables from .env ---
@@ -507,6 +508,73 @@ class RAGAgent:
                 if (now_utc - updated_at) < DELTA_TO_REFRESH_CONTEXT:
                     needs_refresh = False
         return needs_refresh
+    
+    async def _retrieve_knowledge(
+        self,
+        user_message: str,
+        tenant_id: str,
+        limit: int = 5,
+        max_length: int = MAX_DOC_TEXT_LENGTH
+    ) -> str:
+        """
+        Retrieve semantically relevant knowledge chunks for a given user message and tenant.
+        """
+        loop = asyncio.get_event_loop()
+
+        # 1. Encode the user's question into a vector
+        try:
+            user_message_vector = await loop.run_in_executor(
+                None,
+                lambda: self.embedding_model.encode(
+                    user_message, normalize_embeddings=True
+                ).tolist()
+            )
+        except Exception as e:
+            logger.error(f"❌ Failed to encode user message for knowledge retrieval: {e}")
+            return ""
+
+        # 2. Query the database for the most similar chunks
+        async with await get_async_pg_conn() as conn:
+            async with conn.cursor() as cur:
+                # Retrieve chunks from active knowledge sources for this tenant
+                await cur.execute("""
+                    SELECT
+                        kc.content,
+                        (kc.embedding <#> (%s)::vector) AS distance
+                    FROM knowledge_chunks AS kc
+                    JOIN knowledge_sources AS ks ON kc.source_id = ks.id
+                    WHERE
+                        ks.tenant_id = %s
+                        AND ks.status = 'active'
+                    ORDER BY distance ASC
+                    LIMIT %s;
+                """, (user_message_vector, tenant_id, limit))
+                
+                rows = await cur.fetchall()
+
+        chunks = [row[0] for row in rows] if rows else []
+        if not chunks:
+            logger.info("🔍 No related knowledge found in the database.")
+            return ""
+
+        # 3. Process and format the results
+        # Deduplicate chunks while preserving order of relevance
+        seen = set()
+        unique_chunks = []
+        for chunk in chunks:
+            clean_chunk = chunk.strip()
+            if clean_chunk and clean_chunk not in seen:
+                seen.add(clean_chunk)
+                unique_chunks.append(clean_chunk)
+
+        full_context = "\n\n---\n\n".join(unique_chunks)
+
+        if len(full_context) > max_length:
+            logger.warning(f"⚠️ Retrieved knowledge context is too long ({len(full_context)} chars). Truncating.")
+            return full_context[:max_length]
+
+        logger.info(f"🧠 Retrieved {len(unique_chunks)} semantically similar knowledge chunks for tenant={tenant_id}")
+        return full_context
 
     async def process_chat_message(
         self,

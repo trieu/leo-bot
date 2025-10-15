@@ -78,8 +78,75 @@ BEGIN
 END $$;
 
 
+-- Defines the type of knowledge source (e.g., a book, a report)
+CREATE TYPE knowledge_source_type AS ENUM (
+    'book_summary', 
+    'report_analytics', 
+    'uploaded_document',
+    'web_page',
+    'other'
+);
 
+-- Tracks the state of the document in the processing pipeline
+CREATE TYPE processing_status AS ENUM (
+    'pending',      -- Waiting to be processed
+    'processing',   -- Actively being chunked and embedded
+    'active',       -- Ready for querying
+    'failed',       -- An error occurred during processing
+    'archived'      -- No longer in active use
+);
 
+-- ============================================================
+-- Knowledge Sources
+-- ============================================================
+CREATE TABLE IF NOT EXISTS knowledge_sources (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id VARCHAR(36) NOT NULL,
+    tenant_id TEXT NOT NULL,
+    source_type knowledge_source_type DEFAULT 'other',
+    name TEXT NOT NULL, -- e.g., 'Q3 Financial Report.pdf' or 'The Great Gatsby Summary'
+    code_name VARCHAR(50) DEFAULT '',
+    uri TEXT,           -- Optional: Path to the original file in blob storage (e.g., s3://bucket/file.md)
+    status processing_status NOT NULL DEFAULT 'pending',
+    metadata JSONB,     -- Flexible field for extra info like author, source URL, etc.
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- Knowledge Chunks
+-- ============================================================
+CREATE TABLE IF NOT EXISTS knowledge_chunks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    source_id UUID NOT NULL REFERENCES knowledge_sources(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,          -- The actual text chunk
+    embedding VECTOR(768) NOT NULL, -- The vector embedding for the content
+    chunk_sequence INT,             -- The order of this chunk within the original document
+    metadata JSONB,                 -- Extra info like page number, section headers, etc.
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Index to quickly retrieve all chunks for a given source document
+CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_source
+    ON knowledge_chunks (source_id);
+
+-- This is the crucial index for fast similarity searches
+-- Using IVFFlat to be consistent with your example. HNSW is another excellent option.
+CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_embedding
+    ON knowledge_chunks USING ivfflat (embedding vector_cosine_ops)
+    WITH (lists = 100); -- The 'lists' parameter should be tuned based on your table size.
+
+-- Optional: A GIN index can be useful for filtering by metadata before a vector search
+CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_metadata
+    ON knowledge_chunks USING GIN (metadata jsonb_path_ops);
+
+-- Index for quickly finding all sources for a specific user or tenant
+CREATE INDEX IF NOT EXISTS idx_knowledge_sources_user_tenant
+    ON knowledge_sources (user_id, tenant_id);
+
+-- Index to efficiently query sources by their processing status
+CREATE INDEX IF NOT EXISTS idx_knowledge_sources_status
+    ON knowledge_sources (status);
 
 -- ============================================================
 -- Places (Geo-aware data)
