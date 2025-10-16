@@ -12,6 +12,7 @@ import json
 from typing import Dict, Any
 import torch
 from sentence_transformers import SentenceTransformer
+from transformers import AutoTokenizer
 
 # Load environment variables from .env file
 load_dotenv(override=True)
@@ -22,16 +23,80 @@ logger = logging.getLogger(__name__)
 
 # Default fallback values
 DEFAULT_MODEL_ID = os.getenv("GEMINI_TEXT_MODEL_ID", "gemini-2.5-flash-lite")
+DEFAULT_EMBEDDING_MODEL_ID = os.getenv("DEFAULT_EMBEDDING_MODEL_ID", "intfloat/multilingual-e5-base")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # Error message used when required config is missing
 INIT_FAIL_MSG = "Both `model_name` and `api_key` must be provided or set in the environment."
 JSON_TYPE = "application/json"
 
+# --- Device Configuration ---
+device = "cpu"
+if torch.cuda.is_available():
+    device = "cuda"
+elif torch.backends.mps.is_available():
+    device = "mps"
+    
+# default embedding_model
+@lru_cache(maxsize=1)
+def get_embedding_model():
+    """Lazy-Loading SentenceTransformer model once."""
+    logger.info(f"Loading SentenceTransformer model '{DEFAULT_EMBEDDING_MODEL_ID}' on device: {device}...")
+    embedding_model = SentenceTransformer(DEFAULT_EMBEDDING_MODEL_ID, device=device)
+    return embedding_model
 
+
+def get_tokenizer():
+    """Lazy-Loading AutoTokenizer model once."""
+    tokenizer = AutoTokenizer.from_pretrained(DEFAULT_EMBEDDING_MODEL_ID)
+    return tokenizer
+
+
+# the helper function for default embedding_model
+def get_embed_texts(texts):
+    """
+    Embed a list of texts using the SentenceTransformer model.
+
+    Args:
+        texts (list[str]): List of text strings to embed.
+
+    Returns:
+        list[list[float]]: List of vector embeddings.
+    """
+    if not texts:
+        logger.warning("embed_texts called with empty input list.")
+        return []
+
+    try:
+        model = get_embedding_model()
+        # Ensure input is a list of strings
+        if isinstance(texts, str):
+            texts = [texts]
+
+        # Normalize whitespace and remove empty entries
+        texts = [t.strip() for t in texts if t and t.strip()]
+        if not texts:
+            logger.warning("All input texts were empty or whitespace.")
+            return []
+
+        logger.info(f"Embedding {len(texts)} texts on device: {model.device}")
+        embeddings = model.encode(
+            texts,
+            batch_size=16,
+            show_progress_bar=False,
+            normalize_embeddings=True,  # ensures cosine similarity compatibility
+            convert_to_numpy=True
+        )
+        return embeddings.tolist()
+
+    except Exception as e:
+        logger.exception(f"Failed to embed texts: {e}")
+        return []
+
+
+# check and init Google AI
 def is_gemini_model_ready():
     isReady = isinstance(GEMINI_API_KEY, str)
-    # init Google AI
     if isReady:
         return True
     else:
@@ -81,7 +146,6 @@ class GeminiClient:
             )
             if response.candidates and response.candidates[0].content.parts:
                 text = response.candidates[0].content.parts[0].text.strip()
-                logger.info(f"Generated content: {text}")
                 return text
             else:
                 logger.warning("Empty response received from Gemini API.")
@@ -133,20 +197,22 @@ class GeminiClient:
         except Exception as e:
             logger.exception(f"An unexpected error occurred in generate_json: {e}")
             return {}
-
-
-# --- Device Configuration ---
-device = "cpu"
-if torch.cuda.is_available():
-    device = "cuda"
-elif torch.backends.mps.is_available():
-    device = "mps"
-    
-# default embedding_model
-
-@lru_cache(maxsize=1)
-def get_embedding_model():
-    """Lazy-Loading SentenceTransformer model once."""
-    logger.info("Loading SentenceTransformer model intfloat/multilingual-e5-base...")
-    embedding_model = SentenceTransformer("intfloat/multilingual-e5-base", device=device)
-    return embedding_model
+        
+    def get_embedding(self, text: str) -> list[float]:
+        """ get embedding of text
+        
+        Args:
+            text (str): input text
+        
+        Returns:
+            list[float]: embedding of text
+        """
+        model = get_embedding_model()
+        embeddings = model.encode(
+            text,
+            batch_size=16,
+            show_progress_bar=False,
+            normalize_embeddings=True,  # ensures cosine similarity compatibility
+            convert_to_numpy=True
+        )
+        return embeddings.tolist()

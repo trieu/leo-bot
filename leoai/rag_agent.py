@@ -11,7 +11,7 @@ import asyncio
 
 from leoai.ai_core import GeminiClient, get_embedding_model
 from leoai.db_utils import get_pg_conn, sha256_hash, get_async_pg_conn
-from leoai.leo_knowledge_graph import MAX_DOC_TEXT_LENGTH
+from leoai.ai_knowledge_manager import MAX_DOC_TEXT_LENGTH
 from main_config import REDIS_CLIENT
 
 # --- Load environment variables from .env ---

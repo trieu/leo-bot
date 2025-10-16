@@ -5,6 +5,9 @@ uvicorn[standard]
 # === Environment Variable Management ===
 python-dotenv                     # Load environment variables from .env
 
+# SMTP email client
+aiosmtplib
+
 # === Google Cloud AI & Translation ===
 google-cloud-translate            # Google Translate API v2
 google-api-core                   # Core support for Google Cloud APIs
@@ -50,6 +53,5 @@ httpx                             # modern HTTP client for Python
 # === Static Files, Templating (used in FastAPI project setup) ===
 jinja2                            # HTML templates if you use `Jinja2Templates` from FastAPI
 
-#
+# === Visualization ===
 matplotlib
-aiosmtplib

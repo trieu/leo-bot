@@ -5,9 +5,12 @@ import os
 
 from leoai.ai_core import GeminiClient
 from leoai.ai_index import ContentIndex
+from leoai.ai_knowledge_manager import DefaultEmbeddingProvider, KnowledgeManager, KnowledgeSource, KnowledgeSourceType
 from leoai.email_sender import EmailSender
 from leoai.rag_agent import get_base_context
 from test_poc import test_extract_data
+
+import asyncio
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger("test")
@@ -86,7 +89,7 @@ if __name__ == "__main__1":
 # -------------------------------------------------------------------------
 # Example usage (if run standalone)
 # -------------------------------------------------------------------------
-if __name__ == "__main__":
+if __name__ == "__main__2":
     async def main():
         agent = EmailSender()
 
@@ -103,3 +106,138 @@ if __name__ == "__main__":
         print("Email sent:", success)
 
     asyncio.run(main())
+    
+# ---------------------------------------------------------------------
+# If run as module: small async demo (do not run in production)
+# ---------------------------------------------------------------------
+
+import asyncio
+import random
+from leoai.ai_core import GeminiClient
+
+client = GeminiClient()
+
+# -----------------------------------------------
+# Generate structured Markdown book description
+# -----------------------------------------------
+def generate_book_description() -> str:
+    genres = ["Psychology", "History", "Finance", "Tech", "Non-Fiction"]
+    genre = random.choice(genres)
+
+    # Markdown prompt
+    prompt = (
+        f"Tạo mô tả sách bằng tiếng Việt theo định dạng Markdown.\n"
+        f"Output format:\n"
+        f"# <Book Title>\n"
+        f"**Author:** <Author Name>\n"
+        f"**Genre:** {genre}\n"
+        f"## Summary\n"
+        f"- <Sentence 1>\n"
+        f"- <Sentence 2>\n"
+        f"- <Sentence 3>\n"
+        f"Thực hiện theo định dạng trên, không thêm text ngoài mẫu."
+    )
+
+    answer = client.generate_content(prompt, temperature=0.8)
+
+    # Basic parsing to ensure title, author, genre, summary exist
+    lines = answer.splitlines()
+    title, author, summary_lines = "", "", []
+
+    for line in lines:
+        if line.startswith("# "):
+            title = line[2:].strip()
+        elif line.lower().startswith("**author:**"):
+            author = line.split(":", 1)[1].strip()
+        elif line.startswith("- "):
+            summary_lines.append(line)
+
+    summary = "\n".join(summary_lines)
+
+    # Return well-structured Markdown
+    markdown_text = (
+        f"# {title}\n"
+        f"**Author:** {author}\n"
+        f"**Genre:** {genre}\n"
+        f"## Summary\n"
+        f"{summary}"
+    )
+    return markdown_text
+
+
+# -----------------------------------------------
+# Embedding provider wrapper for GeminiClient
+# -----------------------------------------------
+class GeminiEmbeddingProvider:
+    def __init__(self):
+        self.client = GeminiClient()
+
+    async def embed_texts(self, texts):
+        embeddings = []
+        for text in texts:
+            # If GeminiClient embedding is sync, wrap it in asyncio.to_thread
+            emb_vector = await asyncio.to_thread(self.client.get_embedding, text)
+            embeddings.append(emb_vector)
+        return embeddings
+
+
+async def demo():
+    km = KnowledgeManager()
+    emb_provider = GeminiEmbeddingProvider()
+    
+    # Create demo source
+    source = KnowledgeSource(
+        user_id="user-789",
+        tenant_id="tenant-xyz",
+        source_type=KnowledgeSourceType.UPLOADED_DOCUMENT,
+        name="Book Demo",
+        code_name="book_demo",
+        metadata={"origin": "Gemini AI"}
+    )
+
+    # Generate 5 structured Markdown books
+    texts = [generate_book_description() for _ in range(5)]
+    combined_text = "\n\n".join(texts)
+
+    
+    created_source, count = await km.ingest_text_document(
+        combined_text,
+        source,
+        emb_provider    
+    )
+    print(f"Inserted {count} chunks from {len(texts)} books.\n")
+
+    # --- Chatbot interface ---
+    print("Welcome to Book Recommendation Chatbot! Type 'exit' to quit.\n")
+    while True:
+        user_query = input("You: ")
+        if user_query.lower() in ["exit", "quit"]:
+            break
+
+        query_embedding = await emb_provider.embed_texts([user_query])
+        query_emb = query_embedding[0]
+
+        results = await km.search_similar_chunks(
+            query_emb,
+            top_k=5,
+            tenant_id="tenant-xyz"
+        )
+
+        if not results:
+            print("No matching books found.")
+            continue
+
+        context_text = "\n\n".join([r[0].content for r in results])
+
+        prompt = (
+            f"Bạn là chuyên gia sách. Người dùng hỏi: '{user_query}'\n"
+            f"Dựa trên cơ sở dữ liệu sách sau:\n{context_text}\n"
+            f"Hãy gợi ý 1-2 cuốn sách phù hợp, trình bày bằng Markdown."
+        )
+
+        answer = client.generate_content(prompt, temperature=0.7)
+        print("\nBookBot:", answer, "\n")
+
+
+if __name__ == "__main__":
+    asyncio.run(demo())
