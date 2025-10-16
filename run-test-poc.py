@@ -5,7 +5,7 @@ import os
 
 from leoai.ai_core import GeminiClient
 from leoai.ai_index import ContentIndex
-from leoai.ai_knowledge_manager import DefaultEmbeddingProvider, KnowledgeManager, KnowledgeSource, KnowledgeSourceType
+from leoai.ai_knowledge_manager import GeminiEmbeddingProvider, KnowledgeManager, KnowledgeSource, KnowledgeSourceType
 from leoai.email_sender import EmailSender
 from leoai.rag_agent import get_base_context
 from test_poc import test_extract_data
@@ -120,9 +120,7 @@ client = GeminiClient()
 # -----------------------------------------------
 # Generate structured Markdown book description
 # -----------------------------------------------
-def generate_book_description() -> str:
-    genres = ["Psychology", "History", "Finance", "Tech", "Non-Fiction"]
-    genre = random.choice(genres)
+def generate_book_description(genre:str) -> str:
 
     # Markdown prompt
     prompt = (
@@ -138,7 +136,7 @@ def generate_book_description() -> str:
         f"Thực hiện theo định dạng trên, không thêm text ngoài mẫu."
     )
 
-    answer = client.generate_content(prompt, temperature=0.8)
+    answer = client.generate_content(prompt, temperature=0.9)
 
     # Basic parsing to ensure title, author, genre, summary exist
     lines = answer.splitlines()
@@ -165,27 +163,28 @@ def generate_book_description() -> str:
     return markdown_text
 
 
-# -----------------------------------------------
-# Embedding provider wrapper for GeminiClient
-# -----------------------------------------------
-class GeminiEmbeddingProvider:
-    def __init__(self):
-        self.client = GeminiClient()
+# ---------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------
 
-    async def embed_texts(self, texts):
-        embeddings = []
-        for text in texts:
-            # If GeminiClient embedding is sync, wrap it in asyncio.to_thread
-            emb_vector = await asyncio.to_thread(self.client.get_embedding, text)
-            embeddings.append(emb_vector)
-        return embeddings
+GENRES = [
+    # Human mind & society
+    "Psychology", "Philosophy", "Sociology", "History", "Politics",
+    # Economics & business
+    "Finance", "Economics", "Business", "Marketing", "Entrepreneurship",
+    # Science & technology
+    "Technology", "Data Science", "Physics", "Biology", "Computer Science",
+    # Culture & creativity
+    "Literature", "Art & Design", "Education", "Self-Improvement", "Non-Fiction"
+]
 
 
-async def demo():
-    km = KnowledgeManager()
-    emb_provider = GeminiEmbeddingProvider()
-    
-    # Create demo source
+# ---------------------------------------------------------------------
+# Data generation
+# ---------------------------------------------------------------------
+
+async def generate_sample_books(km: "KnowledgeManager", emb_provider: "GeminiEmbeddingProvider"):
+    """Generate and ingest demo book data into the knowledge base."""
     source = KnowledgeSource(
         user_id="user-789",
         tenant_id="tenant-xyz",
@@ -195,48 +194,73 @@ async def demo():
         metadata={"origin": "Gemini AI"}
     )
 
-    # Generate 5 structured Markdown books
-    texts = [generate_book_description() for _ in range(5)]
+    logger.info("Generating structured book descriptions...")
+    texts = [generate_book_description(genre) for genre in GENRES]
     combined_text = "\n\n".join(texts)
 
-    
     created_source, count = await km.ingest_text_document(
         combined_text,
         source,
-        emb_provider    
+        emb_provider
     )
-    print(f"Inserted {count} chunks from {len(texts)} books.\n")
 
-    # --- Chatbot interface ---
-    print("Welcome to Book Recommendation Chatbot! Type 'exit' to quit.\n")
+    logger.info(f"Inserted {count} chunks from {len(texts)} books.")
+    print(f"✅ Generated and inserted {count} book chunks into the knowledge base.\n")
+
+
+# ---------------------------------------------------------------------
+# Query answering
+# ---------------------------------------------------------------------
+
+async def answer_user_query(km: "KnowledgeManager", emb_provider: "GeminiEmbeddingProvider", query: str):
+    """Search knowledge and generate a contextual answer."""
+    query_embedding = await emb_provider.embed_texts([query])
+    query_emb = query_embedding[0]
+
+    results = await km.search_similar_chunks(
+        query_emb,
+        top_k=5,
+        tenant_id="tenant-xyz"
+    )
+
+    if not results:
+        return "Không tìm thấy cuốn sách phù hợp nào."
+
+    context_text = "\n\n".join([r[0].content for r in results])
+
+    prompt = (
+        f"Bạn là chuyên gia sách. Người dùng hỏi: '{query}'\n"
+        f"Dựa trên cơ sở dữ liệu sách sau:\n{context_text}\n"
+        f"Hãy gợi ý 1-2 cuốn sách phù hợp, trình bày bằng Markdown."
+    )
+
+    logger.info(f"Prompt:\n{prompt}\n")
+
+    answer = client.generate_content(prompt, temperature=0.7)
+    return str(answer)
+
+
+# ---------------------------------------------------------------------
+# Main chatbot loop
+# ---------------------------------------------------------------------
+
+async def demo():
+    km = KnowledgeManager()
+    emb_provider = GeminiEmbeddingProvider()
+
+    print("Welcome to BookBot! Type 'generate sample data' to preload books, or ask a question.\nType 'exit' to quit.\n")
+
     while True:
-        user_query = input("You: ")
-        if user_query.lower() in ["exit", "quit"]:
+        user_input = input("You: ").strip().lower()
+        if user_input in ["exit", "quit"]:
+            print("Goodbye!")
             break
 
-        query_embedding = await emb_provider.embed_texts([user_query])
-        query_emb = query_embedding[0]
-
-        results = await km.search_similar_chunks(
-            query_emb,
-            top_k=5,
-            tenant_id="tenant-xyz"
-        )
-
-        if not results:
-            print("No matching books found.")
-            continue
-
-        context_text = "\n\n".join([r[0].content for r in results])
-
-        prompt = (
-            f"Bạn là chuyên gia sách. Người dùng hỏi: '{user_query}'\n"
-            f"Dựa trên cơ sở dữ liệu sách sau:\n{context_text}\n"
-            f"Hãy gợi ý 1-2 cuốn sách phù hợp, trình bày bằng Markdown."
-        )
-
-        answer = client.generate_content(prompt, temperature=0.7)
-        print("\nBookBot:", answer, "\n")
+        if "generate sample data" in user_input:
+            await generate_sample_books(km, emb_provider)
+        else:
+            answer = await answer_user_query(km, emb_provider, user_input)
+            print(f"\nBookBot: {answer}\n")
 
 
 if __name__ == "__main__":

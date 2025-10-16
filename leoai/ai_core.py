@@ -45,7 +45,7 @@ def get_embedding_model():
     embedding_model = SentenceTransformer(DEFAULT_EMBEDDING_MODEL_ID, device=device)
     return embedding_model
 
-
+@lru_cache(maxsize=1)
 def get_tokenizer():
     """Lazy-Loading AutoTokenizer model once."""
     tokenizer = AutoTokenizer.from_pretrained(DEFAULT_EMBEDDING_MODEL_ID)

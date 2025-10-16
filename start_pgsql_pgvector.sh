@@ -12,7 +12,7 @@ TARGET_DB="customer360"
 HOST_PORT=5432
 
 # --- SQL schema config ---
-SCHEMA_VERSION=251016
+SCHEMA_VERSION=251017
 SCHEMA_DESCRIPTION="init database schema customer360 for leo bot in CDP and chatbot for end user"
 SQL_FILE_PATH="./sql_scripts/customer360_schema.sql"
 

@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     message_hash TEXT PRIMARY KEY,                 
     user_id VARCHAR(36) NOT NULL,
     cdp_profile_id VARCHAR(36),
-    tenant_id TEXT NOT NULL,
+    tenant_id VARCHAR(36) NOT NULL,
     persona_id VARCHAR(36),
     touchpoint_id VARCHAR(36),
     channel VARCHAR(50) NOT NULL DEFAULT 'webchat',
@@ -55,7 +55,7 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_tsv
 -- ============================================================
 CREATE TABLE IF NOT EXISTS chat_message_embeddings (
     message_hash TEXT PRIMARY KEY REFERENCES chat_messages(message_hash) ON DELETE CASCADE,
-    tenant_id TEXT NOT NULL,
+    tenant_id VARCHAR(36) NOT NULL,
     embedding VECTOR(768),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -78,14 +78,34 @@ BEGIN
 END $$;
 
 
--- Defines the type of knowledge source (e.g., a book, a report)
+-- Defines the type of knowledge source (e.g., book, report, dataset, etc.)
 CREATE TYPE knowledge_source_type AS ENUM (
-    'book_summary', 
-    'report_analytics', 
-    'uploaded_document',
-    'web_page',
-    'other'
+    -- Textual & Document Sources
+    'book_summary',               -- extracted or summarized from books
+    'report_analytics',           -- business or market reports
+    'uploaded_document',          -- user-uploaded PDFs, Word docs, etc.
+    'web_page',                   -- scraped website content
+    'research_paper',             -- scientific or academic publication
+    'knowledge_base_article',     -- internal or external wiki, FAQ, SOP
+
+    -- Data & Technical Sources
+    'dataset',                    -- structured tabular data (CSV, JSON, SQL)
+    'code_repository',            -- source code or API docs
+    'api_documentation',          -- REST/GraphQL API reference or schema
+    'system_log',                 -- application or infrastructure logs
+
+    -- Conversational & Social Sources
+    'conversation_log',           -- chatbot or customer support transcripts
+    'meeting_transcript',         -- AI-generated meeting notes or Zoom calls
+    'social_media_post',          -- tweets, LinkedIn posts, or public threads
+
+    -- Media & Multimodal Sources
+    'video_transcript',           -- text extracted from video
+    'audio_transcript',           -- text extracted from podcast or call
+    'other'                       -- fallback for anything unclassified
 );
+
+
 
 -- Tracks the state of the document in the processing pipeline
 CREATE TYPE processing_status AS ENUM (
@@ -102,7 +122,7 @@ CREATE TYPE processing_status AS ENUM (
 CREATE TABLE IF NOT EXISTS knowledge_sources (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id VARCHAR(36) NOT NULL,
-    tenant_id TEXT NOT NULL,
+    tenant_id VARCHAR(36) NOT NULL,
     source_type knowledge_source_type DEFAULT 'other',
     name TEXT NOT NULL, -- e.g., 'Q3 Financial Report.pdf' or 'The Great Gatsby Summary'
     code_name VARCHAR(50) DEFAULT '',
@@ -181,7 +201,7 @@ CREATE TABLE IF NOT EXISTS system_users (
     display_name TEXT NOT NULL,
     is_online BOOLEAN DEFAULT FALSE,
     modification_time BIGINT,
-    tenant_id TEXT NOT NULL,
+    tenant_id VARCHAR(36) NOT NULL,
     registered_time BIGINT DEFAULT 0,
     role INTEGER NOT NULL,
     status INTEGER NOT NULL,
@@ -249,7 +269,27 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Apply update triggers consistently
+-- Drop existing triggers if they exist
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_chat_messages_timestamp') THEN
+        EXECUTE 'DROP TRIGGER trg_chat_messages_timestamp ON chat_messages';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_places_timestamp') THEN
+        EXECUTE 'DROP TRIGGER trg_places_timestamp ON places';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_system_users_timestamp') THEN
+        EXECUTE 'DROP TRIGGER trg_system_users_timestamp ON system_users';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_conversational_context_timestamp') THEN
+        EXECUTE 'DROP TRIGGER trg_conversational_context_timestamp ON conversational_context';
+    END IF;
+END $$;
+
+-- Recreate update triggers consistently
 CREATE TRIGGER trg_chat_messages_timestamp
 BEFORE UPDATE ON chat_messages
 FOR EACH ROW

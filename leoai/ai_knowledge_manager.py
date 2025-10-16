@@ -23,16 +23,15 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import re
+
 from typing import Any, Dict, Iterable, List, Optional, Protocol, Tuple, Union
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
 
-from pydantic import BaseModel, Field, HttpUrl, constr
-from enum import Enum
 
 # Import your project's DB connection helper
-from leoai.ai_core import get_embed_texts, get_tokenizer
+from leoai.ai_core import GeminiClient
+from leoai.ai_knowledge_models import DEFAULT_MAX_TOKENS, DEFAULT_OVERLAP_TOKENS, KnowledgeChunk, KnowledgeSource, KnowledgeSourceType, ProcessingStatus, tokenized_chunk_text
 from leoai.db_utils import DEFAULT_EMBED_DIM, get_async_pg_conn, parse_embedding, parse_metadata, to_pgvector
 
 logger = logging.getLogger(__name__)
@@ -42,70 +41,13 @@ logger.addHandler(logging.NullHandler())
 # Constants & Limits
 # ---------------------------------------------------------------------
 MAX_DOC_TEXT_LENGTH = 100_000
-DEFAULT_MAX_TOKENS = 200 
-DEFAULT_OVERLAP_TOKENS = 40
 BATCH_INSERT_SIZE = 256  # number of chunks to insert in one transaction
-
-
-# ---------------------------------------------------------------------
-# Enum Models
-# ---------------------------------------------------------------------
-class KnowledgeSourceType(str, Enum):
-    BOOK_SUMMARY = "book_summary"
-    REPORT_ANALYTICS = "report_analytics"
-    UPLOADED_DOCUMENT = "uploaded_document"
-    WEB_PAGE = "web_page"
-    OTHER = "other"
-
-
-class ProcessingStatus(str, Enum):
-    PENDING = "pending"
-    PROCESSING = "processing"
-    ACTIVE = "active"
-    FAILED = "failed"
-    ARCHIVED = "archived"
-
-
-# ---------------------------------------------------------------------
-# Pydantic Table Models
-# ---------------------------------------------------------------------
-class KnowledgeSource(BaseModel):
-    id: UUID = Field(default_factory=uuid4)
-    user_id: constr(strip_whitespace=True, min_length=1) # type: ignore
-    tenant_id: constr(strip_whitespace=True, min_length=1) # type: ignore
-    source_type: KnowledgeSourceType = Field(default=KnowledgeSourceType.OTHER)
-    name: str
-    code_name: Optional[str] = ""
-    uri: Optional[str] = None
-    status: ProcessingStatus = Field(default=ProcessingStatus.PENDING)
-    metadata: Optional[Dict[str, Any]] = None
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc))
-
-    class Config:
-        from_attributes = True
-        use_enum_values = True
-
-
-class KnowledgeChunk(BaseModel):
-    id: UUID = Field(default_factory=uuid4)
-    source_id: UUID
-    content: str
-    embedding: List[float]
-    chunk_sequence: Optional[int] = None
-    metadata: Optional[Dict[str, Any]] = None
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc))
-
-    class Config:
-        from_attributes = True
-
 
 # ---------------------------------------------------------------------
 # Embedding Provider Protocol (abstract)
 # ---------------------------------------------------------------------
+
+
 class EmbeddingProvider(Protocol):
     """
     Minimal interface for an embedding provider.
@@ -114,57 +56,6 @@ class EmbeddingProvider(Protocol):
 
     async def embed_texts(self, texts: Iterable[str]) -> List[List[float]]:
         ...
-
-
-# ---------------------------------------------------------------------
-# Utilities
-# ---------------------------------------------------------------------
-
-tokenizer = get_tokenizer()
-def token_count(text: str) -> int:
-    return len(tokenizer.encode(text, add_special_tokens=False))
-
-def tokenized_chunk_text(
-    text: str,
-    max_tokens: int = DEFAULT_MAX_TOKENS,
-    overlap_tokens: int = DEFAULT_OVERLAP_TOKENS
-) -> List[str]:
-    """
-    Improved text chunker for books or structured Markdown documents.
-
-    Features:
-    - Splits on headings (#, ##, ###) and paragraphs.
-    - Respects sentence boundaries when possible.
-    - Creates overlapping chunks for context.
-    """
-    if not text:
-        return []
-
-    sections = text.split("\n\n")
-    chunks = []
-    current = ""
-    current_tokens = 0
-
-    for sec in sections:
-        sec_tokens = token_count(sec)
-        if current_tokens + sec_tokens <= max_tokens:
-            current += "\n\n" + sec if current else sec
-            current_tokens += sec_tokens
-        else:
-            chunks.append(current)
-            # handle oversized sections
-            tokens = tokenizer.encode(sec, add_special_tokens=False)
-            while len(tokens) > max_tokens:
-                part_tokens = tokens[:max_tokens]
-                chunks.append(tokenizer.decode(part_tokens))
-                tokens = tokens[max_tokens - overlap_tokens :]
-            current = tokenizer.decode(tokens)
-            current_tokens = token_count(current)
-
-    if current:
-        chunks.append(current)
-
-    return chunks
 
 
 def _ensure_embedding_shape(embedding: List[float], dim: int = DEFAULT_EMBED_DIM) -> None:
@@ -201,12 +92,11 @@ class KnowledgeManager:
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
         RETURNING id, created_at, updated_at;
         """
-        # Ensure enums are passed as strings
         try:
-            source_type = source.source_type.value if hasattr(
-                source.source_type, "value") else source.source_type
-            status_value = source.status.value if hasattr(
-                source.status, "value") else source.status
+            # Ensure enums are passed as strings
+            source_type = getattr(source.source_type, "value", source.source_type)
+            status_value = getattr(source.status, "value", source.status)
+            #
             async with get_async_pg_conn() as conn:
                 row = await conn.fetchrow(
                     sql,
@@ -395,11 +285,11 @@ class KnowledgeManager:
             raise
 
     async def get_chunks_by_source(self,
-        source_id: Union[UUID, str],
-        limit: int = 100,
-        offset: int = 0,
-        order_by_sequence: bool = True
-    ) -> List["KnowledgeChunk"]:
+                                   source_id: Union[UUID, str],
+                                   limit: int = 100,
+                                   offset: int = 0,
+                                   order_by_sequence: bool = True
+                                   ) -> List["KnowledgeChunk"]:
         order = "chunk_sequence ASC" if order_by_sequence else "created_at DESC"
         sql = f"""
         SELECT id, source_id, content, embedding, chunk_sequence, metadata, created_at
@@ -417,7 +307,8 @@ class KnowledgeManager:
                         id=str(r["id"]),
                         source_id=str(r["source_id"]),
                         content=r["content"],
-                        embedding=parse_embedding(r["embedding"], self.embedding_dim),
+                        embedding=parse_embedding(
+                            r["embedding"], self.embedding_dim),
                         chunk_sequence=r.get("chunk_sequence"),
                         metadata=parse_metadata(r.get("metadata")),
                         created_at=r["created_at"],
@@ -429,7 +320,6 @@ class KnowledgeManager:
                 "Error fetching chunks for source %s: %s", source_id, exc)
             raise
 
-        
     async def search_similar_chunks(
         self,
         query_embedding: List[float],
@@ -479,16 +369,19 @@ class KnowledgeManager:
                 rows = await conn.fetch(base_sql, *params)
                 results: List[Tuple[KnowledgeChunk, float]] = []
                 for r in rows:
-                    dist = float(r["distance"]) if r["distance"] is not None else float("inf")
+                    dist = float(
+                        r["distance"]) if r["distance"] is not None else float("inf")
                     if min_score is not None and dist > min_score:
                         continue
                     chunk = KnowledgeChunk(
                         id=str(r["id"]),
                         source_id=str(r["source_id"]),
                         content=r["content"],
-                        embedding=parse_embedding(r["embedding"], self.embedding_dim),
+                        embedding=parse_embedding(
+                            r["embedding"], self.embedding_dim),
                         chunk_sequence=r.get("chunk_sequence"),
-                        metadata=json.loads(r["metadata"]) if r.get("metadata") else {},
+                        metadata=json.loads(r["metadata"]) if r.get(
+                            "metadata") else {},
                         created_at=r["created_at"],
                     )
                     results.append((chunk, dist))
@@ -496,7 +389,6 @@ class KnowledgeManager:
         except Exception as exc:
             logger.exception("Error in vector search: %s", exc)
             raise
-    
 
     async def count_chunks_for_source(self, source_id: Union[UUID, str]) -> int:
         sql = "SELECT COUNT(*) FROM knowledge_chunks WHERE source_id = $1;"
@@ -553,8 +445,9 @@ class KnowledgeManager:
         # create or ensure source exists
         created_source = await self.create_source(source)
 
-        # chunk
-        chunks_text = tokenized_chunk_text(text, max_tokens, overlap_tokens)
+        # chunking text using token
+        chunks_text = tokenized_chunk_text(
+            text, source.source_type, max_tokens, overlap_tokens)
         logger.debug("Document chunked into %d chunks", len(chunks_text))
 
         # embed in batches (we'll choose a conservative batch size)
@@ -622,19 +515,18 @@ class KnowledgeManager:
                 "Error marking source failed %s: %s", source_id, exc)
             raise
 
-# ---------------------------------------------------------------------
-# Example EmbeddingProvider Implementation (stub)
-# ---------------------------------------------------------------------
 
-
-class DefaultEmbeddingProvider:
-    """
-    Example embedding provider for testing: returns random-ish vectors (deterministic).
-    Replace with real OpenAI/Cohere/Local provider.
-    """
-
-    def __init__(self, dim: int = DEFAULT_EMBED_DIM):
-        self.dim = dim
+# -----------------------------------------------
+# Embedding provider wrapper for GeminiClient
+# -----------------------------------------------
+class GeminiEmbeddingProvider:
+    def __init__(self):
+        self.client = GeminiClient()
 
     async def embed_texts(self, texts: Iterable[str]) -> List[List[float]]:
-        return get_embed_texts(texts)
+        embeddings = []
+        for text in texts:
+            # If GeminiClient embedding is sync, wrap it in asyncio.to_thread
+            emb_vector = await asyncio.to_thread(self.client.get_embedding, text)
+            embeddings.append(emb_vector)
+        return embeddings
