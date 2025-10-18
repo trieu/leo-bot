@@ -258,6 +258,179 @@ CREATE INDEX IF NOT EXISTS idx_conversational_context_embedding
 CREATE INDEX IF NOT EXISTS idx_conversational_context_intent
     ON conversational_context (intent_label);
 
+
+-- ============================================================
+-- Schema (unchanged except function corrected)
+-- ============================================================
+
+-- customer_profile (as you supplied)
+CREATE TABLE IF NOT EXISTS customer_profile (
+    cdp_profile_id VARCHAR(36) PRIMARY KEY,
+    tenant_id VARCHAR(36) NOT NULL,
+    full_name TEXT,
+    email TEXT,
+    phone TEXT,
+    country TEXT,
+    age INT,
+    gender TEXT,
+    metadata JSONB,
+    profile_embedding VECTOR(768),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_customer_profile_tenant ON customer_profile (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_customer_profile_embedding ON customer_profile USING ivfflat (profile_embedding) WITH (lists = 100);
+
+
+-- transactional_context (as you supplied)
+CREATE TABLE IF NOT EXISTS transactional_context (
+    tenant_id VARCHAR(36) NOT NULL,
+    user_id VARCHAR(36) NOT NULL,
+    txn_id VARCHAR(36) NOT NULL,
+    cdp_profile_id VARCHAR(36),
+    source_system VARCHAR(255),
+    txn_type VARCHAR(100) NOT NULL,
+    txn_status VARCHAR(50) DEFAULT 'completed',
+    txn_timestamp TIMESTAMPTZ DEFAULT NOW(),
+    amount NUMERIC(18,4) DEFAULT 0,
+    currency VARCHAR(10) DEFAULT 'USD',
+    context_data JSONB NOT NULL,
+    embedding VECTOR(768),
+    category_label VARCHAR(255),
+    intent_label VARCHAR(255),
+    intent_confidence NUMERIC(5,4) CHECK (intent_confidence >= 0 AND intent_confidence <= 1) DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_by TEXT DEFAULT 'system',
+    PRIMARY KEY (tenant_id, user_id, txn_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_txn_user_time ON transactional_context (tenant_id, user_id, txn_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_txn_type_status ON transactional_context (txn_type, txn_status);
+CREATE INDEX IF NOT EXISTS idx_txn_context_gin ON transactional_context USING GIN (context_data jsonb_path_ops);
+CREATE INDEX IF NOT EXISTS idx_txn_embedding_ivfflat ON transactional_context USING ivfflat (embedding) WITH (lists = 100);
+
+
+-- customer_metrics (as you supplied)
+CREATE TABLE IF NOT EXISTS customer_metrics (
+    cdp_profile_id VARCHAR(36) PRIMARY KEY,
+    tenant_id VARCHAR(36) NOT NULL,
+    last_purchase TIMESTAMPTZ,
+    freq_90d INT DEFAULT 0,
+    avg_order_value NUMERIC(18,4) DEFAULT 0,
+    monetary_90d NUMERIC(18,4) DEFAULT 0,
+    clv_est NUMERIC(18,4) DEFAULT 0,
+    experience_score NUMERIC(6,2) DEFAULT 0,
+    segment VARCHAR(50),
+    segment_reason JSONB,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_metrics_tenant ON customer_metrics (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_metrics_last_purchase ON customer_metrics (last_purchase);
+CREATE INDEX IF NOT EXISTS idx_metrics_freq_90d ON customer_metrics (freq_90d);
+
+
+-- tenant config (as you supplied)
+CREATE TABLE IF NOT EXISTS tenant_metrics_config (
+    tenant_id VARCHAR(36) PRIMARY KEY,
+    expected_lifetime_years NUMERIC(5,2) DEFAULT 3.0,
+    cac NUMERIC(18,4) DEFAULT 5.0,
+    clv_happy_threshold NUMERIC(18,4) DEFAULT 500.0,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Corrected refresh_customer_metrics function (uses cdp_profile_id)
+CREATE OR REPLACE FUNCTION refresh_customer_metrics(p_tenant_id VARCHAR(36))
+RETURNS VOID LANGUAGE plpgsql AS $$
+DECLARE
+    cfg RECORD;
+    rec RECORD;
+BEGIN
+    SELECT * INTO cfg FROM tenant_metrics_config WHERE tenant_id = p_tenant_id;
+    IF NOT FOUND THEN
+        cfg.expected_lifetime_years := 3.0;
+        cfg.cac := 5.0;
+        cfg.clv_happy_threshold := 500.0;
+    END IF;
+
+    FOR rec IN
+        SELECT DISTINCT cdp_profile_id
+        FROM customer_profile
+        WHERE tenant_id = p_tenant_id
+    LOOP
+        -- aggregate transaction data per profile (use transactional_context)
+        WITH agg AS (
+            SELECT
+                MAX(txn_timestamp) AS last_purchase,
+                COUNT(*) FILTER (WHERE txn_timestamp >= now() - interval '90 days')::int AS freq_90d,
+                AVG(amount) FILTER (WHERE amount > 0) AS avg_order_value,
+                COALESCE(SUM(amount) FILTER (WHERE txn_timestamp >= now() - interval '90 days' AND amount > 0), 0) AS monetary_90d
+            FROM transactional_context
+            WHERE tenant_id = p_tenant_id
+              AND cdp_profile_id = rec.cdp_profile_id
+              AND txn_status = 'completed'
+        )
+        INSERT INTO customer_metrics AS cm (
+            cdp_profile_id, tenant_id, last_purchase, freq_90d, avg_order_value, monetary_90d,
+            clv_est, experience_score, segment, segment_reason, updated_at
+        )
+        SELECT
+            rec.cdp_profile_id,
+            p_tenant_id,
+            a.last_purchase,
+            COALESCE(a.freq_90d,0),
+            COALESCE(a.avg_order_value,0),
+            COALESCE(a.monetary_90d,0),
+            ROUND( (COALESCE(a.avg_order_value,0) * (COALESCE(a.freq_90d,0) * 365.0 / 90.0) * cfg.expected_lifetime_years) - cfg.cac, 2 )::numeric,
+            ROUND(
+                (
+                    CASE
+                        WHEN a.last_purchase IS NULL THEN -60
+                        WHEN a.last_purchase >= now() - interval '30 days' THEN 40
+                        WHEN a.last_purchase >= now() - interval '90 days' THEN 10
+                        ELSE -10
+                    END
+                )
+                +
+                LEAST(30, GREATEST(-30, COALESCE(a.monetary_90d,0) / NULLIF(GREATEST(COALESCE(a.avg_order_value,0),1),0)))
+                +
+                LEAST(30, COALESCE(a.freq_90d,0) * 2)
+            ,2)::numeric,
+            CASE
+                WHEN ( (COALESCE(a.avg_order_value,0) * (COALESCE(a.freq_90d,0) * 365.0 / 90.0) * cfg.expected_lifetime_years) - cfg.cac ) >= cfg.clv_happy_threshold
+                    AND ( (CASE WHEN a.last_purchase IS NULL THEN -60 WHEN a.last_purchase >= now() - interval '30 days' THEN 40 WHEN a.last_purchase >= now() - interval '90 days' THEN 10 ELSE -10 END) + LEAST(30, GREATEST(-30, COALESCE(a.monetary_90d,0) / NULLIF(GREATEST(COALESCE(a.avg_order_value,0),1),0))) + LEAST(30, COALESCE(a.freq_90d,0) * 2) ) >= 30
+                    THEN 'happy'
+                WHEN a.last_purchase IS NULL AND COALESCE(a.freq_90d,0) = 0 THEN 'prospective'
+                WHEN COALESCE(a.freq_90d,0) = 0 THEN 'inactive'
+                WHEN ( (COALESCE(a.avg_order_value,0) * (COALESCE(a.freq_90d,0) * 365.0 / 90.0) * cfg.expected_lifetime_years) - cfg.cac ) BETWEEN 100 AND (cfg.clv_happy_threshold - 1) THEN 'first_time'
+                ELSE 'target'
+            END,
+            jsonb_build_object(
+                'clv_calc', ROUND( (COALESCE(a.avg_order_value,0) * (COALESCE(a.freq_90d,0) * 365.0 / 90.0) * cfg.expected_lifetime_years) - cfg.cac, 2 ),
+                'freq_90d', COALESCE(a.freq_90d,0),
+                'monetary_90d', COALESCE(a.monetary_90d,0),
+                'last_purchase', a.last_purchase
+            ),
+            now()
+        FROM agg a
+        ON CONFLICT (cdp_profile_id) DO UPDATE
+        SET
+            last_purchase = EXCLUDED.last_purchase,
+            freq_90d = EXCLUDED.freq_90d,
+            avg_order_value = EXCLUDED.avg_order_value,
+            monetary_90d = EXCLUDED.monetary_90d,
+            clv_est = EXCLUDED.clv_est,
+            experience_score = EXCLUDED.experience_score,
+            segment = EXCLUDED.segment,
+            segment_reason = EXCLUDED.segment_reason,
+            updated_at = now();
+    END LOOP;
+END;
+$$;
+
+
 -- ============================================================
 -- Triggers for automatic updated_at maintenance
 -- ============================================================

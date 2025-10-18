@@ -28,11 +28,17 @@ langchain                         # Orchestration framework for LLM pipelines
 # === Data Validation & Models ===
 pydantic                          # Data validation and parsing using Python type hints
 
-# === PostgreSQL & ArangoDB ===
+# === PostgreSQL, ArangoDB & Redis  ===
 psycopg[binary]                   # PostgreSQL client (binary version for better performance)
 asyncpg                           # Asynchronous PostgreSQL client
 sqlalchemy                        # ORM and SQL toolkit
 python-arango                     # Python driver for ArangoDB
+redis                             # caching & Realtime Data
+
+# === Airflow ETL: Arango → PostgreSQL ===
+apache-airflow==2.11.0
+apache-airflow-providers-postgres
+backoff==2.2.1
 
 # === Vector DB (Qdrant) ===
 qdrant-client                     # Python client for Qdrant vector database
@@ -41,9 +47,6 @@ qdrant-client                     # Python client for Qdrant vector database
 numpy                             # Numerical computing
 pandas                            # Dataframes and tabular data
 scikit-learn                      # TF-IDF vectorizer and other ML tools
-
-# === Caching & Realtime Data ===
-redis                             # Python client for Redis
 
 # === Markdown & Web Utilities ===
 markdown                          # Markdown to HTML rendering
