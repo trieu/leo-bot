@@ -20,6 +20,7 @@ from airflow.decorators import task
 from airflow.models import Variable
 from airflow.hooks.base import BaseHook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.providers.arangodb.hooks.arangodb import ArangoDBHook
 from airflow.models.param import Param
 from airflow.exceptions import AirflowException # Import for raising errors
 
@@ -42,15 +43,17 @@ DEFAULT_ARGS = {
 }
 
 # --- Connections & Variables ---
-ARANGO_CONN_ID = 'arango_conn'
-PG_CONN_ID = 'pg_conn'
+ARANGO_CONN_ID = 'leo_cdp_arangodb'
+PG_CONN_ID = 'leo_bot_pgsql'
+
+# 
 EMBED_BATCH_SIZE = int(Variable.get("embed_batch_size", default_var=64))
 PROFILE_EMBED_DIM = int(Variable.get("profile_embed_dim", default_var=768))
 TXN_EMBED_DIM = int(Variable.get("txn_embed_dim", default_var=768))
-ARANGO_DB_NAME = Variable.get("arango_db", default_var="leo_cdp")
+DEFAULT_EMBEDDING_MODEL_ID = Variable.get("embed_model_id", default_var="intfloat/multilingual-e5-base")
 ARANGO_PROFILE_COL = Variable.get("arango_profile_collection", default_var="cdp_profile")
 ARANGO_TXN_COL = Variable.get("arango_txn_collection", default_var="cdp_profile2conversion")
-DEFAULT_EMBEDDING_MODEL_ID = Variable.get("embed_model_id", default_var="intfloat/multilingual-e5-base")
+
 
 # --- Static Config ---
 DATA_SOURCE_TAG = 'arango_ingest' # For updated_by columns
@@ -122,12 +125,33 @@ def chunked_iterable(iterable: Iterable, size: int):
             break
         yield chunk
 
-def get_arango_client_from_conn():
-    conn = BaseHook.get_connection(ARANGO_CONN_ID)
-    url = conn.host or "http://127.0.0.1:8529"
-    username = conn.login or "root"
-    password = conn.password or ""
-    return ArangoClient(hosts=url), username, password
+    
+def get_leo_cdp_database(arango_conn_id: str = "leo_cdp_arangodb"):
+    """
+    Returns an ArangoDBHook and the connected database handle.
+
+    The function ensures:
+    - Safe access to the ArangoDB client.
+    - Proper fallback to a default database name.
+    - Compatible with Airflow 2.11 provider APIs.
+    """
+    # Initialize the hook using the Airflow connection ID
+    hook = ArangoDBHook(arangodb_conn_id=arango_conn_id)
+
+    # Get the low-level python-arango client
+    client = hook.get_conn()  # ensures connection is initialized
+
+    # Determine database name (try connection.extra or fallback)
+    db_name = getattr(hook, "database", None) or "leo_cdp_test"
+
+    # Get credentials from the hook (depends on provider’s API)
+    username = getattr(hook, "username", None)
+    password = getattr(hook, "password", None)
+
+    # Get a database object using the client
+    db = client.db(db_name, username=username, password=password)
+
+    return db
 
 def get_pg_dsn():
     """
@@ -181,11 +205,12 @@ class TransactionRecord(TypedDict):
 # DAG
 # ---------------------------
 with DAG(
-    dag_id='arango_to_postgres_leo_cdp',
+    dag_id='leo_cdp_to_leo_bot_etl',
     default_args=DEFAULT_ARGS,
-    schedule_interval='@hourly',
+    #schedule_interval='@hourly',
+    schedule=None,
     start_date=datetime(2025, 1, 1),
-    max_active_runs=1,
+    max_active_runs=10,
     catchup=False,
     tags=['leo_cdp', 'etl'],
     params={
@@ -194,19 +219,18 @@ with DAG(
 ) as dag:
 
     @task()
-    def extract_profiles(segment_id: str) -> List[Dict[str, Any]]:
-        if not segment_id:
+    def extract_profiles(segment_id: str = "") -> List[Dict[str, Any]]:
+        if len(segment_id) == 0:
             log.warning("No segment_id provided, returning empty list")
             return []
 
-        client, username, password = get_arango_client_from_conn()
-        db = client.db(ARANGO_DB_NAME, username=username, password=password)
-        col = db.collection(ARANGO_PROFILE_COL)
+        # Get the database 
+        db = get_leo_cdp_database()
 
         # Use AQL query to filter by segment_id
         aql = """
         FOR p IN @@col
-            FILTER @segment_id IN p.inSegments[*].id
+            FILTER @segment_id IN p.inSegments[*].id AND p.status > 0
             RETURN p
         """
         bind_vars = {
@@ -233,8 +257,7 @@ with DAG(
             log.warning("No valid profile keys found")
             return []
 
-        client, username, password = get_arango_client_from_conn()
-        db = client.db(ARANGO_DB_NAME, username=username, password=password)
+        db = get_leo_cdp_database()
 
         # AQL to get transactions for specific profiles
         aql = """
@@ -619,7 +642,8 @@ with DAG(
     # ---------------------------
     # DAG execution graph
     # ---------------------------   
-    extracted_profiles = extract_profiles(segment_id=dag.params["segment_id"])
+    
+    extracted_profiles = extract_profiles("{{ params.segment_id }}")
     extracted_txns = extract_transactions(extracted_profiles)
 
     transformed_profiles = transform_and_embed_profiles(extracted_profiles)

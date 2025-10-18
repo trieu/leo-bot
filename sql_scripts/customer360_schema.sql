@@ -21,11 +21,11 @@ END$$;
 -- ============================================================
 CREATE TABLE IF NOT EXISTS chat_messages (
     message_hash TEXT PRIMARY KEY,                 
-    user_id VARCHAR(36) NOT NULL,
-    cdp_profile_id VARCHAR(36),
-    tenant_id VARCHAR(36) NOT NULL,
-    persona_id VARCHAR(36),
-    touchpoint_id VARCHAR(36),
+    user_id VARCHAR(50) NOT NULL,
+    cdp_profile_id VARCHAR(50),
+    tenant_id VARCHAR(50) NOT NULL,
+    persona_id VARCHAR(50),
+    touchpoint_id VARCHAR(50),
     channel VARCHAR(50) NOT NULL DEFAULT 'webchat',
     status chat_status DEFAULT 'active',
     role TEXT CHECK (role IN ('user', 'bot')),
@@ -55,7 +55,7 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_tsv
 -- ============================================================
 CREATE TABLE IF NOT EXISTS chat_message_embeddings (
     message_hash TEXT PRIMARY KEY REFERENCES chat_messages(message_hash) ON DELETE CASCADE,
-    tenant_id VARCHAR(36) NOT NULL,
+    tenant_id VARCHAR(50) NOT NULL,
     embedding VECTOR(768),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -121,8 +121,8 @@ CREATE TYPE processing_status AS ENUM (
 -- ============================================================
 CREATE TABLE IF NOT EXISTS knowledge_sources (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id VARCHAR(36) NOT NULL,
-    tenant_id VARCHAR(36) NOT NULL,
+    user_id VARCHAR(50) NOT NULL,
+    tenant_id VARCHAR(50) NOT NULL,
     source_type knowledge_source_type DEFAULT 'other',
     name TEXT NOT NULL, -- e.g., 'Q3 Financial Report.pdf' or 'The Great Gatsby Summary'
     code_name VARCHAR(50) DEFAULT '',
@@ -201,7 +201,7 @@ CREATE TABLE IF NOT EXISTS system_users (
     display_name TEXT NOT NULL,
     is_online BOOLEAN DEFAULT FALSE,
     modification_time BIGINT,
-    tenant_id VARCHAR(36) NOT NULL,
+    tenant_id VARCHAR(50) NOT NULL,
     registered_time BIGINT DEFAULT 0,
     role INTEGER NOT NULL,
     status INTEGER NOT NULL,
@@ -229,9 +229,9 @@ CREATE INDEX IF NOT EXISTS idx_system_users_custom_data ON system_users USING GI
 -- Conversational Context
 -- ============================================================
 CREATE TABLE IF NOT EXISTS conversational_context (
-    user_id VARCHAR(36) NOT NULL,
-    touchpoint_id VARCHAR(36) NOT NULL,
-    cdp_profile_id VARCHAR(36),
+    user_id VARCHAR(50) NOT NULL,
+    touchpoint_id VARCHAR(50) NOT NULL,
+    cdp_profile_id VARCHAR(50),
     context_data JSONB NOT NULL,
     embedding VECTOR(768),
     intent_label VARCHAR(255),
@@ -265,8 +265,8 @@ CREATE INDEX IF NOT EXISTS idx_conversational_context_intent
 
 -- customer_profile (as you supplied)
 CREATE TABLE IF NOT EXISTS customer_profile (
-    cdp_profile_id VARCHAR(36) PRIMARY KEY,
-    tenant_id VARCHAR(36) NOT NULL,
+    cdp_profile_id VARCHAR(50) PRIMARY KEY,
+    tenant_id VARCHAR(50) NOT NULL,
     full_name TEXT,
     email TEXT,
     phone TEXT,
@@ -285,10 +285,10 @@ CREATE INDEX IF NOT EXISTS idx_customer_profile_embedding ON customer_profile US
 
 -- transactional_context (as you supplied)
 CREATE TABLE IF NOT EXISTS transactional_context (
-    tenant_id VARCHAR(36) NOT NULL,
-    user_id VARCHAR(36) NOT NULL,
-    txn_id VARCHAR(36) NOT NULL,
-    cdp_profile_id VARCHAR(36),
+    tenant_id VARCHAR(50) NOT NULL,
+    user_id VARCHAR(50) NOT NULL,
+    txn_id VARCHAR(50) NOT NULL,
+    cdp_profile_id VARCHAR(50),
     source_system VARCHAR(255),
     txn_type VARCHAR(100) NOT NULL,
     txn_status VARCHAR(50) DEFAULT 'completed',
@@ -314,8 +314,8 @@ CREATE INDEX IF NOT EXISTS idx_txn_embedding_ivfflat ON transactional_context US
 
 -- customer_metrics (as you supplied)
 CREATE TABLE IF NOT EXISTS customer_metrics (
-    cdp_profile_id VARCHAR(36) PRIMARY KEY,
-    tenant_id VARCHAR(36) NOT NULL,
+    cdp_profile_id VARCHAR(50) PRIMARY KEY,
+    tenant_id VARCHAR(50) NOT NULL,
     last_purchase TIMESTAMPTZ,
     freq_90d INT DEFAULT 0,
     avg_order_value NUMERIC(18,4) DEFAULT 0,
@@ -334,7 +334,7 @@ CREATE INDEX IF NOT EXISTS idx_metrics_freq_90d ON customer_metrics (freq_90d);
 
 -- tenant config (as you supplied)
 CREATE TABLE IF NOT EXISTS tenant_metrics_config (
-    tenant_id VARCHAR(36) PRIMARY KEY,
+    tenant_id VARCHAR(50) PRIMARY KEY,
     expected_lifetime_years NUMERIC(5,2) DEFAULT 3.0,
     cac NUMERIC(18,4) DEFAULT 5.0,
     clv_happy_threshold NUMERIC(18,4) DEFAULT 500.0,
@@ -342,7 +342,7 @@ CREATE TABLE IF NOT EXISTS tenant_metrics_config (
 );
 
 -- Corrected refresh_customer_metrics function (uses cdp_profile_id)
-CREATE OR REPLACE FUNCTION refresh_customer_metrics(p_tenant_id VARCHAR(36))
+CREATE OR REPLACE FUNCTION refresh_customer_metrics(p_tenant_id VARCHAR(50))
 RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE
     cfg RECORD;

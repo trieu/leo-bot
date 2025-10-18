@@ -38,7 +38,7 @@ redis                             # caching & Realtime Data
 # === Airflow ETL: Arango → PostgreSQL ===
 apache-airflow==2.11.0
 apache-airflow-providers-postgres
-backoff==2.2.1
+apache-airflow-providers-arangodb
 
 # === Vector DB (Qdrant) ===
 qdrant-client                     # Python client for Qdrant vector database

@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import pendulum
+from datetime import datetime
+from airflow import DAG
+from airflow.decorators import task
+from airflow.models.param import Param
 
-from airflow.models.dag import DAG
-from airflow.operators.bash import BashOperator
-
-# These arguments will be passed to your DAG
-# You can override them on a task basis during operator initialization
 default_args = {
     'owner': 'airflow',
     'depends_on_past': False,
@@ -15,25 +13,33 @@ default_args = {
     'retries': 1,
 }
 
-# The DAG context manager automatically creates the DAG object.
-# The 'schedule' argument is set to None to run it manually.
+@task()
+def hello(name: str = "World") -> None:
+    """Prints a greeting using the provided name parameter."""
+    print("==========================================")
+    print(f"Hello from Airflow!")
+    print(f"The submitted 'name' parameter is: {name}")
+    print(f"Today is {datetime.now()}")
+    print("==========================================")
+
+
 with DAG(
-    dag_id='hello_world_test_dag',
+    dag_id='hello_world_taskflow_with_param',
     default_args=default_args,
-    description='A simple DAG to test Airflow installation',
-    start_date=pendulum.datetime(2023, 1, 1, tz="UTC"),
+    description='A TaskFlow DAG to print a parameter.',
+    start_date=datetime(2023, 1, 1),
     schedule=None,
     catchup=False,
-    tags=['test', 'example'],
+    tags=['taskflow', 'param'],
+    params={
+        "name": Param(
+            default="World",
+            type="string",
+            title="Greeting Name",
+            description="The name for the greeting."
+        )
+    },
 ) as dag:
-    
-    # Task 1: Print "Hello World" using the BashOperator
-    # This task executes the given bash command.
-    hello_task = BashOperator(
-        task_id='print_hello_message',
-        bash_command='echo "==========================================" && echo "Hello from Airflow! The system is operational." && echo "Today is $(date)" && echo "=========================================="',
-    )
-    
-    # Since we only have one task, the DAG definition is complete.
-    # If you had more tasks, you would define their dependencies here, like:
-    # task_a >> task_b >> task_c
+
+    # ✅ Dynamically pull DAG param at runtime
+    hello(name="{{ params.name }}")
