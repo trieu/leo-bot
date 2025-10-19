@@ -12,13 +12,11 @@ Notes:
 from datetime import datetime, timedelta
 import json
 import logging
-# FIX 1: Import Optional for TypedDict
 from typing import List, Dict, Any, Iterable, TypedDict, Optional
 
 from airflow import DAG
 from airflow.decorators import task
 from airflow.models import Variable
-from airflow.hooks.base import BaseHook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.arangodb.hooks.arangodb import ArangoDBHook
 from airflow.models.param import Param
@@ -26,10 +24,10 @@ from airflow.exceptions import AirflowException # Import for raising errors
 
 
 # external libs
-from arango import ArangoClient
 import psycopg  # psycopg3
 from functools import lru_cache
 import torch
+from sentence_transformers import SentenceTransformer
 
 # ---------------------------
 # CONFIG
@@ -62,28 +60,18 @@ DATA_SOURCE_TAG = 'arango_ingest' # For updated_by columns
 log = logging.getLogger("airflow.task")
 logging.basicConfig(level=logging.INFO)
 
-# Device selection
 device = "cpu"
-try:
-    if torch.cuda.is_available():
-        device = "cuda"
-    elif torch.backends.mps.is_available():
-        device = "mps"
-except Exception:
-    # torch might be absent in some workers; keep CPU fallback
-    device = "cpu"
 
 # --- Placeholder embedding loader (use your real provider) ---
+
+    
 @lru_cache(maxsize=1)
-def get_embedding_model(model_name: str = DEFAULT_EMBEDDING_MODEL_ID):
-    # Example if using SentenceTransformer locally
-    try:
-        from sentence_transformers import SentenceTransformer
-        log.info("Loading local SentenceTransformer '%s' on %s", DEFAULT_EMBEDDING_MODEL_ID, device)
-        return SentenceTransformer(model_name, device=device)
-    except Exception as e:
-        log.warning("SentenceTransformer not available: %s", e)
-        return None
+def get_embedding_model():
+    """Lazy-Loading SentenceTransformer model once."""
+    log.info(f"Loading SentenceTransformer model '{DEFAULT_EMBEDDING_MODEL_ID}' on device: {device}...")
+    embedding_model = SentenceTransformer(DEFAULT_EMBEDDING_MODEL_ID, device=device)
+    return embedding_model
+
 
 def get_embeddings_batch(texts: List[str]) -> List[List[float]]:
     """
@@ -93,7 +81,7 @@ def get_embeddings_batch(texts: List[str]) -> List[List[float]]:
     if not texts:
         return []
 
-    embedding_model = get_embedding_model(DEFAULT_EMBEDDING_MODEL_ID)  # load once via lru_cache
+    embedding_model = get_embedding_model()  # load once via lru_cache
     if embedding_model is None:
         log.error("Embedding model '%s' could not be loaded. Returning empty embeddings.", DEFAULT_EMBEDDING_MODEL_ID)
         # Return list of None to match expected length
@@ -219,35 +207,77 @@ with DAG(
 ) as dag:
 
     @task()
-    def extract_profiles(segment_id: str = "") -> List[Dict[str, Any]]:
-        if len(segment_id) == 0:
-            log.warning("No segment_id provided, returning empty list")
+    def extract_profiles(segment_id: str = "", batch_size: int = 5000) -> List[Dict[str, Any]]:
+        """
+        Efficiently extracts profiles using key-based pagination and streaming cursor.
+        This avoids the performance penalty of OFFSET-based pagination in ArangoDB.
+
+        - Uses `_key` as a stable cursor position.
+        - Uses `stream=True` to avoid loading all results at once.
+        - Automatically stops when fewer than `batch_size` profiles are fetched.
+        """
+        if not segment_id:
+            log.warning("No segment_id provided, returning empty list.")
             return []
 
-        # Get the database 
         db = get_leo_cdp_database()
 
-        # Use AQL query to filter by segment_id
-        aql = """
+        # AQL query using key-based pagination (faster than LIMIT + OFFSET)
+        aql_template = """
         FOR p IN @@col
-            FILTER @segment_id IN p.inSegments[*].id AND p.status > 0
+            FILTER @segment_id IN p.inSegments[*].id 
+                AND p.status > 0
+                AND (@last_key == "" OR p._key > @last_key)
+            SORT p._key ASC
+            LIMIT @limit
             RETURN p
         """
-        bind_vars = {
-            "@col": ARANGO_PROFILE_COL,
-            "segment_id": segment_id
-        }
 
-        cursor = db.aql.execute(aql, bind_vars=bind_vars)
-        profiles = list(cursor)
-        log.info("Extracted %d profiles for segment_id=%s", len(profiles), segment_id)
-        return profiles
+        all_profiles = []
+        last_key = ""
+        total_fetched = 0
+        batch_num = 0
+
+        while True:
+            bind_vars = {
+                "@col": ARANGO_PROFILE_COL,
+                "segment_id": segment_id,
+                "last_key": last_key,
+                "limit": batch_size
+            }
+
+            cursor = db.aql.execute(
+                aql_template,
+                bind_vars=bind_vars,
+                batch_size=batch_size,
+                stream=True,   # stream results for lower memory footprint
+                ttl=600
+            )
+
+            batch_profiles = list(cursor)
+            fetched = len(batch_profiles)
+            if fetched == 0:
+                break
+
+            batch_num += 1
+            total_fetched += fetched
+            all_profiles.extend(batch_profiles)
+            last_key = batch_profiles[-1].get("_key", last_key)
+
+            log.info(
+                "Batch %d: fetched %d profiles (last_key=%s, total=%d)",
+                batch_num, fetched, last_key, total_fetched
+            )
+
+            # stop condition
+            if fetched < batch_size:
+                break
+
+        log.info("Extraction completed. Total profiles fetched: %d", total_fetched)
+        return all_profiles
 
     @task()
     def extract_transactions(profile_docs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Extract only transactions related to the given profiles.
-        """
         if not profile_docs:
             log.warning("No profiles provided, returning empty transaction list")
             return []
@@ -259,7 +289,6 @@ with DAG(
 
         db = get_leo_cdp_database()
 
-        # AQL to get transactions for specific profiles
         aql = """
         FOR e IN @@col
             FILTER e._from IN @profile_ids
@@ -645,16 +674,14 @@ with DAG(
     
     extracted_profiles = extract_profiles("{{ params.segment_id }}")
     extracted_txns = extract_transactions(extracted_profiles)
-
+    
     transformed_profiles = transform_and_embed_profiles(extracted_profiles)
     transformed_txns = transform_and_embed_txns(extracted_txns)
-
+    
     upsert_profiles = load_profiles_to_pg(transformed_profiles)
     upsert_txns = load_txns_to_pg(transformed_txns)
-
-    # This task now correctly takes its input from 'transformed_profiles'
+    
     tenants_list = collect_tenants_from_profiles(transformed_profiles)
+    
     refresh = refresh_metrics_task(tenants_list)
-
-    # This dependency is correct: refresh runs after *both* load tasks are complete.
     refresh.set_upstream([upsert_profiles, upsert_txns])
