@@ -1,9 +1,11 @@
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+import secrets
 from dotenv import load_dotenv
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from redis import Redis
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from leoai.ai_core import get_embedding_model
 import logging
 
@@ -61,3 +63,23 @@ async def leobot_lifespan(app: FastAPI):
     
     # Shutdown logic
     logger.info("🛑 Shutting down LEO BOT ...")
+    
+security = HTTPBasic()
+
+# -----------------------------
+# Basic Auth dependency
+# -----------------------------
+def get_current_user(credentials: HTTPBasicCredentials = Depends(security)):
+    correct_username = "admin"  # replace with env var in production
+    correct_password = "password"  # replace with env var in production
+
+    is_valid = secrets.compare_digest(credentials.username, correct_username) and \
+               secrets.compare_digest(credentials.password, correct_password)
+
+    if not is_valid:
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    return credentials.username

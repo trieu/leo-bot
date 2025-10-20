@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Your Personalized Content Recommendations</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      color: #333;
+      background-color: #fafafa;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 640px;
+      margin: 40px auto;
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+    }
+    h2 {
+      color: #1a73e8;
+    }
+    .content-item {
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #eee;
+    }
+    .content-item a {
+      text-decoration: none;
+      color: #1a73e8;
+      font-weight: bold;
+    }
+    .footer {
+      margin-top: 24px;
+      font-size: 13px;
+      color: #888;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Hello {{ user_profile.first_name or "Friend" }},</h2>
+    <p>Based on your recent interests and interactions, our AI system has found content you may enjoy:</p>
+
+    {% for item in recommended_contents %}
+      <div class="content-item">
+        <a href="{{ item.url }}" target="_blank">{{ item.title }}</a>
+        <p>{{ item.summary }}</p>
+        <small>Similarity score: {{ "%.2f"|format(item.similarity_score) }}</small>
+      </div>
+    {% endfor %}
+
+    <p>We continuously analyze what matters to you to deliver better recommendations every day.</p>
+    <p>Current time: {{ user_context.datetime }}</p>
+
+    <div class="footer">
+      You’re receiving this email because you subscribed to personalized AI recommendations.<br>
+      © {{ user_context.current_year }} YourCompany. All rights reserved.
+    </div>
+  </div>
+</body>
+</html>

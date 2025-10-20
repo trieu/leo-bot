@@ -11,6 +11,7 @@ import asyncio
 
 from leoai.ai_core import GeminiClient, get_embedding_model
 from leoai.db_utils import get_pg_conn, sha256_hash, get_async_pg_conn
+from leoai.ai_knowledge_manager import MAX_DOC_TEXT_LENGTH
 from main_config import REDIS_CLIENT
 
 # --- Load environment variables from .env ---
@@ -86,6 +87,41 @@ Your JSON object MUST have this exact structure:
 {context}
 """
 
+def get_date_time_now() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M")
+
+def get_base_context(request_data: Dict[str, Any] = None) -> Dict[str, Any]:
+    """
+        get base context model
+    """
+    now_str = get_date_time_now()
+    base = {
+        "user_profile": {
+            "first_name": None, "last_name": None,
+            "primary_language": None, "primary_email": None, "primary_phone": None,
+            "personal_interests": [], "personality_traits": [],
+            "data_labels": [], "in_segments": [], "in_journey_maps": [],
+            "product_interests": [], "content_interests": []
+        },
+        "user_context": {"location": None, "datetime": now_str},
+        "context_summary": "",
+        "context_keywords": [],
+        "intent_label": None,
+        "intent_confidence": 0.0
+    }
+    
+    if request_data:
+        def deep_merge(target: Dict[str, Any], src: Dict[str, Any]) -> Dict[str, Any]:
+            for key, value in src.items():
+                if isinstance(value, dict) and key in target and isinstance(target[key], dict):
+                    deep_merge(target[key], value)
+                else:
+                    target[key] = value
+            return target
+
+        base = deep_merge(base, request_data)
+    
+    return base
 
 # =====================================================================
 # Main RAG pipeline
@@ -127,8 +163,7 @@ class RAGAgent:
         self.client = gemini_client or GeminiClient()
         self.embedding_model = get_embedding_model()
 
-    def _get_date_time_now(self) -> str:
-        return datetime.now().strftime("%Y-%m-%d %H:%M")
+
 
     def _get_default_summary(self, timestamp_str: str) -> Dict[str, Any]:
         """Returns a default dictionary for summarization failures or short contexts."""
@@ -148,7 +183,7 @@ class RAGAgent:
         temperature_score: float = 0.8
     ) -> Dict[str, Any]:
         """Summarizes long context into structured JSON metadata."""
-        now_str = self._get_date_time_now()
+        now_str = get_date_time_now()
 
         if not context:
             return self._get_default_summary(now_str)
@@ -208,10 +243,10 @@ class RAGAgent:
     ) -> str:
         """Constructs a context-rich prompt for Gemini using the structured summary."""
         user_context = context_model.get("user_context", {})
-        timestamp = user_context.get("datetime", self._get_date_time_now())
+        timestamp = user_context.get("datetime", get_date_time_now())
         try:
             if timestamp is None:
-                timestamp = self._get_date_time_now()
+                timestamp = get_date_time_now()
             dt_object = datetime.strptime(timestamp, "%Y-%m-%d %H:%M")
             current_time_str = dt_object.strftime("%A, %B %d, %Y at %I:%M %p")
         except ValueError:
@@ -402,27 +437,11 @@ class RAGAgent:
             """, (user_id, touchpoint_id))
             return cur.fetchone()
 
-    def _create_base_context(self) -> Dict[str, Any]:
-        """Creates a default, empty context structure."""
-        now_str = self._get_date_time_now()
-        return {
-            "user_profile": {
-                "first_name": None, "last_name": None,
-                "primary_language": None, "primary_email": None, "primary_phone": None,
-                "personal_interests": [], "personality_traits": [],
-                "data_labels": [], "in_segments": [], "in_journey_maps": [],
-                "product_interests": [], "content_interests": []
-            },
-            "user_context": {"location": None, "datetime": now_str},
-            "context_summary": "",
-            "context_keywords": [],
-            "intent_label": None,
-            "intent_confidence": 0.0
-        }
+
 
     def _parse_db_row_to_context(self, row: tuple) -> Dict[str, Any]:
         """Parses the database row and merges it into a base context structure."""
-        base_context = self._create_base_context()
+        base_context = get_base_context()
         context_data, intent_label, intent_confidence, updated_at = row
 
         if isinstance(context_data, str):
@@ -478,7 +497,7 @@ class RAGAgent:
                 context=retrieved_context_str
             ) 
 
-        return summarized_context or self._get_default_summary(self._get_date_time_now())
+        return summarized_context or self._get_default_summary(get_date_time_now())
 
     def _check_for_refresh_context(self, summarized_context):
         needs_refresh = True
@@ -489,6 +508,73 @@ class RAGAgent:
                 if (now_utc - updated_at) < DELTA_TO_REFRESH_CONTEXT:
                     needs_refresh = False
         return needs_refresh
+    
+    async def _retrieve_knowledge(
+        self,
+        user_message: str,
+        tenant_id: str,
+        limit: int = 5,
+        max_length: int = MAX_DOC_TEXT_LENGTH
+    ) -> str:
+        """
+        Retrieve semantically relevant knowledge chunks for a given user message and tenant.
+        """
+        loop = asyncio.get_event_loop()
+
+        # 1. Encode the user's question into a vector
+        try:
+            user_message_vector = await loop.run_in_executor(
+                None,
+                lambda: self.embedding_model.encode(
+                    user_message, normalize_embeddings=True
+                ).tolist()
+            )
+        except Exception as e:
+            logger.error(f"❌ Failed to encode user message for knowledge retrieval: {e}")
+            return ""
+
+        # 2. Query the database for the most similar chunks
+        async with await get_async_pg_conn() as conn:
+            async with conn.cursor() as cur:
+                # Retrieve chunks from active knowledge sources for this tenant
+                await cur.execute("""
+                    SELECT
+                        kc.content,
+                        (kc.embedding <#> (%s)::vector) AS distance
+                    FROM knowledge_chunks AS kc
+                    JOIN knowledge_sources AS ks ON kc.source_id = ks.id
+                    WHERE
+                        ks.tenant_id = %s
+                        AND ks.status = 'active'
+                    ORDER BY distance ASC
+                    LIMIT %s;
+                """, (user_message_vector, tenant_id, limit))
+                
+                rows = await cur.fetchall()
+
+        chunks = [row[0] for row in rows] if rows else []
+        if not chunks:
+            logger.info("🔍 No related knowledge found in the database.")
+            return ""
+
+        # 3. Process and format the results
+        # Deduplicate chunks while preserving order of relevance
+        seen = set()
+        unique_chunks = []
+        for chunk in chunks:
+            clean_chunk = chunk.strip()
+            if clean_chunk and clean_chunk not in seen:
+                seen.add(clean_chunk)
+                unique_chunks.append(clean_chunk)
+
+        full_context = "\n\n---\n\n".join(unique_chunks)
+
+        if len(full_context) > max_length:
+            logger.warning(f"⚠️ Retrieved knowledge context is too long ({len(full_context)} chars). Truncating.")
+            return full_context[:max_length]
+
+        logger.info(f"🧠 Retrieved {len(unique_chunks)} semantically similar knowledge chunks for tenant={tenant_id}")
+        return full_context
 
     async def process_chat_message(
         self,

@@ -12,8 +12,8 @@ TARGET_DB="customer360"
 HOST_PORT=5432
 
 # --- SQL schema config ---
-SCHEMA_VERSION=251008
-SCHEMA_DESCRIPTION="init database schema customer360 for leo bot"
+SCHEMA_VERSION=251018
+SCHEMA_DESCRIPTION="init database schema customer360 for leo bot in CDP and chatbot for end user"
 SQL_FILE_PATH="./sql_scripts/customer360_schema.sql"
 
 # --- Parse options ---
@@ -163,7 +163,7 @@ if [ $CURRENT_VERSION -lt $SCHEMA_VERSION ]; then
 fi
 
 # --- Verify all tables exist ---
-TABLES=("chat_messages" "chat_message_embeddings" "places" "schema_migrations" "system_users" "conversational_context")
+TABLES=("chat_messages" "chat_message_embeddings" "places" "schema_migrations" "system_users" "conversational_context" "knowledge_sources" "knowledge_chunks" "customer_profile" "transactional_context" "customer_metrics" "tenant_metrics_config")
 for table in "${TABLES[@]}"; do
   docker exec -u postgres $CONTAINER_NAME psql -d $TARGET_DB -tc "SELECT 1 FROM pg_tables WHERE tablename = '$table'" | grep -q 1 || { echo "❌ Table '$table' missing"; exit 1; }
 done
