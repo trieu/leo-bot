@@ -279,14 +279,13 @@ class RAGAgent:
         tenant_id: Optional[str] = "default"
     ):
         """Store a chat message and its embedding in the database."""
-        
-        if len(user_id) == 0 or len(message) == 0:
-            # skip 
+
+        if not user_id or not message:
             return
-        # Compute message hash
+
         message_hash = sha256_hash(f"{user_id}:{message}")
-        
-        # Run embedding computation in a background thread
+
+        # Compute embedding off the event loop
         loop = asyncio.get_event_loop()
         message_vector = await loop.run_in_executor(
             None,
@@ -295,7 +294,7 @@ class RAGAgent:
             ).tolist()
         )
 
-        async with await get_async_pg_conn() as conn:
+        async with get_async_pg_conn() as conn:  # ✅ FIXED
             async with conn.cursor() as cur:
                 # Insert message atomically
                 await cur.execute("""
@@ -305,14 +304,14 @@ class RAGAgent:
                     ON CONFLICT (message_hash) DO NOTHING
                     RETURNING message_hash
                 """, (
-                    message_hash, user_id, cdp_profile_id, tenant_id, persona_id,
-                    touchpoint_id, role, message, keywords
+                    message_hash, user_id, cdp_profile_id, tenant_id,
+                    persona_id, touchpoint_id, role, message, keywords
                 ))
-                
+
                 inserted = await cur.fetchone()
                 if not inserted:
                     logger.debug(f"Duplicate message ignored (user={user_id}, role={role})")
-                    return  # Duplicate, skip embedding
+                    return
 
                 # Insert embedding atomically
                 await cur.execute("""
@@ -327,6 +326,7 @@ class RAGAgent:
             await conn.commit()
 
         logger.info(f"💾 Stored {role} message for user={user_id}")
+
 
 
     async def _retrieve_semantic_context(
