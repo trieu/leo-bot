@@ -314,14 +314,14 @@ function generateUUID() {
 }
 
 // Retrieve or create visitor ID with expiration
-async function getVisitorId(ttlDays = 90) {
+async function getVisitorId(ttlDays = 365) {
   let id = lscache.get('visitor_id');
 
   if (!id) {
     id = generateUUID();
 
     // Store with TTL (days)
-    lscache.set('visitor_id', id, ttlDays);
+    lscache.set('visitor_id', id);
 
     // Fallback cookie (optional)
     document.cookie = `visitor_id=${id}; path=/; max-age=${ttlDays * 24 * 60 * 60}`;
