@@ -174,6 +174,7 @@ def send_message_to_zalo(recipient_id: str, message_text: str):
 
 # ===== BASIC ROUTES =====
 @leobot.get("/_leoai/ping", response_class=PlainTextResponse)
+@leobot.get("/ping", response_class=PlainTextResponse)
 async def ping():
     return "PONG"
 
