@@ -1,29 +1,55 @@
 #!/bin/bash
+set -euo pipefail
 
-DIR_PATH="/build/leo-bot/"
+APP_NAME="leobot"
+APP_MODULE="main_app:leobot"
+DIR_PATH="/build/leo-bot"
+VENV_PATH="$DIR_PATH/env"
+HOST="0.0.0.0"
+PORT="8888"
+LOG_DIR="$DIR_PATH"
+LOG_FILE="$LOG_DIR/${APP_NAME}-$(date '+%Y-%m-%d_%H-%M-%S').log"
 
-# Change to the directory where your FastAPI app is located
+cd "$DIR_PATH" || { echo "❌ Directory not found: $DIR_PATH"; exit 1; }
 
-if [ -d "$DIR_PATH" ]; then
-  cd $DIR_PATH
+# Find and stop any running instance
+PIDS=$(pgrep -f "uvicorn.*${APP_MODULE}" || true)
+if [[ -n "$PIDS" ]]; then
+  echo "🛑 Stopping existing $APP_NAME process(es): $PIDS"
+  kill -15 $PIDS
+  # Wait up to 5 seconds for graceful exit
+  for i in {1..5}; do
+    sleep 1
+    if ! pgrep -f "uvicorn.*${APP_MODULE}" >/dev/null; then
+      break
+    fi
+  done
+  # Force kill if still running
+  if pgrep -f "uvicorn.*${APP_MODULE}" >/dev/null; then
+    echo "⚠️  Forcing termination of lingering processes."
+    pkill -9 -f "uvicorn.*${APP_MODULE}" || true
+  fi
+else
+  echo "ℹ️  No running $APP_NAME instance found."
 fi
 
-# kill old process to restart
-kill -15 $(pgrep -f "uvicorn main_app:leobot")
-sleep 2
+# Activate virtual environment
+if [[ -f "$VENV_PATH/bin/activate" ]]; then
+  source "$VENV_PATH/bin/activate"
+else
+  echo "❌ Virtual environment not found at $VENV_PATH"
+  exit 1
+fi
 
-# Activate your virtual environment if necessary
-SOURCE_PATH="env/bin/activate"
-source $SOURCE_PATH
+# Start new instance
+echo "🚀 Starting $APP_NAME on port $PORT..."
+nohup uvicorn "$APP_MODULE" \
+  --reload \
+  --env-file .env \
+  --host "$HOST" \
+  --port "$PORT" \
+  >> "$LOG_FILE" 2>&1 &
 
-# clear old log
-# cat /dev/null > leobot.log
-datetoday=$(date '+%Y-%m-%d')
-log_file="leobot-$datetoday.log"
-
-
-# Start the FastAPI app using uvicorn
-uvicorn main_app:leobot --reload --env-file .env --host 0.0.0.0 --port 8888 >> $log_file 2>&1 &
-
-# exit
+NEW_PID=$!
+echo "✅ Started $APP_NAME (PID: $NEW_PID). Logging to $LOG_FILE"
 deactivate
