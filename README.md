@@ -165,12 +165,12 @@ Open your browser and visit your configured `HOSTNAME` to test.
 
 | Endpoint            | Method   | Description                      |
 | ------------------- | -------- | -------------------------------- |
-| `/ask`              | POST     | Main chatbot endpoint            |
-| `/is-ready`         | GET/POST | Gemini API readiness check       |
-| `/fb-webhook`       | GET/POST | Facebook Messenger webhook       |
-| `/zalo-webhook`     | POST     | Zalo OA webhook                  |
-| `/ping`             | GET      | Basic health check               |
-| `/get-visitor-info` | GET      | Retrieve visitor info from Redis |
+| `/_leoai/ask`              | POST     | Main chatbot endpoint            |
+| `/_leoai/is-ready`         | GET/POST | Gemini API readiness check       |
+| `/_leoai/fb-webhook`       | GET/POST | Facebook Messenger webhook       |
+| `/_leoai/zalo-webhook`     | POST     | Zalo OA webhook                  |
+| `/_leoai/ping`             | GET      | Basic health check               |
+| `/_leoai/visitor-info` | GET      | Retrieve visitor info from Redis |
 
 ---
 

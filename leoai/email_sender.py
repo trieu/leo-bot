@@ -10,7 +10,6 @@ import traceback
 from dotenv import load_dotenv
 import os
 
-from leoai.rag_agent import get_base_context
 
 # Load environment variables from .env file
 load_dotenv(override=True)

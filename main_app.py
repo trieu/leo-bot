@@ -12,7 +12,8 @@ import requests
 
 from leoai.email_sender import EmailSender
 from leoai.leo_datamodel import Message
-from leoai.rag_agent import RAGAgent, get_base_context
+from leoai.rag_agent import RAGAgent
+from leoai.rag_context_utils import get_base_context
 from main_config import (
     HOSTNAME, LEOBOT_DEV_MODE, REDIS_CLIENT, RATE_LIMIT_WINDOW_SECONDS,
     RATE_LIMIT_MAX_MESSAGES, BASE_URL_FB_MSG, FB_PAGE_ACCESS_TOKEN, FB_VERIFY_TOKEN,
@@ -56,15 +57,15 @@ def is_safe_to_answer(visitor_id: str) -> bool:
 
 
 # ====== READY CHECK ======
-@leobot.get("/is-ready", response_class=JSONResponse)
-@leobot.post("/is-ready", response_class=JSONResponse)
+@leobot.get("/_leoai/is-ready", response_class=JSONResponse)
+@leobot.post("/_leoai/is-ready", response_class=JSONResponse)
 async def is_leobot_ready():
     isReady = bool(GEMINI_API_KEY and GEMINI_API_KEY.strip())
     return {"ok": isReady}
 
 
 # ===== FACEBOOK WEBHOOK =====
-@leobot.get("/fb-webhook", response_class=JSONResponse)
+@leobot.get("/_leoai/fb-webhook", response_class=JSONResponse)
 async def verify_fb_webhook(request: Request):
     params = request.query_params
     mode = params.get("hub.mode")
@@ -78,7 +79,7 @@ async def verify_fb_webhook(request: Request):
         return JSONResponse(status_code=403, content={"error": "Verification failed"})
 
 
-@leobot.post("/fb-webhook", response_class=JSONResponse)
+@leobot.post("/_leoai/fb-webhook", response_class=JSONResponse)
 async def fb_webhook_handler(request: Request):
     try:
         body = await request.json()
@@ -122,7 +123,7 @@ def send_message_to_facebook(recipient_id: str, message_text: str):
 
 
 # === ZALO OA SUPPORT ===
-@leobot.post("/zalo-webhook", response_class=JSONResponse)
+@leobot.post("/_leoai/zalo-webhook", response_class=JSONResponse)
 async def zalo_webhook_handler(request: Request):
     """
     Handle Zalo Official Account webhook events.
@@ -172,26 +173,27 @@ def send_message_to_zalo(recipient_id: str, message_text: str):
 
 
 # ===== BASIC ROUTES =====
-@leobot.get("/ping", response_class=PlainTextResponse)
+@leobot.get("/_leoai/ping", response_class=PlainTextResponse)
 async def ping():
     return "PONG"
 
 
 @leobot.get("/", response_class=HTMLResponse)
+@leobot.get("/_leoai", response_class=HTMLResponse)
 async def root(request: Request):
     ts = int(time.time())
     data = {"request": request, "HOSTNAME": HOSTNAME, "LEOBOT_DEV_MODE": LEOBOT_DEV_MODE, 'timestamp': ts}
     return templates.TemplateResponse("index.html", data)
 
 
-@leobot.get("/demo-chatbot-ishop", response_class=HTMLResponse)
+@leobot.get("/_leoai/demo-chatbot-ishop", response_class=HTMLResponse)
 async def demo_chat_in_ishop(request: Request):
     ts = int(time.time())
     data = {"request": request, "HOSTNAME": HOSTNAME, "LEOBOT_DEV_MODE": LEOBOT_DEV_MODE, 'timestamp': ts}
     return templates.TemplateResponse("demo-chatbot-ishop.html", data)
 
 
-@leobot.get("/get-visitor-info", response_class=JSONResponse)
+@leobot.get("/_leoai/visitor-info", response_class=JSONResponse)
 async def get_visitor_info(
     visitor_id: str = Query(..., description="Required visitor unique ID"),
     name: str | None = Query(None, description="Optional visitor name"),
@@ -214,12 +216,17 @@ async def get_visitor_info(
 
     # --- Retrieve cached info ---
     redis_data = REDIS_CLIENT.hgetall(visitor_id)
-    cached_name = redis_data.get(b"name").decode() if b"name" in redis_data else None
-    cached_touchpoint = redis_data.get(b"init_touchpoint_id").decode() if b"init_touchpoint_id" in redis_data else None
+    logger.info(redis_data)
+    
+    cached_name = redis_data.get("name","") 
+    cached_touchpoint = redis_data.get("init_touchpoint_id","")
 
     # --- Determine final values ---
     final_name = name or cached_name or ""
     final_touchpoint = touchpoint_id or cached_touchpoint or ""
+    
+    logger.info(f"cached_name : {cached_name} visitor_id : {visitor_id}")
+    logger.info(f"final_name : {final_name} final_touchpoint : {final_touchpoint}")
 
     # --- Cache new values if provided ---
     updates = {}
@@ -246,7 +253,7 @@ async def get_visitor_info(
 
 
 # ===== MAIN CHATBOT API =====
-@leobot.post("/ask", response_class=JSONResponse)
+@leobot.post("/_leoai/ask", response_class=JSONResponse)
 async def web_handler(msg: Message):
     visitor_id = msg.visitor_id
     if len(visitor_id) == 0:
@@ -278,7 +285,7 @@ async def web_handler(msg: Message):
 
 
 
-@leobot.post("/email-agent", response_class=JSONResponse)
+@leobot.post("/_leoai/email-agent", response_class=JSONResponse)
 async def email_agent(request: Request, user: str = Depends(get_current_user)):
     try:
         # Parse JSON input

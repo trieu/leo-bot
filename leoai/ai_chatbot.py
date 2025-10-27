@@ -27,13 +27,29 @@ TEMPERATURE_SCORE = 0.86
 # Define a type for format choices for better type hinting
 AnswerFormat = Literal['html', 'text']
 
-# Easier to read and modify. The [INST] tags are removed as they are not standard for Gemini.
-PROMPT_TEMPLATE = """Your name is LEO, a helpful AI assistant.
-Your response must be in the language: {target_language}.
+# PROMPT for Chat
+PROMPT_TEMPLATE = """Your name is LEO, a helpful and truthful AI assistant.
+You must always respond in {target_language}.
+If the context provided is insufficient to answer the user's question, state that clearly.
 
-Use the following context to answer the question.
-Context: {context}
-Question: {question}
+[Current Date and Time]
+{datetime}
+
+[User Profile Summary]
+{user_profile}
+
+[Conversation Context Summary]
+{user_context}
+
+[Key Conversation Summary]
+{context_summary}
+
+[Key Conversation Keywords]
+{context_keywords}
+
+---
+[User's Current Question]
+{question}
 """
 
 def _build_prompt(question: str, context: str, target_language: str) -> str:

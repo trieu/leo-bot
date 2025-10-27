@@ -229,34 +229,46 @@ CREATE INDEX IF NOT EXISTS idx_system_users_custom_data ON system_users USING GI
 -- Conversational Context
 -- ============================================================
 CREATE TABLE IF NOT EXISTS conversational_context (
+    tenant_id VARCHAR(50) NOT NULL,
     user_id VARCHAR(50) NOT NULL,
     touchpoint_id VARCHAR(50) NOT NULL,
     cdp_profile_id VARCHAR(50),
     context_data JSONB NOT NULL,
     embedding VECTOR(768),
     intent_label VARCHAR(255),
-    intent_confidence NUMERIC(5, 4) CHECK (intent_confidence >= 0 AND intent_confidence <= 1) DEFAULT 0,
+    intent_confidence NUMERIC(5, 4)
+        CHECK (intent_confidence >= 0 AND intent_confidence <= 1)
+        DEFAULT 0,
     updated_by TEXT DEFAULT 'system',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (user_id, touchpoint_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_conversational_context_jsonb
+-- For JSON queries
+CREATE INDEX IF NOT EXISTS idx_context_jsonb
     ON conversational_context USING GIN (context_data jsonb_path_ops);
 
-CREATE INDEX IF NOT EXISTS idx_conversational_context_cdp_profile
+-- Profile joins
+CREATE INDEX IF NOT EXISTS idx_context_cdp_profile
     ON conversational_context (cdp_profile_id);
 
-CREATE INDEX IF NOT EXISTS idx_conversational_context_user
+-- User filter (only if common)
+-- DROP this if PK lookups dominate
+CREATE INDEX IF NOT EXISTS idx_context_user
     ON conversational_context (user_id);
 
-CREATE INDEX IF NOT EXISTS idx_conversational_context_embedding
+-- Vector similarity (pgvector)
+CREATE INDEX IF NOT EXISTS idx_context_embedding
     ON conversational_context USING ivfflat (embedding vector_cosine_ops)
-    WITH (lists = 100);
+    WITH (lists = 1000)
+    WHERE embedding IS NOT NULL;
 
-CREATE INDEX IF NOT EXISTS idx_conversational_context_intent
-    ON conversational_context (intent_label);
+-- Intent lookups (filtered for high-confidence)
+CREATE INDEX IF NOT EXISTS idx_context_intent_confident
+    ON conversational_context (intent_label)
+    WHERE intent_confidence > 0.5;
+
 
 
 -- ============================================================

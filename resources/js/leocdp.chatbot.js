@@ -45,9 +45,7 @@ function initLeoChatBot(context, visitorId, okCallback) {
     var name = data.name;
     console.log(data);
 
-    if (error_code === 0) {
-      var dname = currentUserProfile.displayName || "";
-      name = dname.length > 0 ? dname : name;
+    if (error_code === 0 && name) {      
       currentUserProfile.displayName = name;
       showLeoChatBot(currentUserProfile.displayName);
     } 
