@@ -10,11 +10,20 @@ class ChatDBManager:
         self.embedding_model = embedding_model
 
     async def save_chat_message(self, user_id, role, message,
-                                cdp_profile_id="", persona_id="",
-                                touchpoint_id="", keywords="",
+                                cdp_profile_id="_", persona_id="_",
+                                touchpoint_id="_", keywords=[],
                                 tenant_id="default"):
         if not user_id or not message:
             return
+
+        if cdp_profile_id is None:
+            cdp_profile_id = "_"
+        if persona_id is None:
+            persona_id = "_"
+        if touchpoint_id is None:
+            touchpoint_id = "_"
+        if keywords is None:
+            keywords = []
 
         msg_hash = sha256_hash(f"{user_id}:{message}")
         loop = asyncio.get_event_loop()
@@ -25,7 +34,7 @@ class ChatDBManager:
                 f"{role}: {message}", normalize_embeddings=True
             ).tolist()
         )
-        msg_vector_str = to_pgvector(msg_vector)  # ✅ fix
+        msg_vector_str = to_pgvector(msg_vector)  
 
         async with get_async_pg_conn() as conn:
             inserted = await conn.fetchrow("""
@@ -52,6 +61,12 @@ class ChatDBManager:
                                    summary: dict,
                                    tenant_id: str = "default") -> bool:
         """Save or update a conversational context summary (with pgvector embedding)."""
+        
+        if cdp_profile_id is None:
+            cdp_profile_id = "_"
+        if touchpoint_id is None:
+            touchpoint_id = "_"
+
         try:
             context_json = json.dumps(summary, ensure_ascii=False)
             loop = asyncio.get_event_loop()
