@@ -3,7 +3,7 @@ set -euo pipefail
 
 APP_USER="leocdp"
 APP_DIR="/build/leo-bot"
-START_SCRIPT="$APP_DIR/start-app.sh"
+START_SCRIPT="$APP_DIR/start_app.sh"
 CRON_LOG_DIR="$APP_DIR/cron-jobs"
 CRON_LOG_FILE="$CRON_LOG_DIR/restart.log"
 
@@ -18,7 +18,7 @@ mkdir -p "$CRON_LOG_DIR"
     exit 1
   fi
 
-  echo "🔁 Running start-app.sh as $APP_USER..."
+  echo "🔁 Running start_app.sh as $APP_USER..."
   sudo -u "$APP_USER" bash "$START_SCRIPT"
 
   echo "✅ Restart completed: $(date '+%Y-%m-%d %H:%M:%S')"
