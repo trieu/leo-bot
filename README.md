@@ -228,7 +228,7 @@ curl -X POST http://localhost:8000/ask \
 ## 📜 License
 
 MIT License — free to use, modify, and share.
-Attribution is appreciated but not required.
+Attribution is appreciated but not required..
 
 ---
 
