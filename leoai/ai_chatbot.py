@@ -28,7 +28,7 @@ TEMPERATURE_SCORE = 0.86
 AnswerFormat = Literal['html', 'text']
 
 # PROMPT for Chat
-PROMPT_TEMPLATE = """Your name is LEO, a helpful and truthful AI assistant.
+PROMPT_TEMPLATE = """Your name is LISA, a helpful and truthful AI assistant.
 You must always respond in {target_language}.
 If the context provided is insufficient to answer the user's question, state that clearly.
 

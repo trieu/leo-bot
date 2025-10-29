@@ -3,6 +3,8 @@
 /local_data
 /data
 */data/*
+.venv
+venv/
 
 # GenAI models
 models
