@@ -8,7 +8,8 @@ from leoai.ai_core import GeminiClient
 from leoai.ai_index import ContentIndex
 
 from leoai.email_sender import EmailSender
-from leoai.rag_agent import get_base_context
+from leoai.rag_context_utils import get_base_context
+
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger("content_recommendation")

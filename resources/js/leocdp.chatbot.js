@@ -42,12 +42,10 @@ function initLeoChatBot(context, visitorId, okCallback) {
   loadChatSessionWithProfile()
   $.getJSON(buildUserProfileUrl(visitorId), function (data) {
     var error_code = data.error_code;
-    var answer = data.answer;
+    var name = data.name;
     console.log(data);
 
-    if (error_code === 0) {
-      var name = currentUserProfile.displayName;
-      name = answer.length > 0 ? answer : name;
+    if (error_code === 0 && typeof name === "string") {      
       currentUserProfile.displayName = name;
       showLeoChatBot(currentUserProfile.displayName);
     } 

@@ -77,8 +77,8 @@
     <script>
         const HOSTNAME = '{{ HOSTNAME }}';
         const LEOBOT_DEV_MODE = '{{ LEOBOT_DEV_MODE }}' === "True";
-        const BASE_URL_LEOBOT = location.protocol + '//' + HOSTNAME + '/ask';    
-        const BASE_URL_GET_VISITOR_INFO = location.protocol + '//' + HOSTNAME + '/get-visitor-info';
+        const BASE_URL_LEOBOT = location.protocol + '//' + HOSTNAME + '/_leoai/ask';    
+        const BASE_URL_GET_VISITOR_INFO = location.protocol + '//' + HOSTNAME + '/_leoai/visitor-info';
         const CDP_TRACKING = false;
     </script>
     <script src="/resources/js/leocdp.chatbot.js?_={{ timestamp }}" ></script>
