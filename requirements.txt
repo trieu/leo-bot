@@ -2,6 +2,13 @@
 fastapi                           # Web API framework
 uvicorn[standard]
 
+# === Markdown & Web Utilities & Templating ===
+markdown                          # Markdown to HTML rendering
+requests                          # HTTP requests (e.g., calling external APIs)
+httpx                             # modern HTTP client for Python
+cityhash
+jinja2                            # HTML templates if you use `Jinja2Templates` from FastAPI
+
 # === Environment Variable Management ===
 python-dotenv                     # Load environment variables from .env
 
@@ -35,26 +42,18 @@ sqlalchemy                        # ORM and SQL toolkit
 python-arango                     # Python driver for ArangoDB
 redis                             # caching & Realtime Data
 
+# === Vector Search ===
+pgvector                     # Python client for vector similarity search for Postgres 15+
+
 # === Airflow ETL: Arango → PostgreSQL ===
 apache-airflow==2.11.0
 apache-airflow-providers-postgres
 apache-airflow-providers-arangodb
 
-# === Vector DB (Qdrant) ===
-qdrant-client                     # Python client for Qdrant vector database
-
 # === Data Processing ===
 numpy                             # Numerical computing
 pandas                            # Dataframes and tabular data
 scikit-learn                      # TF-IDF vectorizer and other ML tools
-
-# === Markdown & Web Utilities ===
-markdown                          # Markdown to HTML rendering
-requests                          # HTTP requests (e.g., calling external APIs)
-httpx                             # modern HTTP client for Python
-
-# === Static Files, Templating (used in FastAPI project setup) ===
-jinja2                            # HTML templates if you use `Jinja2Templates` from FastAPI
 
 # === Visualization ===
 matplotlib
