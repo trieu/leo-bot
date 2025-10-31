@@ -7,6 +7,7 @@ from leoai.rag_db_manager import ChatDBManager
 from leoai.rag_context_manager import ContextManager
 from leoai.rag_prompt_builder import PromptBuilder
 from leoai.rag_knowledge_manager import KnowledgeRetriever
+from leoai.rag_intent_analyzer import IntentAnalyzer
 from main_config import REDIS_CLIENT
 
 logger = logging.getLogger("RAGAgent")
@@ -19,6 +20,7 @@ class RAGAgent:
         self.context = ContextManager(self.embedding_model, self.client, self.db)
         self.knowledge = KnowledgeRetriever(self.embedding_model)
         self.prompt_builder = PromptBuilder()
+        self.intent_analyzer = IntentAnalyzer(self.client)
 
     async def process_chat_message(
         self,
@@ -33,11 +35,18 @@ class RAGAgent:
         keywords: Optional[List[str]] = None,
     ) -> str:
         try:
+            # 0. Analyze intent of user message for keywords storage purpose
+            analysis = await self.intent_analyzer.analyze(user_message)
             # 1. Save user message
             await self.db.save_chat_message(
-                user_id=user_id, role="user", message=user_message,
-                cdp_profile_id=cdp_profile_id, persona_id=persona_id,
-                touchpoint_id=touchpoint_id, keywords=keywords
+                user_id=user_id, role="user", 
+                message=user_message,
+                cdp_profile_id=cdp_profile_id, 
+                persona_id=persona_id,
+                touchpoint_id=touchpoint_id,            
+                keywords=analysis["keywords"],
+                last_intent_label=analysis["last_intent_label"],
+                last_intent_confidence=analysis["last_intent_confidence"],
             )
 
             # 2. Build summarized context
