@@ -9,6 +9,7 @@ from leoai.rag_prompt_builder import PromptBuilder
 from leoai.rag_knowledge_manager import KnowledgeRetriever
 from main_config import REDIS_CLIENT
 
+
 logger = logging.getLogger("RAGAgent")
 
 class RAGAgent:
@@ -50,21 +51,27 @@ class RAGAgent:
                 REDIS_CLIENT.hset(user_id, mapping={"profile_id": "", "name": first_name})
 
             # 3. Build contextual prompt
-            final_prompt = self.prompt_builder.build_prompt(
+            prompt_router = self.prompt_builder.build_prompt(
                 user_message, summarized_context, target_language
             )
-            logger.info(f"🧠 Final Prompt:\n{final_prompt}")
+            logger.info(f"🧠 Final Prompt:\n{prompt_router}")
 
             # 4. Generate AI answer
-            answer = self.client.generate_content(final_prompt, temperature=temperature_score)
-            if not answer:
-                return "⚠️ I couldn't find enough information to answer confidently."
+            final_answer = ''
+            if prompt_router.purpose == 'generate_text':
+                final_answer = self.client.generate_content(prompt_router.prompt_text, temperature=temperature_score)
+                if not final_answer:
+                    return "⚠️ I couldn't find enough information to answer confidently."
 
-            # 5. Save AI answer
-            await self.db.save_chat_message(user_id, "bot", answer, cdp_profile_id, persona_id, touchpoint_id)
+                # 5. Save AI answer if text only
+                if answer_in_format == 'text':
+                    await self.db.save_chat_message(user_id, "bot", final_answer, cdp_profile_id, persona_id, touchpoint_id)
+            elif prompt_router.purpose == 'generate_report':
+                answer_in_format = 'html'
+                final_answer = self.client.generate_report(prompt_router.prompt_text, temperature=temperature_score)
 
             # 6. Return
-            return markdown.markdown(answer) if answer_in_format == "html" else answer
+            return markdown.markdown(final_answer) if answer_in_format == "html" else final_answer
 
         except Exception:
             logger.exception("❌ RAG pipeline error")

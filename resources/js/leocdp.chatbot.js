@@ -108,15 +108,57 @@ var leoBotPromptQuestion = function (delay) {
     });
 };
 
+var processMessageNode  = function(rawAnswer) {
+  var node_id = 'm_'  + getRandomStrWithTime()
+  if(rawAnswer.indexOf("<html>") >= 0){
+    var iframe = document.createElement('iframe');
+    iframe.setAttribute('id',node_id)
+    iframe.style.width = "100%";
+    iframe.style.height = "400px";
+    iframe.style.border = "1px solid #ddd";
+    iframe.style.borderRadius = "6px";
+
+    return {'html':iframe.outerHTML,'type':'iframe','id': node_id};
+  } 
+  else {
+     var span = document.createElement('span');
+    span.setAttribute('id',node_id)
+    span.innerHTML =  marked.parse(rawAnswer)
+    return {'html':span.outerHTML,'type':'span','id': node_id}; 
+  }
+}
+
+function getRandomStrWithTime(length = 10) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let randomPart = '';
+  for (let i = 0; i < length; i++) {
+    randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  const timestamp = Date.now().toString(36); // base36 makes it shorter & still sortable
+  return `${randomPart}_${timestamp}`;
+}
+
 var leoBotShowAnswer = function (rawAnswer, providedDelay) {
+  
+  var node = processMessageNode(rawAnswer);
   getBotUI()
     .message.add({
       human: false,
       cssClass: "leobot-answer",
-      content:  marked.parse(rawAnswer),
+      content: node.html,
       type: "html",
     })
     .then(function () {
+      if(node.type === 'iframe') {
+          var iframe = document.getElementById(node.id)
+          const doc = iframe.contentDocument || iframe.contentWindow.document;
+          doc.open();
+          doc.write(rawAnswer);
+          doc.close();
+
+          $(iframe).parent().parent().removeClass('botui-message-content').addClass('botui-message-report')
+      }
+
       // format all href nodes in answer
       $("div.botui-message")
         .find("a")
