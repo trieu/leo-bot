@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-import requests
+import httpx
 
 from leoai.email_sender import EmailSender
 from leoai.leo_datamodel import Message
@@ -109,17 +109,19 @@ async def fb_webhook_handler(request: Request):
 
 def send_message_to_facebook(recipient_id: str, message_text: str):
     url = f"{BASE_URL_FB_MSG}?access_token={FB_PAGE_ACCESS_TOKEN}"
-    headers = {"Content-Type": "application/json"}
     payload = {
         "recipient": {"id": recipient_id},
         "message": {"text": message_text},
     }
     try:
-        response = requests.post(url, headers=headers, json=payload)
-        response.raise_for_status()
-        logger.info(f"✅ Sent message to FB user {recipient_id}")
-    except Exception as e:
-        logger.error(f"❌ Failed to send message to FB user {recipient_id}: {e}")
+        with httpx.Client(timeout=10.0) as client:
+            response = client.post(url, json=payload)
+            response.raise_for_status()
+            logger.info(f"✅ Sent message to FB user {recipient_id}")
+    except httpx.HTTPStatusError as e:
+        logger.error(f"❌ HTTP error sending message to {recipient_id}: {e.response.text}")
+    except httpx.RequestError as e:
+        logger.error(f"❌ Request failed for {recipient_id}: {e}")
 
 
 # === ZALO OA SUPPORT ===
@@ -155,21 +157,28 @@ async def zalo_webhook_handler(request: Request):
 
 def send_message_to_zalo(recipient_id: str, message_text: str):
     """
-    Send message to user via Zalo OA API
+    Send message to user via Zalo OA API using httpx (sync version)
     """
     url = "https://openapi.zalo.me/v3.0/oa/message/cs"
-    headers = {"Content-Type": "application/json"}
     payload = {
         "recipient": {"user_id": recipient_id},
-        "message": {"text": message_text}
+        "message": {"text": message_text},
     }
     params = {"access_token": ZALO_OA_ACCESS_TOKEN}
+
     try:
-        response = requests.post(url, headers=headers, params=params, json=payload)
-        response.raise_for_status()
-        logger.info(f"✅ Sent message to Zalo user {recipient_id}")
-    except Exception as e:
-        logger.error(f"❌ Failed to send message to Zalo user {recipient_id}: {e}")
+        with httpx.Client(timeout=10.0) as client:
+            response = client.post(url, params=params, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            if data.get("error") == 0:
+                logger.info(f"✅ Sent message to Zalo user {recipient_id}")
+            else:
+                logger.error(f"⚠️ Zalo API returned error for {recipient_id}: {data}")
+    except httpx.HTTPStatusError as e:
+        logger.error(f"❌ HTTP error sending message to Zalo user {recipient_id}: {e.response.text}")
+    except httpx.RequestError as e:
+        logger.error(f"❌ Request failed for Zalo user {recipient_id}: {e}")
 
 
 # ===== BASIC ROUTES =====
