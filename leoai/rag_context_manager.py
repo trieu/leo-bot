@@ -6,7 +6,6 @@ import re
 from datetime import datetime, timedelta, timezone
 from leoai.db_utils import get_pg_conn, get_async_pg_conn, to_pgvector
 from leoai.rag_db_manager import ChatDBManager
-from leoai.rag_prompt_builder import PromptBuilder
 
 logger = logging.getLogger("ContextManager")
 DELTA_TO_REFRESH_CONTEXT = timedelta(seconds=10)
