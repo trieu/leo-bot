@@ -27,7 +27,7 @@ class RAGAgent:
         user_id: str,
         user_message: str,
         cdp_profile_id: Optional[str] = None,
-        persona_id: Optional[str] = None,
+        persona_id: Optional[str] = 'personal_assistant',
         touchpoint_id: Optional[str] = None,
         target_language: str = "Vietnamese",
         answer_in_format: str = "text",
@@ -59,7 +59,7 @@ class RAGAgent:
 
             # 4️⃣ Build contextual prompt
             prompt_router = self.agent_orchestrator.build_prompt(
-                user_message, summarized_context, target_language
+                user_message, summarized_context, target_language, persona_id
             )
 
             logger.info(f"🧠 Detected purpose: {prompt_router.purpose}")

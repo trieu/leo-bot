@@ -1,5 +1,7 @@
 #!/bin/bash
 
+bash ./start_pgsql_pgvector.sh
+
 git pull
 
 sleep 1

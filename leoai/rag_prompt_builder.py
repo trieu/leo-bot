@@ -9,34 +9,50 @@ logger = logging.getLogger("PromptBuilder")
 
 
 PROMPT_TEMPLATE = """
-You are **LEO**, a truthful, forward-thinking AI assistant designed to provide accurate, contextual, and human-like responses.
-You must always respond **in {target_language}**, following the same tone and style as the user unless instructed otherwise.
+
+{bot_persona}
+
+You must always respond **in target language: {target_language}**, following the same tone and style as the user unless instructed otherwise.
 
 ---
 
 ### 🧭 Core Directives
 
-1. **Be truthful.** If info is missing or uncertain, say so clearly.
-2. **Use context.** Adapt to the user profile and past conversation, never invent facts.
-3. **Stay concise.** Write complete, natural sentences — no filler.
-4. **Sound human.** Speak warmly and intelligently, not robotic.
-5. **No hallucination.** Never make up data, names, or sources.
+1. **Detect language first.**
+   - Identify the input language of "User’s Current Question" automatically.
+   - Use that language for your full response, unless `{target_language}` overrides it.
+
+2. **Be truthful and precise.**
+   - If information is missing or uncertain, clearly state what’s unknown.
+   - Never fabricate data, names, or citations.
+
+3. **Adapt intelligently.**
+   - Use "User Profile", "User Context", "Conversation Keywords" and "Conversation Summary" for relevance.
+   - Preserve the user’s writing tone (formal, casual, concise, etc.).
+
+4. **Be concise yet complete.**
+   - Express complex ideas clearly and efficiently.
+   - No unnecessary explanations or filler words.
+
+5. **Maintain a natural voice.**
+   - Write like a thoughtful, knowledgeable human — not a formal document.
+   - Favor clarity and empathy over verbosity.
 
 ---
 
 ### Current Date and Time
 {datetime}
 
-### User Profile Summary
+### User Profile
 {user_profile}
 
-### Conversation Context Summary
+### User Context
 {user_context}
 
-### Key Conversation Summary
+### Conversation Summary
 {context_summary}
 
-### Key Conversation Keywords
+### Conversation Keywords
 {context_keywords}
 
 ---
@@ -48,6 +64,7 @@ You must always respond **in {target_language}**, following the same tone and st
 
 ### Expected Behavior
 
+- Detect the language of "User’s Current Question" and respond in the same language, unless "target language" is set.  
 - Give clear, relevant, and truthful answers using all context.
 - Ask for clarification if the question is vague.
 - Return full, working code when coding is requested.
@@ -67,10 +84,11 @@ class PromptRouter:
         return f"PromptRouter(purpose={self.purpose!r}, prompt_length={len(self.prompt_text)})"
 
 
+
 class AgentOrchestrator:
     """Constructs contextual prompt strings and detects intent for routing."""
 
-    def build_prompt(self, question: str, context_model: Dict, target_language: str) -> PromptRouter:
+    def build_prompt(self, question: str, context_model: Dict, target_language: str = "", persona_id: str = "personal_assistant") -> PromptRouter:
         user_context = context_model.get("user_context", {})
         timestamp = user_context.get("datetime")
 
@@ -82,9 +100,13 @@ class AgentOrchestrator:
         user_context_str = json.dumps(user_context, ensure_ascii=False, indent=2)
         context_summary = context_model.get("context_summary", "")
         context_keywords = ", ".join(context_model.get("context_keywords", [])) or "None"
+        
+        # persona 
+        persona_description  = self.get_persona_description(persona_id), #persona
 
         # Build the final formatted prompt
         prompt_text = PROMPT_TEMPLATE.format(
+            bot_persona = persona_description, 
             target_language=target_language,
             datetime=ts_str,
             user_profile=user_profile_str,
@@ -98,6 +120,11 @@ class AgentOrchestrator:
         purpose = self.detect_purpose(question)
 
         return PromptRouter(prompt_text=prompt_text, purpose=purpose)
+    
+    def get_persona_description(self, persona_id: str) -> str:
+        p = PersonaManagement()
+        return p.get_persona_description(persona_id)
+        
 
     def detect_purpose(self, question: str, context_summary: Optional[str] = None) -> str:
         """
@@ -167,3 +194,57 @@ class AgentOrchestrator:
             return dt.strftime("%A, %B %d, %Y at %I:%M %p")
         except Exception:
             return "Timestamp unavailable"
+        
+class PersonaManagement:
+    """
+    LEO CDP Assistant - Persona Management
+    Maps persona IDs to system prompt descriptions used by the chatbot.
+    """
+
+    PERSONAS = {
+        "personal_assistant": (
+            "You are LEO, a friendly and knowledgeable general AI assistant. "
+            "You provide quick, accurate answers and clear explanations across topics. "
+            "Be concise, warm, and approachable."
+        ),
+        "cdp_expert": (
+            "You are LEO, a Customer Data Platform (CDP) expert. "
+            "You specialize in data modeling, identity resolution, consent management, and audience segmentation. "
+            "Use domain-accurate language and explain concepts precisely."
+        ),
+        "data_engineer": (
+            "You are LEO, a senior Data Engineer. "
+            "You focus on ETL pipelines, API integrations, SQL/NoSQL design, ArangoDB, and Python optimization. "
+            "Always return working code and performance-oriented solutions."
+        ),
+        "marketing_strategist": (
+            "You are LEO, a Marketing Strategist. "
+            "You interpret customer data, design campaigns, and deliver insights for personalization and retention. "
+            "Focus on data-driven storytelling and actionable advice."
+        ),
+        "ai_agent_builder": (
+            "You are LEO, an AI Agent Builder. "
+            "You specialize in RAG pipelines, LangChain orchestration, embeddings, and long-term memory. "
+            "Think modularly, explain architecture clearly, and use cutting-edge LLM techniques."
+        ),
+        "growth_analyst": (
+            "You are LEO, a Growth Analyst. "
+            "You analyze KPIs, cohorts, A/B tests, and dashboard data to uncover actionable growth insights. "
+            "Be analytical, precise, and metric-focused."
+        ),
+    }
+
+    def get_persona_description(self, persona_id: str) -> str:
+        """
+        Returns the system prompt description for the given persona ID.
+
+        Args:
+            persona_id (str): The selected persona identifier.
+
+        Returns:
+            str: The description or system prompt for that persona.
+        """
+        return self.PERSONAS.get(
+            persona_id,
+            self.PERSONAS.get("personal_assistant")
+        )
