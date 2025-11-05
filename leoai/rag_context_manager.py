@@ -52,7 +52,7 @@ class ContextManager:
         self.db = db_manager
 
     async def build_context_summary(self, user_id, touchpoint_id, cdp_profile_id, user_message):
-        current_context = self.get_context_summary(user_id, touchpoint_id)
+        current_context = await self.get_context_summary(user_id, touchpoint_id)
         if self._needs_refresh(current_context):
             text_context = await self._retrieve_semantic_context(user_id, user_message)
             return await self._summarize_context(user_id, touchpoint_id, cdp_profile_id, text_context)
@@ -108,17 +108,21 @@ class ContextManager:
 
         return "\n".join(r["message"] for r in rows) if rows else ""
 
-    def get_context_summary(self, user_id, touchpoint_id):
-        """Load the last saved context from DB."""
-        with get_pg_conn() as conn, conn.cursor() as cur:
-            cur.execute("""
-                SELECT context_data, updated_at FROM conversational_context
-                WHERE user_id=%s AND touchpoint_id=%s;
-            """, (user_id, touchpoint_id))
-            row = cur.fetchone()
+    async def get_context_summary(self, user_id, touchpoint_id):
+        """Load the last saved context from DB using asyncpg."""
+        async with get_async_pg_conn() as conn:
+            row = await conn.fetchrow("""
+                SELECT context_data, updated_at
+                FROM conversational_context
+                WHERE user_id = $1 AND touchpoint_id = $2;
+            """, user_id, touchpoint_id)
+
             if not row:
                 return None
-            context_data, updated_at = row
+
+            context_data = row["context_data"]
+            updated_at = row["updated_at"]
+
             if isinstance(context_data, str):
                 context_data = json.loads(context_data)
             context_data["updated_at"] = updated_at

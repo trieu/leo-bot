@@ -7,6 +7,7 @@ from leoai.rag_db_manager import ChatDBManager
 from leoai.rag_context_manager import ContextManager
 from leoai.rag_prompt_builder import AgentOrchestrator
 from leoai.rag_knowledge_manager import KnowledgeRetriever
+from leoai.rag_intent_analyzer import IntentAnalyzer
 from main_config import REDIS_CLIENT
 
 logger = logging.getLogger("RAGAgent")
@@ -35,15 +36,19 @@ class RAGAgent:
         keywords: Optional[List[str]] = None,
     ) -> str:
         try:
-            # 1️⃣ Save user message (sync)
-            self.db.save_chat_message(
+            # 0. Analyze intent of user message for keywords storage purpose
+            analysis = await self.intent_analyzer.analyze(user_message)
+            # 1. Save user message
+            await self.db.save_chat_message(
                 user_id=user_id,
                 role="user",
                 message=user_message,
                 cdp_profile_id=cdp_profile_id,
                 persona_id=persona_id,
-                touchpoint_id=touchpoint_id,
-                keywords=keywords,
+                touchpoint_id=touchpoint_id,            
+                keywords=analysis.get("keywords"),
+                last_intent_label=analysis.get("last_intent_label"),
+                last_intent_confidence=analysis.get("last_intent_confidence"),
             )
 
             # 2️⃣ Build summarized context (async)

@@ -37,6 +37,11 @@ leobot.add_middleware(
     allow_headers=["*"],
 )
 
+app = FastAPI()
+@app.get("/ping")
+def ping():
+    return {"status": "ok", "msg": "Leo Bot running"}
+
 # ===== Static Files & Templates =====
 leobot.mount("/resources", StaticFiles(directory=RESOURCES_DIR), name="resources")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
@@ -330,3 +335,4 @@ async def email_agent(request: Request, user: str = Depends(get_current_user)):
     except Exception as e:
         logger.exception("Error in /email-agent handler")
         return JSONResponse(status_code=500, content={"error": str(e)})
+    

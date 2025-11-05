@@ -264,7 +264,7 @@ async def search(payload: SearchRequest, key_info: Dict[str, Any] = Depends(get_
     return {"results": results}
 
 SYSTEM_TEMPLATE = (
-    "Bạn là trợ lý AI trả lời bằng tiếng Việt, súc tích, chính xác. "
+    "Bạn là trợ lý AI tên là TRIEU, trả lời bằng tiếng Việt, súc tích, chính xác. "
     "Chỉ sử dụng thông tin từ ngữ cảnh khi có, nếu thiếu hãy nói rõ giới hạn."
 )
 
