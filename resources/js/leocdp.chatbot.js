@@ -55,7 +55,7 @@ function initLeoChatBot(context, visitorId, okCallback) {
       showLeoChatBot(currentUserProfile.displayName);
     } 
     else {
-      leoBotShowError(answer, leoBotPromptQuestion);
+      leoBotShowError(data, leoBotPromptQuestion);
     }
   });
 
@@ -392,5 +392,5 @@ var startLeoChatBot = function (visitorId) {
     setupChatBot(visitorId);
   }
 
-
 };
+
