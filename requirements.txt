@@ -1,59 +1,66 @@
 # === Web Framework ===
-fastapi                           # Web API framework
+fastapi
 uvicorn[standard]
 
-# === Markdown & Web Utilities & Templating ===
-markdown                          # Markdown to HTML rendering
-requests                          # HTTP requests (e.g., calling external APIs)
-httpx                             # modern HTTP client for Python
+# === Markdown, HTTP & Templates ===
+markdown
+httpx                     # modern async HTTP client
+jinja2
 cityhash
-jinja2                            # HTML templates if you use `Jinja2Templates` from FastAPI
 
-# === Environment Variable Management ===
-python-dotenv                     # Load environment variables from .env
+# === Environment Variables ===
+python-dotenv
 
-# SMTP email client
+# === Email ===
 aiosmtplib
 
 # === Google Cloud AI & Translation ===
-google-cloud-translate            # Google Translate API v2
-google-api-core                   # Core support for Google Cloud APIs
-google-genai               # Google Gemini SDK (includes Schema, GenerationConfig)
+google-cloud-translate
+google-api-core
+google-genai              # Gemini SDK (already depends on google-api-core)
 
-# === Transformers & Local AI Models dependencies ===
-transformers                      # HuggingFace Transformers (pipeline, AutoModel, etc.)
-torch                             # Required by Transformers for PyTorch models
-sentence-transformers             # Pretrained sentence embedding models
+# === Transformers & Local AI Models ===
+transformers
+torch                     # backend for transformers
+sentence-transformers      # depends on transformers, but needed separately
 huggingface_hub
+llama-cpp-python           # for local GGUF models (Phi-3, etc.)
 
-# for Phi-3-mini-4k-instruct-q4.gguf at https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf
-llama-cpp-python 
+# === LangChain Ecosystem ===
+langchain
 
-# === LangChain ===
-langchain                         # Orchestration framework for LLM pipelines
+# === Data Validation ===
+pydantic                   # used by FastAPI; pin version only if FastAPI compatibility requires it
 
-# === Data Validation & Models ===
-pydantic                          # Data validation and parsing using Python type hints
-
-# === PostgreSQL, ArangoDB & Redis  ===
-psycopg[binary]                   # PostgreSQL client (binary version for better performance)
-asyncpg                           # Asynchronous PostgreSQL client
-sqlalchemy                        # ORM and SQL toolkit
-python-arango                     # Python driver for ArangoDB
-redis                             # caching & Realtime Data
+# === Databases ===
+psycopg[binary]             # PostgreSQL driver
+asyncpg                     # async PostgreSQL
+sqlalchemy                  # ORM
+python-arango               # ArangoDB driver
+redis                       # caching and stream data
 
 # === Vector Search ===
-pgvector                     # Python client for vector similarity search for Postgres 15+
+pgvector
 
-# === Airflow ETL: Arango → PostgreSQL ===
+# === Airflow ETL ===
 apache-airflow==2.11.0
 apache-airflow-providers-postgres
 apache-airflow-providers-arangodb
 
-# === Data Processing ===
-numpy                             # Numerical computing
-pandas                            # Dataframes and tabular data
-scikit-learn                      # TF-IDF vectorizer and other ML tools
+# === Data & ML ===
+numpy
+pandas
+scikit-learn
 
-# === Visualization ===
+# === Visualization & Metrics ===
 matplotlib
+plotly                       # for JSON-serializable chart data
+orjson                       # fast JSON serialization
+pandas-stubs                 # type hints for Pandas in dev
+
+# === Security & Auth ===
+fastapi-keycloak             # for OpenID Connect (Keycloak integration)
+python-jose[cryptography]    # JWT handling for auth tokens
+
+# === Performance Monitoring ===
+prometheus-fastapi-instrumentator
