@@ -4,58 +4,65 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-# configs
+# Local configuration
 from main_config import RESOURCES_DIR, TEMPLATES_DIR, leobot_lifespan
 
-# inbound router
-from leobot_router.leobot_main_router import router as leobot_main_router
-from leobot_router.leobot_assets_router import router as leobot_assets_router
+# Inbound routers
+from leobot_router.leobot_main_router import router as main_router
+from leobot_router.leobot_assets_router import router as assets_router
 
-# outbound router
-from leobot_router.leobot_email_router import router as leobot_email_router
-from leobot_router.leobot_facebook_router import router as leobot_facebook_router
-from leobot_router.leobot_zalo_router import router as leobot_zalo_router
+# Outbound routers
+from leobot_router.leobot_email_router import router as email_router
+from leobot_router.leobot_facebook_router import router as facebook_router
+from leobot_router.leobot_zalo_router import router as zalo_router
 
-# admin router
-from leobot_router.leobot_admin_router import keycloak_enabled, router as leobot_admin_router
+# Admin (optional Keycloak)
+from leobot_router.leobot_admin_router import keycloak_enabled, router as admin_router
 
+# Logging setup
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("main_app")
+logger = logging.getLogger("leobot_app")
+
 
 def create_app() -> FastAPI:
+    """Create and configure the LEO Bot FastAPI application."""
     app = FastAPI(lifespan=leobot_lifespan)
 
-    # Middleware
+    # --- Middleware ---
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=["*"],      # Allow all origins (change in prod)
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
-    # Static & templates
+    # --- Static & Template Setup ---
     app.mount("/resources", StaticFiles(directory=RESOURCES_DIR), name="resources")
     app.state.templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
-    # Routers
-    app.include_router(leobot_main_router)
-    app.include_router(leobot_assets_router)
-    app.include_router(leobot_facebook_router)
-    app.include_router(leobot_zalo_router)
-    app.include_router(leobot_email_router) 
+    # --- Router Registration ---
+    routers = [
+        main_router,
+        assets_router,
+        email_router,
+        facebook_router,
+        zalo_router,
+    ]
+    for r in routers:
+        app.include_router(r)
 
-    # Conditionally add admin router
+    # --- Conditional Admin Routes ---
     if keycloak_enabled:
-        logger.info("🔐 Keycloak enabled: mounting admin routes.")
-        app.include_router(leobot_admin_router)
+        logger.info("🔐 Keycloak enabled → mounting admin routes.")
+        app.include_router(admin_router)
     else:
-        logger.warning("🚫 Keycloak disabled: skipping admin routes.")
+        logger.warning("🚫 Keycloak disabled → skipping admin routes.")
 
     return app
 
 
-# leo bot app
+# --- Entrypoint ---
 leobot = create_app()
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ set -e
 # ==========================================
 
 SCRIPT_DIR="$(dirname "$0")"
-ENV_FILE="$SCRIPT_DIR/.env"
+ENV_FILE="./dockers/keycloak/keycloak.env"
 CONTAINER_NAME="keycloak"
 VOLUME_NAME="keycloak_data"
 
@@ -15,7 +15,7 @@ if [ -f "$ENV_FILE" ]; then
   echo -e "\e[36m📄 Loading environment from $ENV_FILE\e[0m"
   export $(grep -v '^#' "$ENV_FILE" | xargs)
 else
-  echo -e "\e[33m⚠️  No .env file found — using default values\e[0m"
+  echo -e "\e[33m⚠️  No keycloak.env file found — using default values\e[0m"
 fi
 
 # ==========================================
@@ -67,6 +67,9 @@ echo -e "\n\e[32m🚀 Starting Keycloak ${KEYCLOAK_VERSION:-26.4.2} on port ${KE
 docker run -d \
   --name "$CONTAINER_NAME" \
   -p ${KEYCLOAK_PORT:-8080}:8080 \
+  -e TZ=Asia/Ho_Chi_Minh \
+  -v /etc/localtime:/etc/localtime:ro \
+  -v /etc/timezone:/etc/timezone:ro \
   -v "$VOLUME_NAME":/opt/keycloak/data \
   -e KC_BOOTSTRAP_ADMIN_USERNAME=${KC_BOOTSTRAP_ADMIN_USERNAME:-admin} \
   -e KC_BOOTSTRAP_ADMIN_PASSWORD=${KC_BOOTSTRAP_ADMIN_PASSWORD:-admin} \
