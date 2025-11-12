@@ -70,6 +70,7 @@ docker run -d \
   -e TZ=Asia/Ho_Chi_Minh \
   -v /etc/localtime:/etc/localtime:ro \
   -v /etc/timezone:/etc/timezone:ro \
+  -v $(pwd)/dockers/keycloak/themes/leobot:/opt/keycloak/themes/leobot \
   -v "$VOLUME_NAME":/opt/keycloak/data \
   -e KC_BOOTSTRAP_ADMIN_USERNAME=${KC_BOOTSTRAP_ADMIN_USERNAME:-admin} \
   -e KC_BOOTSTRAP_ADMIN_PASSWORD=${KC_BOOTSTRAP_ADMIN_PASSWORD:-admin} \
