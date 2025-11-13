@@ -35,7 +35,7 @@ check_postgres() {
     echo -e "${GREEN}✅ PostgreSQL already running on port $PG_PORT.${NC}"
   else
     echo -e "${YELLOW}⚙️  Starting PostgreSQL (pgvector)...${NC}"
-    bash ./start_pgsql_pgvector.sh
+    bash ./dockers/pgsql/start_pgsql_pgvector.sh
     for i in {1..5}; do
       sleep 1
       if nc -z localhost "$PG_PORT" 2>/dev/null; then

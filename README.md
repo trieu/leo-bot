@@ -71,7 +71,7 @@ docker --version
 Then start the database:
 
 ```bash
-./start_pgsql_pgvector.sh
+./dockers/pgsql/start_pgsql_pgvector.sh
 ```
 
 This script:
@@ -85,7 +85,7 @@ This script:
 To **reset the database**, run:
 
 ```bash
-./start_pgsql_pgvector.sh --reset-db
+./dockers/pgsql/start_pgsql_pgvector.sh --reset-db
 ```
 
 You can connect manually:
