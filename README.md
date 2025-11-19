@@ -120,6 +120,10 @@ REDIS_USER_SESSION_PORT=6480
 FB_VERIFY_TOKEN=
 FB_PAGE_ACCESS_TOKEN=your_facebook_access_token
 ZALO_OA_ACCESS_TOKEN=your_zalo_access_token
+
+LEOCDP_HOST=
+LEOCDP_TOKEN_KEY=
+LEOCDP_TOKEN_VALUE=
 ```
 
 **Gemini API setup:**

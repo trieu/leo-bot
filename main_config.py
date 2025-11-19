@@ -8,9 +8,24 @@ from redis import Redis
 from fastapi import Depends, FastAPI, HTTPException
 from leoai.ai_core import get_embedding_model
 import logging
+import structlog
 
 # Load environment variables from .env file
 load_dotenv(override=True)
+
+# --- Loggin ---
+def setup_logging():
+    logging.basicConfig(
+        format="%(message)s",
+        level=logging.INFO
+    )
+    structlog.configure(
+        processors=[
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.JSONRenderer()
+        ]
+    )
+
 
 # --- General ---
 VERSION = "1.0.0"
@@ -43,9 +58,6 @@ ZALO_OA_ACCESS_TOKEN = os.getenv("ZALO_OA_ACCESS_TOKEN")
 BASE_DIR = Path(__file__).resolve().parent
 RESOURCES_DIR = BASE_DIR / "resources"
 TEMPLATES_DIR = RESOURCES_DIR / "templates"
-
-# logging
-logging.basicConfig(level=logging.INFO)
 
 # lifespan of FastAPI app
 @asynccontextmanager
