@@ -6,6 +6,7 @@ from leoai.leo_datamodel import Message
 from leoai.rag_agent import RAGAgent
 
 from main_config import (
+    CDP_TRACKING,
     HOSTNAME,
     LEOBOT_DEV_MODE,
     REDIS_CLIENT,
@@ -52,7 +53,7 @@ async def index(request: Request):
     Loads from Jinja2 template (index.html).
     """
     ts = int(time.time())
-    data = {"request": request, "HOSTNAME": HOSTNAME, "LEOBOT_DEV_MODE": LEOBOT_DEV_MODE, "timestamp": ts}
+    data = {"request": request, "HOSTNAME": HOSTNAME, "LEOBOT_DEV_MODE": LEOBOT_DEV_MODE, "CDP_TRACKING": CDP_TRACKING, "timestamp": ts}
     templates = request.app.state.templates
     return templates.TemplateResponse("index.html", data)
 

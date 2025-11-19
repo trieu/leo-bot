@@ -85,7 +85,7 @@
         const LEOBOT_DEV_MODE = '{{ LEOBOT_DEV_MODE }}' === "True";
         const BASE_URL_LEOBOT = location.protocol + '//' + HOSTNAME + '/_leoai/ask';    
         const BASE_URL_GET_VISITOR_INFO = location.protocol + '//' + HOSTNAME + '/_leoai/visitor-info';
-        const CDP_TRACKING = false;
+        const CDP_TRACKING = "{{ CDP_TRACKING }}" === 'True' ;
     </script>
 
      <!-- LEO CHATBOT CODE -->

@@ -16,6 +16,7 @@ load_dotenv(override=True)
 VERSION = "1.0.0"
 SERVICE_NAME = f"LEO BOT VERSION: {VERSION}"
 LEOBOT_DEV_MODE = os.getenv("LEOBOT_DEV_MODE") == "true"
+CDP_TRACKING = os.getenv("CDP_TRACKING") == "true"
 HOSTNAME = os.getenv("HOSTNAME", "localhost")
 
 # --- Rate Limiting ---
