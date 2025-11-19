@@ -40,7 +40,7 @@ async def test_profile_enqueue():
         loyaltyIDs=["kiotviet-KH410273", "dpoint-1234"],
         fintechSystemIDs=["bank-123", "bank-456"],
         governmentIssuedIDs=["cccd-123", "cccd-456"],
-        notes="this is a test 2"
+        notes="this is a test 3"
     )
 
     producer = ProfileJobProducer(redis_url=redis_url, queue_name=queue_name)
