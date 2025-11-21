@@ -2,6 +2,7 @@
 
 # --- Docker configs ---
 CONTAINER_NAME="pgsql16_vector"
+VLAN_NAME="leo-vlan"
 DATA_VOLUME="pgdata_vector"
 
 # --- POSTGRES config ---
@@ -64,6 +65,7 @@ else
   echo "🚀 Launching new PostgreSQL container '${CONTAINER_NAME}'..."
   docker run -d \
     --name $CONTAINER_NAME \
+    --network $VLAN_NAME
     -e POSTGRES_USER=$POSTGRES_USER \
     -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
     -e POSTGRES_DB=$DEFAULT_DB \
