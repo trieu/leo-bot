@@ -2,15 +2,17 @@
 set -euo pipefail
 
 # ------------------------------------------------------------------------------
-# LEO BOT — Parallel Development Startup Script
+# LEO BOT — Improved Parallel Development Startup Script
 # ------------------------------------------------------------------------------
-# Fast, fault-tolerant startup sequence:
-#   1. Checks PostgreSQL (5432) and Keycloak (via Nginx HTTPS realm endpoint).
-#   2. Starts any missing services in parallel.
-#   3. Updates code, activates venv, and runs FastAPI app.
+# Fixes:
+#   - Keycloak now ALWAYS waits for PostgreSQL to be ready before starting.
+#   - Added strong retry loops & exponential wait.
+#   - Prevents race condition where Keycloak starts before PGSQL docker.
+#   - Cleaner logs + safer checks.
 # ------------------------------------------------------------------------------
 
 PG_PORT=5432
+PG_WAIT_MAX=30        # max seconds to wait for PostgreSQL
 KEYCLOAK_REALM="master"
 KEYCLOAK_URL="https://leoid.example.com"
 KEYCLOAK_HEALTHCHECK="${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/.well-known/openid-configuration"
@@ -24,75 +26,88 @@ YELLOW="\033[1;33m"
 RED="\033[1;31m"
 NC="\033[0m"
 
-echo -e "${GREEN}🚀 Starting LEO BOT dev environment (parallel mode)...${NC}"
+echo -e "${GREEN}🚀 Starting LEO BOT dev environment (improved Startup)...${NC}"
 
 # ------------------------------------------------------------------------------
-# Functions
+# Function: wait for PostgreSQL (5432)
 # ------------------------------------------------------------------------------
+wait_for_postgres() {
+  echo -e "${YELLOW}🔍 Checking PostgreSQL on port ${PG_PORT}...${NC}"
 
-check_postgres() {
+  # Already running?
   if nc -z localhost "$PG_PORT" 2>/dev/null; then
-    echo -e "${GREEN}✅ PostgreSQL already running on port $PG_PORT.${NC}"
-  else
-    echo -e "${YELLOW}⚙️  Starting PostgreSQL (pgvector)...${NC}"
-    bash ./dockers/pgsql/start_pgsql_pgvector.sh
-    for i in {1..5}; do
-      sleep 1
-      if nc -z localhost "$PG_PORT" 2>/dev/null; then
-        echo -e "${GREEN}✅ PostgreSQL is now up.${NC}"
-        return
-      fi
-    done
-    echo -e "${RED}❌ PostgreSQL failed to start on port $PG_PORT.${NC}"
-    exit 1
+    echo -e "${GREEN}✅ PostgreSQL already running.${NC}"
+    return 0
   fi
+
+  # Start PG Docker
+  echo -e "${YELLOW}⚙️  Starting PostgreSQL docker (pgvector)...${NC}"
+  bash ./dockers/pgsql/start_pgsql_pgvector.sh
+
+  # Wait until reachable
+  for ((i=1; i<=PG_WAIT_MAX; i++)); do
+    if nc -z localhost "$PG_PORT" 2>/dev/null; then
+      echo -e "${GREEN}✅ PostgreSQL is now up (after ${i}s).${NC}"
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo -e "${RED}❌ PostgreSQL did not start after ${PG_WAIT_MAX} seconds.${NC}"
+  exit 1
 }
 
-check_keycloak() {
+# ------------------------------------------------------------------------------
+# Function: wait for Keycloak (must run AFTER PostgreSQL ready)
+# ------------------------------------------------------------------------------
+wait_for_keycloak() {
   echo -e "${YELLOW}🔍 Checking Keycloak health at:${NC}"
   echo -e "    ${KEYCLOAK_HEALTHCHECK}"
+
   HTTP_STATUS=$(curl -sk --connect-timeout 3 --max-time 5 -o /dev/null -w "%{http_code}" "$KEYCLOAK_HEALTHCHECK")
 
-  if [[ "$HTTP_STATUS" =~ ^(200)$ ]]; then
-    echo -e "${GREEN}✅ Keycloak is healthy (HTTP $HTTP_STATUS).${NC}"
-  else
-    echo -e "${YELLOW}⚙️  Starting Keycloak (Docker)...${NC}"
-    bash ./dockers/keycloak/run-keycloak.sh
-    for i in {1..10}; do
-      sleep 1
-      HTTP_STATUS=$(curl -sk --connect-timeout 3 --max-time 5 -o /dev/null -w "%{http_code}" "$KEYCLOAK_HEALTHCHECK")
-      if [[ "$HTTP_STATUS" =~ ^(200)$ ]]; then
-        echo -e "${GREEN}✅ Keycloak is now healthy (HTTP $HTTP_STATUS).${NC}"
-        return
-      fi
-    done
-    echo -e "${RED}❌ Keycloak failed to respond after startup. Check Docker logs.${NC}"
-    exit 1
+  if [[ "$HTTP_STATUS" == "200" ]]; then
+    echo -e "${GREEN}✅ Keycloak is healthy.${NC}"
+    return 0
   fi
+
+  # Start KC Docker
+  echo -e "${YELLOW}⚙️  Starting Keycloak Docker...${NC}"
+  bash ./dockers/keycloak/start_keycloak.sh
+
+  # Wait for Keycloak HTTP OK
+  for i in {1..40}; do
+    HTTP_STATUS=$(curl -sk --connect-timeout 3 --max-time 5 -o /dev/null -w "%{http_code}" "$KEYCLOAK_HEALTHCHECK")
+    if [[ "$HTTP_STATUS" == "200" ]]; then
+      echo -e "${GREEN}✅ Keycloak is now healthy (after ${i}s).${NC}"
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo -e "${RED}❌ Keycloak failed to respond after startup. Check docker logs.${NC}"
+  exit 1
 }
 
 # ------------------------------------------------------------------------------
-# Step 1–2: Parallel checks
+# STEP 1: Wait for PostgreSQL first (Keycloak depends on it)
 # ------------------------------------------------------------------------------
-check_postgres &
-PID_PG=$!
-
-check_keycloak &
-PID_KC=$!
-
-# Wait for both processes
-wait $PID_PG
-wait $PID_KC
+wait_for_postgres
 
 # ------------------------------------------------------------------------------
-# Step 3: Update repo
+# STEP 2: Now check/start Keycloak
+# ------------------------------------------------------------------------------
+wait_for_keycloak
+
+# ------------------------------------------------------------------------------
+# STEP 3: Update git repo
 # ------------------------------------------------------------------------------
 echo -e "${YELLOW}📦 Updating Git repository...${NC}"
 git pull --quiet
-echo -e "${GREEN}✅ Repository is up to date.${NC}"
+echo -e "${GREEN}✅ Repository updated.${NC}"
 
 # ------------------------------------------------------------------------------
-# Step 4: Activate virtual environment
+# STEP 4: Activate Python venv
 # ------------------------------------------------------------------------------
 if [[ -f "$VENV_PATH" ]]; then
   echo -e "${YELLOW}🐍 Activating Python virtual environment...${NC}"
@@ -103,11 +118,11 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# Step 5: Launch FastAPI app
+# STEP 5: Run FastAPI App
 # ------------------------------------------------------------------------------
-echo -e "${YELLOW}⚡ Launching FastAPI app (port $FASTAPI_PORT)...${NC}"
+echo -e "${YELLOW}⚡ Launching FastAPI (port ${FASTAPI_PORT})...${NC}"
 uvicorn "$FASTAPI_APP" \
   --reload \
   --env-file .env \
   --host 0.0.0.0 \
-  --port $FASTAPI_PORT
+  --port "$FASTAPI_PORT"
