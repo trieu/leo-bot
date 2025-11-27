@@ -104,4 +104,17 @@ echo -e "\e[32m🌐 Access Keycloak at: ${KC_HOSTNAME_URL:-https://leoid.example
 echo -e "\e[36m🪵 Showing live logs (Ctrl+C to exit)\e[0m\n"
 
 sleep 3
+
+# --- Setting restart policy
+if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+  echo "Setting restart policy for: $CONTAINER_NAME"
+  docker update --restart=unless-stopped "$CONTAINER_NAME"
+  echo "Done."
+else
+  echo "Container '$CONTAINER_NAME' not found."
+  exit 1
+fi
+
+# wait to show logs
+sleep 1
 docker logs -f "$CONTAINER_NAME"

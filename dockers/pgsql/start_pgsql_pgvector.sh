@@ -170,6 +170,16 @@ for table in "${TABLES[@]}"; do
   docker exec -u postgres $CONTAINER_NAME psql -d $TARGET_DB -tc "SELECT 1 FROM pg_tables WHERE tablename = '$table'" | grep -q 1 || { echo "❌ Table '$table' missing"; exit 1; }
 done
 
+# --- Setting restart policy
+if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+  echo "Setting restart policy for: $CONTAINER_NAME"
+  docker update --restart=unless-stopped "$CONTAINER_NAME"
+  echo "Done."
+else
+  echo "Container '$CONTAINER_NAME' not found."
+  exit 1
+fi
+
 echo "✅ PostgreSQL 16 + PostGIS + pgvector is ready."
 echo "   ➜ DB: $TARGET_DB"
 echo "   ➜ Tables: ${TABLES[*]}"
