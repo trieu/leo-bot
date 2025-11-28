@@ -16,6 +16,8 @@ from transformers import AutoTokenizer
 import plotly.graph_objs as go
 from datetime import datetime, timedelta
 
+from leoai.ai_data_schema import WEATHER_FORECAST_SCHEMA, GEOLOCATION_SCHEMA
+
 # Load environment variables from .env file
 load_dotenv(override=True)
 
@@ -198,6 +200,173 @@ class GeminiClient:
         except Exception as e:
             logger.exception(f"An unexpected error occurred in generate_json: {e}")
             return {}
+        
+    def generate_geolocation_from_image(
+        self,
+        text_prompt: str,
+        image_bytes: bytes,
+        json_schema: Schema = None,
+        temperature: float = 0.25,
+        on_error: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """
+        Generate structured geolocation JSON using text + image input.
+
+        Args:
+            text_prompt (str): Natural language prompt describing what to extract.
+            image_bytes (bytes): Raw image file content.
+            json_schema (Schema): Output schema (GEOLOCATION_SCHEMA schema).
+            temperature (float): Model creativity level.
+            on_error (dict): Fallback dict if generation fails.
+
+        Returns:
+            dict: Parsed JSON adhering to GEOLOCATION_SCHEMA schema.
+        """
+        # Nếu on_error là None, khởi tạo nó là một dictionary rỗng
+        if on_error is None:
+            on_error = {}
+            
+        # Kiểm tra và sử dụng schema mặc định nếu chưa được cung cấp
+        if json_schema is None:
+            # Giả định GEOLOCATION_SCHEMA đã được import và là một object Schema hợp lệ
+            json_schema = GEOLOCATION_SCHEMA 
+            logger.debug("Using default GEOLOCATION_SCHEMA.")
+
+        try:
+            # 1. Tạo Part cho hình ảnh
+            image_part = types.Part.from_bytes(
+                data=image_bytes,
+                # Cố gắng suy luận MIME type, nhưng giữ mặc định nếu không có thông tin tốt hơn
+                mime_type="image/jpeg" 
+            )
+
+            # 2. Cấu hình GenerationConfig cho đầu ra JSON có cấu trúc
+            generation_config = types.GenerateContentConfig(
+                temperature=temperature,
+                # Chỉ định đầu ra là JSON
+                response_mime_type=JSON_TYPE, 
+                # Chỉ định Schema cho JSON
+                response_schema=json_schema,
+            )
+
+            # 3. Multimodal: text + image
+            # Contents là list chứa các phần: [image_part, text_prompt]
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[image_part, text_prompt],
+                config=generation_config,
+            )
+
+            # 4. Xử lý phản hồi
+            response_text = response.text.strip()
+            
+            # Kiểm tra xem có phản hồi không
+            if not response_text:
+                 logger.warning("Empty response received from Gemini API in JSON mode.")
+                 return on_error
+
+            return json.loads(response_text)
+
+        except GoogleAPIError as e:
+            logger.error(f"Google API error in generate_weather_forecast: {e}")
+            return on_error
+
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode failed. Model response was not valid JSON: {e}")
+            logger.debug(f"Raw model response: {response.text if 'response' in locals() else 'N/A'}")
+            return on_error
+
+        except Exception as e:
+            logger.exception(f"Unexpected error in generate_weather_forecast: {e}")
+            return on_error
+
+    
+    def generate_weather_info_from_text(
+        self,
+        raw_weather_text: str,
+        json_schema: Schema = None,
+        temperature: float = 0.25,
+        on_error: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """
+        Convert raw Windy.com scraped text into structured JSON weather info.
+
+        Args:
+            raw_weather_text (str): The extracted innerText from Windy (file.txt).
+            model (GeminiClient): Optional injected Gemini client. Auto-created if None.
+            json_schema (Schema): Output schema for structured weather forecasting.
+            temperature (float): Model creativity level.
+            on_error (dict): Fallback dictionary.
+
+        Returns:
+            dict: Weather forecast JSON following WEATHER_FORECAST_SCHEMA.
+        """
+        if on_error is None:
+            on_error = {}
+
+
+        # Use default weather schema if not provided
+        if json_schema is None:
+            json_schema = WEATHER_FORECAST_SCHEMA
+
+        # Clean & normalize the raw text
+        if not isinstance(raw_weather_text, str) or not raw_weather_text.strip():
+            logger.warning("generate_weather_info_from_text received empty input text.")
+            return on_error
+
+        cleaned = raw_weather_text.strip()
+
+        # Prompt for the LLM
+        prompt = f"""
+            You are a weather data extraction engine.
+            Extract structured weather information from the raw Windy.com text below.
+            Understand column headers, timestamps, temperature, wind, rain, and summary trends.
+            
+            Return ONLY valid JSON following this schema:
+            {json_schema}
+            
+            Raw weather text:
+            ----------------
+            {cleaned}
+            ----------------
+        """
+
+        try:
+            # Use Gemini JSON mode
+           
+            generation_config = types.GenerateContentConfig(
+                temperature=temperature,
+                response_mime_type=JSON_TYPE, 
+                response_schema=json_schema,
+            )
+
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config=generation_config,
+            )
+
+            text = response.text.strip()
+            if not text:
+                logger.error("Empty JSON response in generate_weather_info_from_text.")
+                return on_error
+
+            return json.loads(text)
+
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode failed from model response: {e}")
+            logger.debug(f"Raw response: {response.text if 'response' in locals() else 'N/A'}")
+            return on_error
+
+        except GoogleAPIError as e:
+            logger.error(f"Google API error: {e}")
+            return on_error
+
+        except Exception as e:
+            logger.exception(f"Unexpected error in generate_weather_info_from_text: {e}")
+            return on_error
+
+    
         
     def get_embedding(self, text: str) -> list[float]:
         """ get embedding of text
