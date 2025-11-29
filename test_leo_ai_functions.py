@@ -2,6 +2,7 @@
 
 from main_config import setup_logging
 from tests.test_ai_prediction import extract_geolocation_from_image, extract_weather_info_from_text, prepare_image_bytes
+import json
 
 setup_logging()
 
@@ -26,8 +27,20 @@ def run_extract_json_from_image():
     assert output["result"]["location_name"] == "Notre Dame Cathedral Basilica of Saigon"
 
 def run_extract_weather_info_from_text():
-    output = extract_weather_info_from_text('file.txt')
-    print(output)
+    # data1 = extract_weather_info_from_text(
+    #     "file1.txt",
+    #     "Extract forecast_raw_html and convert accurate weather JSON data"
+    # )
+    data2 = extract_weather_info_from_text(
+        "file2.txt",
+        "Read table meta-data, extract table data and convert accurate weather JSON data"
+    )
+
+    #  Pretty-print
+    # readable1 = json.dumps(data1, indent=2, ensure_ascii=False)
+    # print(readable1)
+    readable2 = json.dumps(data2, indent=2, ensure_ascii=False)
+    print(readable2)
 
 
 if __name__ == "__main__":

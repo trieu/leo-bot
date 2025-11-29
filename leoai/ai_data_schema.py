@@ -63,13 +63,13 @@ def build_weather_schema() -> Schema:
                                         "time_hour": Schema(type="integer", description="Hour of the day (0-23)."),
                                         "temperature_c": Schema(type="number", description="Temperature in Celsius."),
                                         "rain_mm": Schema(type="number", description="Rainfall in millimeters."),
-                                        "wind_kmh": Schema(type="number", description="Wind speed in kilometers per hour.")
+                                        "wind_ms": Schema(type="number", description="Wind speed in m/s.")
                                     },
                                     required=[
                                         "time_hour",
                                         "temperature_c",
                                         "rain_mm",
-                                        "wind_kmh"
+                                        "wind_ms"
                                     ]
                                 )
                             )

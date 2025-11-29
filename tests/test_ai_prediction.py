@@ -145,18 +145,18 @@ def extract_weather_info_from_text(
     """
 
     if client is None:
-        client = GeminiClient()
+        client = GeminiClient(model_name="gemini-2.5-flash-lite")
 
     raw_text = read_file_to_text(input_file_path)
 
     result = client.generate_weather_info_from_text(
-        text_prompt=prompt,
-        raw_text=raw_text,
+        raw_weather_text=raw_text,
+        
     )
 
     if not result:
         raise RuntimeError("Gemini returned empty result")
 
     return {
-        "result": result,
+        "result": result
     }

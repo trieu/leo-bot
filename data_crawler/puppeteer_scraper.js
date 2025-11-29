@@ -13,13 +13,14 @@ const puppeteer = require("puppeteer");
 const DEFAULT_LAT = 10.776;
 const DEFAULT_LON = 106.702;
 const DEFAULT_ZOOM = 10;
-const CSS_SELECTOR = '#plugin-detail > section.main-table.bg-white.notap.svelte-zjesw3';
+const CSS_SELECTOR = "#plugin-detail > section.main-table.bg-white.notap.svelte-zjesw3";
 
 // Build URL
 function buildUrl(lat, lon, zoom) {
   return `https://www.windy.com/${lat}/${lon}?satellite,${lat},${lon},${zoom}`;
 }
 
+const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117 Safari/537.36";
 async function getWindyForecast() {
   const lat = parseFloat(process.argv[2]) || DEFAULT_LAT;
   const lon = parseFloat(process.argv[3]) || DEFAULT_LON;
@@ -37,9 +38,7 @@ async function getWindyForecast() {
     });
 
     const page = await browser.newPage();
-    await page.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117 Safari/537.36"
-    );
+    await page.setUserAgent({userAgent:UA});
 
     await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
     await page.waitForSelector(CSS_SELECTOR, { timeout: 20000 });
@@ -69,7 +68,6 @@ ${innerText}
     fs.writeFileSync("file.txt", formatted, "utf8");
 
     console.log("✔ Forecast extracted and saved to file.txt");
-
   } catch (err) {
     console.error("❌ Scrape error:", err.message);
   } finally {
