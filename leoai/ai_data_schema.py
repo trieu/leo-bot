@@ -7,69 +7,154 @@ logger = logging.getLogger(__name__)
 
 def build_weather_schema() -> Schema:
     """
-    Build and return the Weather Forecast schema used for Gemini JSON output.
-    This schema strictly matches the weather forecast JSON structure.
+    Weather schema optimized for LLM extraction from messy Windy HTML/Markdown.
+    More explicit descriptions reduce hallucination and enforce correct parsing.
     """
 
     try:
         return Schema(
             type="object",
+            description=(
+                "Structured weather forecast extracted from Windy.com markup. "
+                "The model must normalize HTML/Markdown table values exactly as shown, "
+                "including empty cells converted to numeric zero where appropriate."
+            ),
             properties={
                 "location": Schema(
                     type="object",
+                    description="Recognized location metadata.",
                     properties={
-                        # NOTE: While the original schema used string,
-                        # latitude/longitude should ideally be numerical for downstream processing.
-                        "name": Schema(type="string", description="The recognized name of the location."),
-                        "city": Schema(type="string", description="The city or major locality."),
-                        "country": Schema(type="string", description="The country of the location."),
-                        "latitude": Schema(type="string", description="The latitude in decimal degrees (as a string)."),
-                        "longitude": Schema(type="string", description="The longitude in decimal degrees (as a string)."),
-                        "time_zone": Schema(type="string", description="The IANA time zone identifier (e.g., Asia/Ho_Chi_Minh).")
+                        "name": Schema(type="string", description="Name of the detected location."),
+                        "city": Schema(type="string", description="City name if available, otherwise 'Unknown'."),
+                        "country": Schema(type="string", description="Country name or 'Unknown'."),
+                        "latitude": Schema(
+                            type="string",
+                            description=(
+                                "Latitude in decimal degrees (from Windy URL or context). "
+                                "Return exact value as string, do not guess."
+                            )
+                        ),
+                        "longitude": Schema(
+                            type="string",
+                            description=(
+                                'Longitude in decimal degrees. '
+                                'Return as string to avoid float rounding differences.'
+                            )
+                        ),
+                        "time_zone": Schema(
+                            type="string",
+                            description="IANA timezone if inferable, otherwise 'Unknown'."
+                        )
                     },
-                    required=[
-                        "name",
-                        "city",
-                        "country",
-                        "latitude",
-                        "longitude",
-                        "time_zone"
-                    ]
+                    required=["name", "city", "country", "latitude", "longitude", "time_zone"]
                 ),
 
                 "metadata": Schema(
                     type="object",
+                    description="Metadata describing parsing and source information.",
                     properties={
-                        "data_source": Schema(type="string", description="The primary source of the forecast data."),
-                        "model_source": Schema(type="string", description="The weather model used (e.g., ECMWF)."),
-                        "updated_at": Schema(type="string", description="Timestamp of the last update.")
+                        "data_source": Schema(type="string", description="Fixed: 'Windy.com'."),
+                        "model_source": Schema(
+                            type="string",
+                            description="Weather model if explicitly visible. Otherwise return 'Unknown'."
+                        ),
+                        "source_url": Schema(
+                            type="string",
+                            description="The raw Windy.com URL from the markdown section."
+                        ),
+                        "updated_at": Schema(
+                            type="string",
+                            description="Timestamp for when the data was captured."
+                        )
                     },
                     required=["data_source", "model_source", "updated_at"]
                 ),
 
                 "forecast_days": Schema(
                     type="array",
-                    description="Daily forecast aggregated by 3-hour intervals.",
+                    description=(
+                        "List of daily forecasts. "
+                        "LLM must map each vertical column in the table to a correct day/date."
+                    ),
                     items=Schema(
                         type="object",
                         properties={
-                            "date": Schema(type="string", description="Date of the forecast (e.g., '2025-11-28')."),
+                            "date": Schema(
+                                type="string",
+                                description=(
+                                    "Date in YYYY-MM-DD. "
+                                    "Model must infer day alignment from markdown headings (e.g. 'Sunday 30'). "
+                                    "Convert day-of-month into full ISO date based on provided timestamp."
+                                )
+                            ),
                             "hours": Schema(
                                 type="array",
-                                description="Hourly forecast details.",
+                                description="Hourly forecast extracted column-by-column.",
                                 items=Schema(
                                     type="object",
+                                    description="Weather entry for a specific hour.",
                                     properties={
-                                        "time_hour": Schema(type="integer", description="Hour of the day (0-23)."),
-                                        "temperature_c": Schema(type="number", description="Temperature in Celsius."),
-                                        "rain_mm": Schema(type="number", description="Rainfall in millimeters."),
-                                        "wind_ms": Schema(type="number", description="Wind speed in m/s.")
+                                        "time_hour": Schema(
+                                            type="integer",
+                                            description=(
+                                                "Hour of the day (0–23). "
+                                                "Extract directly from the hour row in the table."
+                                            )
+                                        ),
+                                        "temperature_c": Schema(
+                                            type="number",
+                                            description=(
+                                                "Temperature in Celsius. "
+                                                "Remove degree symbol. "
+                                                "Convert blank/missing to null only if Windy shows no cell."
+                                            )
+                                        ),
+                                        "rain_mm": Schema(
+                                            type="number",
+                                            description=(
+                                                "Rain in millimeters. "
+                                                "Empty cell = 0. "
+                                                "Never guess values not present in Markdown."
+                                            )
+                                        ),
+                                        "wind_kt": Schema(
+                                            type="number",
+                                            description=(
+                                                "Wind speed in knots as shown in the wind row. "
+                                                "Extract the raw integer text inside the colored gradient cell."
+                                            )
+                                        ),
+                                        "wind_gust_kt": Schema(
+                                            type="number",
+                                            description=(
+                                                "Wind gust value from the gust row. "
+                                                "If the cell is empty, return 0."
+                                            ),
+                                            nullable=True
+                                        ),
+                                        "wind_direction_deg": Schema(
+                                            type="number",
+                                            description=(
+                                                "Numeric direction from rotated arrow CSS transform "
+                                                "(e.g. rotate(267deg)). "
+                                                "Return the degree number only."
+                                            ),
+                                            nullable=True
+                                        ),
+                                        "icon_url": Schema(
+                                            type="string",
+                                            description=(
+                                                "Full URL of the weather icon from the icon row. "
+                                                "Use srcset @2x image for highest quality."
+                                            ),
+                                            nullable=True
+                                        )
                                     },
                                     required=[
                                         "time_hour",
                                         "temperature_c",
                                         "rain_mm",
-                                        "wind_ms"
+                                        "wind_kt"
                                     ]
                                 )
                             )
@@ -84,6 +169,7 @@ def build_weather_schema() -> Schema:
     except Exception as e:
         logger.exception("Failed to build Weather Forecast schema.")
         raise e
+    
 
 
 def build_geolocation_schema() -> Schema:

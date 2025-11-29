@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """
 Windy Forecast Scraper — Firefox / accuracy-first
-Saves LLM-ready structured text to file.txt
-
 Usage:
     python windy_scraper_firefox.py [lat] [lon]
 
@@ -20,85 +18,105 @@ from playwright.async_api import async_playwright, TimeoutError
 # Defaults
 DEFAULT_LAT = 10.776
 DEFAULT_LON = 106.702
-DEFAULT_ZOOM = 10
+DEFAULT_ZOOM = 9
 
-# The element we want to extract text from (Table View)
-CSS_SELECTOR = "table.forecast-table__table"
-
-# The element we wait for to ensure the page is fully rendered (Meteogram Canvas)
+DATA_SELECTOR = "table.forecast-table__table"
 CANVAS_SELECTOR = "canvas.forecast-table__canvas"
 
-# Desktop UA
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/117 Safari/537.36"
 )
 
-# Tunables
-NAV_TIMEOUT = 90_000       # 90s
-WAIT_TIMEOUT = 45_000      # 45s
+NAV_TIMEOUT = 90000
+WAIT_TIMEOUT = 45000
 RETRIES = 2
-DEBUG_SCREENSHOT = "windy_debug.png"
-
 
 def build_url(lat, lon, zoom):
     return f"https://www.windy.com/{lat}/{lon}?satellite,{lat},{lon},{zoom}"
 
 
-async def run_once(page, url):
+async def run_once(page, url, screenshot_path):
     """
-    Navigate and wait until the canvas is rendered, then extract text.
-    Returns inner_text or raises on failure.
+    Navigate, ensure canvas is fully rendered, wait 5s, extract table HTML,
+    and take a final screenshot.
     """
-    # 1. Navigate
     await page.goto(url, wait_until="domcontentloaded", timeout=NAV_TIMEOUT)
 
-    # 2. Wait for the Canvas to be fully loaded
-    # We define "fully loaded" as: element exists AND has non-zero dimensions
     print("Waiting for forecast canvas to render...")
     try:
         await page.wait_for_function(
-            f"""() => {{
-                const canvas = document.querySelector('{CANVAS_SELECTOR}');
-                if (!canvas) return false;
-                // Check if canvas has been drawn (has dimensions)
-                return canvas.width > 0 && canvas.height > 0;
-            }}""",
+            f"""
+            () => {{
+                const c = document.querySelector('{CANVAS_SELECTOR}');
+                if (!c) return false;
+                return c.width > 0 && c.height > 0;
+            }}
+            """,
             timeout=WAIT_TIMEOUT
         )
     except TimeoutError:
-        raise TimeoutError(
-            f"Canvas '{CANVAS_SELECTOR}' did not load within {WAIT_TIMEOUT}ms")
+        raise TimeoutError(f"Canvas '{CANVAS_SELECTOR}' failed to load.")
 
-    # 3. Extract Text from the data table
-    table_node = await page.query_selector(CSS_SELECTOR)
+    table_node = await page.query_selector(DATA_SELECTOR)
     if not table_node:
         raise RuntimeError(
-            f"Canvas loaded, but text selector '{CSS_SELECTOR}' not found."
+            f"Canvas rendered, but table selector '{DATA_SELECTOR}' not found."
         )
 
-    # 👉 Delete 3rd row in the table BEFORE extracting HTML
+    # every <img> inside each row to get its src (or srcset) rewritten into a full Windy URL:
     await page.evaluate(
         """(selector) => {
             const table = document.querySelector(selector);
             if (!table) return;
 
-            const rows = table.querySelectorAll('tr');
-            if (rows.length >= 3) {
-                rows[2].remove();
-            }
+            const rows = table.querySelectorAll("tr");
+
+            const BASE = "https://www.windy.com";
+            const imgs = table.querySelectorAll("img");
+
+            imgs.forEach(img => {
+                // Fix src
+                const src = img.getAttribute("src");
+                if (src && src.startsWith("/")) {
+                    img.setAttribute("src", BASE + src);
+                }
+
+                // Fix srcset
+                const srcset = img.getAttribute("srcset");
+                if (srcset) {
+                    const rewritten = srcset.split(",")
+                        .map(item => {
+                            const parts = item.trim().split(" ");
+                            const url = parts[0];
+                            const density = parts[1];
+                            const fullUrl = url.startsWith("/") ? BASE + url : url;
+                            return density ? `${fullUrl} ${density}` : fullUrl;
+                        })
+                        .join(", ");
+                    img.setAttribute("srcset", rewritten);
+                }
+            });
         }""",
-        CSS_SELECTOR
+        DATA_SELECTOR
     )
 
-    # Now safely extract clean HTML
+
+    print("Canvas loaded. Waiting 5 seconds for final render stabilization...")
+    await asyncio.sleep(5)
+
+    # Guaranteed final screenshot
+    try:
+        await page.screenshot(path=screenshot_path, full_page=True)
+        print(f"Screenshot saved → {screenshot_path}")
+    except Exception as err:
+        print(f"Screenshot failed: {err}")
+
     return await table_node.inner_html()
 
 
-
 async def get_windy_forecast():
-    # Parse CLI
     try:
         lat = float(sys.argv[1])
         lon = float(sys.argv[2])
@@ -106,49 +124,59 @@ async def get_windy_forecast():
         lat = DEFAULT_LAT
         lon = DEFAULT_LON
 
+    # Generate meaningful filenames
+    timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    base_name = f"windy_{lat}_{lon}_{timestamp_str}"
+    
+    screenshot_filename = f"./data_windy/{base_name}.png"
+    text_filename = f"./data_windy/{base_name}.txt"
+    debug_filename = f"./data_windy/{base_name}_debug.png"
+
     url = build_url(lat, lon, DEFAULT_ZOOM)
     print(f"Scraping Windy Forecast @ {lat}, {lon}")
     print(f"→ {url}")
 
     async with async_playwright() as p:
-        # Launch Firefox
         browser = await p.firefox.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-setuid-sandbox"],
+            args=["--no-sandbox", "--disable-setuid-sandbox"]
         )
 
         context = await browser.new_context(
             user_agent=USER_AGENT,
-            viewport={"width": 1366, "height": 768},
+            viewport={"width": 1800, "height": 1200},
             java_script_enabled=True,
             device_scale_factor=1,
         )
 
         page = await context.new_page()
-
+        
+        inner_html = None
         last_error = None
-        inner_text = None
 
         for attempt in range(1, RETRIES + 2):
             try:
-                print(f"Attempt {attempt} — navigating...")
-                inner_text = await run_once(page, url)
-                break  # Success
+                print(f"Attempt {attempt}…")
+                inner_html = await run_once(page, url, screenshot_filename)
+                break
             except Exception as exc:
                 last_error = exc
                 print(f"Attempt {attempt} failed: {exc}")
+
                 await asyncio.sleep(2 * attempt)
+
                 try:
-                    await page.reload(wait_until="domcontentloaded", timeout=30_000)
+                    await page.reload(
+                        wait_until="domcontentloaded",
+                        timeout=30000
+                    )
                 except Exception:
                     pass
 
-        # Handle Final Failure
-        if inner_text is None:
-            print("❌ Final failure — capturing debugging screenshot.")
+        if inner_html is None:
+            print(f"❌ Final failure — saving debug screenshot to {debug_filename}")
             try:
-                await page.screenshot(path=DEBUG_SCREENSHOT, full_page=True)
-                print(f"Screenshot saved to {DEBUG_SCREENSHOT}")
+                await page.screenshot(path=debug_filename, full_page=True)
             except Exception:
                 pass
             await browser.close()
@@ -156,37 +184,40 @@ async def get_windy_forecast():
 
         await browser.close()
 
-    # Build Output
+    # Write file
     timestamp = datetime.now().isoformat()
-    formatted = f"""
-# Windy Forecast — LLM Parsing Output
+    content = f"""
+# Windy Raw Data
 timestamp: {timestamp}
 latitude: {lat}
 longitude: {lon}
 source_url: {url}
+screenshot: {screenshot_filename}
 
 ## Table Meta-data
 
 Table has total 7 rows:
 
 - Row 1: Date in python format %A %d
-- Row 2: Hour in 24h format
-- Row 3: Temperature in Celsius
-- Row 4: Rain in mm
-- Row 5: Wind in m/s
-- Row 6: Wind gusts in m/s
-- Row 7: Wind direction
+- Row 2: The icon image of weather
+- Row 3: Hour in 24h format
+- Row 4: Temperature in Celsius
+- Row 5: Rain in mm
+- Row 6: Wind in kt (knots)
+- Row 7: Wind gusts in kt (knots)
+- Row 8: Wind direction
 
 ## Table Raw Data
-<table class="forecast-table__table" >
-{inner_text}
+<table class="forecast-table__table">
+{inner_html}
 </table>
 
 # end_of_record
     """.strip()
 
-    Path("file2.txt").write_text(formatted, encoding="utf-8")
-    print("✔ Forecast extracted and saved to file2.txt")
+    Path(text_filename).write_text(content, encoding="utf-8")
+    print(f"✔ Forecast extracted and written to {text_filename}")
+
 
 if __name__ == "__main__":
     asyncio.run(get_windy_forecast())

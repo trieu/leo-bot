@@ -178,3 +178,6 @@ leoai/ml-1m.zip.1
 leoai/ml-1m.zip.2
 
 Core/__pycache__/
+
+data_windy/
+data_windy/**

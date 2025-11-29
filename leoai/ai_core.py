@@ -285,7 +285,7 @@ class GeminiClient:
         self,
         raw_weather_text: str,
         json_schema: Schema = None,
-        temperature: float = 0.25,
+        temperature: float = 0.2,
         on_error: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """
@@ -318,17 +318,54 @@ class GeminiClient:
 
         # Prompt for the LLM
         prompt = f"""
-            You are a weather data extraction engine.
-            Extract structured weather information from the raw Windy.com text below.
-            Understand column headers, timestamps, temperature, wind, rain, and summary trends.
-            
-            Return ONLY valid JSON following this schema:
-            {json_schema}
-            
-            Raw weather text:
+            You convert a Windy.com forecast-table HTML snippet into a structured weather JSON object.
+
+            Follow these rules precisely:
+
+            1) Treat the HTML as a strict table.  
+            - Every <tr> is a row type.
+            - Every <td> is a column aligned horizontally across all rows.
+            - Columns NEVER shift order across rows.
+
+            2) Day assignment:
+            - A day header (e.g., "Saturday 29") applies to all subsequent columns
+                until the next day header appears.
+            - You MUST align each column index to the correct day based strictly
+                on the order of day headers in the HTML.
+
+            3) Row → variable mapping:
+            - tr--hour: hour values in 24h integer form.
+            - tr--icon: weather icon URL. Use the @2x srcset URL.
+            - tr--temp: temperature in Celsius. Remove “°”.
+            - tr--rain: rain in mm. Blank = 0. Do not invent values.
+            - tr--wind: wind speed in knots.
+            - tr--gust: wind gusts in knots.
+            - tr--windDir: wind direction. Extract the numeric degrees from
+                the CSS transform: rotate(Xdeg).
+
+            4) Data integrity rules:
+            - All arrays must preserve the exact left-to-right positional mapping
+                across all rows.
+            - Do not reorder, merge, or resample hours.
+            - If a cell is blank, return 0 (for numeric fields) or null
+                if allowed by the schema.
+
+            5) Forbidden:
+            - No hallucinated numbers.
+            - No inferred data not explicitly shown.
+            - No commentary or markdown.
+            - No alternative interpretations.
+
+            6) Required:
+            - Produce ONLY valid JSON following this schema:
+                {json_schema}
+
+            The output MUST be valid JSON that parses without errors.
+
+            Raw Windy HTML to extract from:
             ----------------
             {cleaned}
-            ----------------
+            ---
         """
 
         try:
