@@ -29,14 +29,15 @@ def run_extract_json_from_image():
     assert output["result"]["city"] == "Ho Chi Minh City"
     assert output["result"]["location_name"] == "Notre Dame Cathedral Basilica of Saigon"
 
+
 def run_extract_weather_info_from_text():
     lat = float(sys.argv[1])
     lon = float(sys.argv[2])
-    asyncio.run(process_weather_data(lat,lon))
+    asyncio.run(process_weather_data(lat, lon, 2))
 
 
 if __name__ == "__main__":
-    #run_prepare_image_bytes_jpeg()
-    #run_extract_json_from_image()
+    # run_prepare_image_bytes_jpeg()
+    # run_extract_json_from_image()
     run_extract_weather_info_from_text()
     print("All unit tasks finished.")

@@ -132,7 +132,7 @@ def extract_geolocation_from_image(
     }
 
 
-def extract_weather_info_from_text(input_file_path: str, client: Optional[GeminiClient] = None) -> Dict:
+def extract_weather_info_from_text(input_file_path: str, limit_days: int, client: Optional[GeminiClient] = None) -> Dict:
     """
     High-level function that:
     1) Prepares raw data from file or database
@@ -146,12 +146,10 @@ def extract_weather_info_from_text(input_file_path: str, client: Optional[Gemini
     raw_text = read_file_to_text(input_file_path)
 
     result = client.generate_weather_info_from_text(
-        raw_weather_text=raw_text, temperature=0.1
+        raw_weather_text=raw_text, temperature=0.1, limit_days=limit_days
     )
 
     if not result:
         raise RuntimeError("Gemini returned empty result")
 
-    return {
-        "result": result
-    }
+    return result

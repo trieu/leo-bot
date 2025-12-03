@@ -299,6 +299,7 @@ class GeminiClient:
         raw_weather_text: str,
         json_schema: Schema = None,
         temperature: float = 0.2,
+        limit_days: int = 0,
         on_error: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """
@@ -330,7 +331,7 @@ class GeminiClient:
         cleaned_text = raw_weather_text.strip()
 
         # Prompt for the LLM
-        prompt = build_weather_prompt(json_schema, cleaned_text)
+        prompt = build_weather_prompt(json_schema, cleaned_text, limit_days)
         try:
             # Use Gemini JSON mode
 
