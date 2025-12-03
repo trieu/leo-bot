@@ -14,6 +14,7 @@ import asyncio
 from datetime import datetime
 from pathlib import Path
 from playwright.async_api import async_playwright, TimeoutError
+import re
 
 # Defaults
 DEFAULT_LAT = 10.776
@@ -21,6 +22,7 @@ DEFAULT_LON = 106.702
 DEFAULT_ZOOM = 9
 
 DATA_SELECTOR = "table.forecast-table__table"
+LOCATION_SELECTOR = "div.services__content"
 CANVAS_SELECTOR = "canvas.forecast-table__canvas"
 
 USER_AGENT = (
@@ -102,7 +104,6 @@ async def run_once(page, url, screenshot_path):
         DATA_SELECTOR
     )
 
-
     print("Canvas loaded. Waiting 5 seconds for final render stabilization...")
     await asyncio.sleep(5)
 
@@ -113,7 +114,14 @@ async def run_once(page, url, screenshot_path):
     except Exception as err:
         print(f"Screenshot failed: {err}")
 
-    return await table_node.inner_html()
+    weather_raw_data =  await table_node.inner_html()
+    location_raw_data = ""
+    location_node = await page.query_selector(LOCATION_SELECTOR)
+    if location_node:
+        text = await location_node.inner_text()
+        location_raw_data = re.sub(r"\n+", " ", text)
+        
+    return location_raw_data , weather_raw_data
 
 
 async def get_windy_forecast():
@@ -151,13 +159,14 @@ async def get_windy_forecast():
 
         page = await context.new_page()
         
-        inner_html = None
+        location_raw_data = ""
+        weather_raw_data = None
         last_error = None
 
         for attempt in range(1, RETRIES + 2):
             try:
                 print(f"Attempt {attempt}…")
-                inner_html = await run_once(page, url, screenshot_filename)
+                location_raw_data , weather_raw_data = await run_once(page, url, screenshot_filename)
                 break
             except Exception as exc:
                 last_error = exc
@@ -173,7 +182,7 @@ async def get_windy_forecast():
                 except Exception:
                     pass
 
-        if inner_html is None:
+        if weather_raw_data is None:
             print(f"❌ Final failure — saving debug screenshot to {debug_filename}")
             try:
                 await page.screenshot(path=debug_filename, full_page=True)
@@ -188,6 +197,7 @@ async def get_windy_forecast():
     timestamp = datetime.now().isoformat()
     content = f"""
 # Windy Raw Data
+location_raw_data: {location_raw_data}
 timestamp: {timestamp}
 latitude: {lat}
 longitude: {lon}
@@ -207,9 +217,9 @@ Table has total 7 rows:
 - Row 7: Wind gusts in kt (knots)
 - Row 8: Wind direction
 
-## Table Raw Data
+## Table of Raw Weather Data
 <table class="forecast-table__table">
-{inner_html}
+{weather_raw_data}
 </table>
 
 # end_of_record

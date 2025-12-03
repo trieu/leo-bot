@@ -31,7 +31,7 @@ def run_extract_weather_info_from_text():
     #     "file1.txt",
     #     "Extract forecast_raw_html and convert accurate weather JSON data"
     # )
-    data2 = extract_weather_info_from_text("./data_windy/windy_10.747_106.633_20251129_164617.txt")
+    data2 = extract_weather_info_from_text("./data_windy/windy_10.776_106.702_20251203_124803.txt")
 
     #  Pretty-print
     # readable1 = json.dumps(data1, indent=2, ensure_ascii=False)
