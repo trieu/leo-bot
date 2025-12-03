@@ -17,8 +17,6 @@ from playwright.async_api import async_playwright, TimeoutError
 import re
 
 # Defaults
-DEFAULT_LAT = 10.776
-DEFAULT_LON = 106.702
 DEFAULT_ZOOM = 9
 
 DATA_SELECTOR = "table.forecast-table__table"
@@ -34,6 +32,7 @@ USER_AGENT = (
 NAV_TIMEOUT = 90000
 WAIT_TIMEOUT = 45000
 RETRIES = 2
+
 
 def build_url(lat, lon, zoom):
     return f"https://www.windy.com/{lat}/{lon}?satellite,{lat},{lon},{zoom}"
@@ -114,28 +113,22 @@ async def run_once(page, url, screenshot_path):
     except Exception as err:
         print(f"Screenshot failed: {err}")
 
-    weather_raw_data =  await table_node.inner_html()
+    weather_raw_data = await table_node.inner_html()
     location_raw_data = ""
     location_node = await page.query_selector(LOCATION_SELECTOR)
     if location_node:
         text = await location_node.inner_text()
         location_raw_data = re.sub(r"\n+", " ", text)
-        
-    return location_raw_data , weather_raw_data
+
+    return location_raw_data, weather_raw_data
 
 
-async def get_windy_forecast():
-    try:
-        lat = float(sys.argv[1])
-        lon = float(sys.argv[2])
-    except (IndexError, ValueError):
-        lat = DEFAULT_LAT
-        lon = DEFAULT_LON
+async def get_windy_forecast_raw_data(lat: float, lon: float):
 
     # Generate meaningful filenames
     timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_name = f"windy_{lat}_{lon}_{timestamp_str}"
-    
+
     screenshot_filename = f"./data_windy/{base_name}.png"
     text_filename = f"./data_windy/{base_name}.txt"
     debug_filename = f"./data_windy/{base_name}_debug.png"
@@ -158,7 +151,7 @@ async def get_windy_forecast():
         )
 
         page = await context.new_page()
-        
+
         location_raw_data = ""
         weather_raw_data = None
         last_error = None
@@ -166,7 +159,7 @@ async def get_windy_forecast():
         for attempt in range(1, RETRIES + 2):
             try:
                 print(f"Attempt {attempt}…")
-                location_raw_data , weather_raw_data = await run_once(page, url, screenshot_filename)
+                location_raw_data, weather_raw_data = await run_once(page, url, screenshot_filename)
                 break
             except Exception as exc:
                 last_error = exc
@@ -183,7 +176,8 @@ async def get_windy_forecast():
                     pass
 
         if weather_raw_data is None:
-            print(f"❌ Final failure — saving debug screenshot to {debug_filename}")
+            print(
+                f"❌ Final failure — saving debug screenshot to {debug_filename}")
             try:
                 await page.screenshot(path=debug_filename, full_page=True)
             except Exception:
@@ -227,7 +221,4 @@ Table has total 7 rows:
 
     Path(text_filename).write_text(content, encoding="utf-8")
     print(f"✔ Forecast extracted and written to {text_filename}")
-
-
-if __name__ == "__main__":
-    asyncio.run(get_windy_forecast())
+    return text_filename, screenshot_filename

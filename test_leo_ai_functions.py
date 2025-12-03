@@ -1,6 +1,9 @@
 # run_all_units.py
 
+import asyncio
+import sys
 from main_config import setup_logging
+from test_poc.test_windy_scraper import process_weather_data
 from tests.test_ai_prediction import extract_geolocation_from_image, extract_weather_info_from_text, prepare_image_bytes
 import json
 
@@ -27,17 +30,9 @@ def run_extract_json_from_image():
     assert output["result"]["location_name"] == "Notre Dame Cathedral Basilica of Saigon"
 
 def run_extract_weather_info_from_text():
-    # data1 = extract_weather_info_from_text(
-    #     "file1.txt",
-    #     "Extract forecast_raw_html and convert accurate weather JSON data"
-    # )
-    data2 = extract_weather_info_from_text("./data_windy/windy_10.776_106.702_20251203_124803.txt")
-
-    #  Pretty-print
-    # readable1 = json.dumps(data1, indent=2, ensure_ascii=False)
-    # print(readable1)
-    readable2 = json.dumps(data2, indent=2, ensure_ascii=False)
-    print(readable2)
+    lat = float(sys.argv[1])
+    lon = float(sys.argv[2])
+    asyncio.run(process_weather_data(lat,lon))
 
 
 if __name__ == "__main__":
