@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chat with Docs | AI Agent</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+      rel="stylesheet"
+    />
+
+    <style>
+      /* --- Global Settings --- */
+      body {
+        background-color: #f4f6f9;
+        font-family: "Segoe UI", "Roboto", "Helvetica Neue", sans-serif;
+        color: #333;
+      }
+
+      /* --- Card Styling --- */
+      .main-card {
+        border: none;
+        border-radius: 16px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+        overflow: hidden; /* Keeps headers corners rounded */
+      }
+      .card-header {
+        background-color: #fff;
+        border-bottom: 1px solid #f0f0f0;
+        padding: 20px 25px;
+      }
+      .card-body {
+        padding: 30px; /* More padding for spacious feel */
+      }
+
+      /* --- Input Elements --- */
+      .url-entry {
+        transition: all 0.2s ease;
+      }
+      .form-control:focus {
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.25);
+        border-color: #667eea;
+      }
+      .btn-think {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        color: white;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        box-shadow: 0 4px 15px rgba(118, 75, 162, 0.3);
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+      .btn-think:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(118, 75, 162, 0.4);
+        color: white;
+      }
+      .btn-think:active {
+        transform: translateY(0);
+      }
+
+      /* --- Response Area (The Main Fix) --- */
+      .response-area {
+        display: none; /* Hidden by default */
+        background-color: #f8f9fa; /* Light grey paper look */
+        color: #2d3436;
+        border-radius: 12px;
+        padding: 25px;
+        margin-top: 20px;
+        border: 1px solid #e9ecef;
+
+        /* Typography */
+        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+        font-size: 1rem;
+        line-height: 1.6; /* Improves reading flow */
+      }
+
+      /* Formatting parsed HTML elements inside Response Area */
+      .response-area p {
+        margin-bottom: 1rem !important; /* Restore standard spacing */
+      }
+
+      .response-area strong {
+        color: #2c3e50;
+        font-weight: 700;
+      }
+
+      /* List Styling */
+      .response-area ul {
+        padding-left: 20px;
+        margin-bottom: 1rem;
+      }
+      .response-area li {
+        margin-bottom: 0.5rem;
+      }
+      /* Nested lists spacing */
+      .response-area li > ul {
+        margin-top: 0.5rem;
+        border-left: 3px solid #e9ecef; /* Visual guide for nested items */
+        padding-left: 15px;
+      }
+
+      /* Link Styling */
+      .response-area a {
+        color: #0d6efd;
+        text-decoration: none;
+        font-weight: 500;
+
+        /* CRITICAL: Wraps long URLs so they don't break mobile view */
+        word-break: break-word;
+        overflow-wrap: break-word;
+      }
+      .response-area a:hover {
+        text-decoration: underline;
+        color: #0a58ca;
+      }
+
+      /* Optional: Make "[SOURCE...]" links look smaller/cleaner */
+      .response-area a[href^="http"] {
+        font-size: 0.9em;
+        background-color: rgba(13, 110, 253, 0.05);
+        padding: 2px 5px;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container py-5">
+      <div class="row justify-content-center">
+        <div class="col-lg-8">
+          <div class="card main-card">
+            <div
+              class="card-header d-flex justify-content-between align-items-center"
+            >
+              <h4 class="mb-0">
+                <i class="fas fa-robot text-primary me-2"></i>Multi-Source Chat
+              </h4>
+              <span class="badge bg-light text-dark">v1.0</span>
+            </div>
+
+            <div class="card-body p-4">
+              <div class="mb-4">
+                <label
+                  class="form-label fw-bold text-secondary text-uppercase small"
+                  >Knowledge Base (Source URLs)</label
+                >
+                <div id="url-container"></div>
+                <button
+                  type="button"
+                  class="btn btn-outline-primary btn-sm mt-2"
+                  id="add-url-btn"
+                >
+                  <i class="fas fa-plus me-1"></i> Add Source URL
+                </button>
+              </div>
+
+              <hr class="my-4" />
+
+              <div class="mb-4">
+                <label
+                  for="question-input"
+                  class="form-label fw-bold text-secondary text-uppercase small"
+                  >Your Question</label
+                >
+                <textarea
+                  class="form-control"
+                  id="question-input"
+                  rows="4"
+                  placeholder="What would you like to know from the documents?"
+                ></textarea>
+              </div>
+
+              <div class="d-grid gap-2">
+                <button class="btn btn-think py-3" id="submit-btn">
+                  <i class="fas fa-brain me-2"></i> Think & Answer
+                </button>
+              </div>
+
+              <div id="response-container" class="mt-4">
+                <div id="response-area" class="response-area"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <!-- leobot.chat-with-docs -->
+    <script src="https://{{ HOSTNAME }}/resources/js/leobot.chat-with-docs.js?_={{ timestamp }}"></script>
+  </body>
+</html>
