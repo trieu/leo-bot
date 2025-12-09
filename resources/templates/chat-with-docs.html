@@ -127,6 +127,20 @@
         border-radius: 4px;
       }
     </style>
+
+
+<!-- Paste this right before your closing </head> tag -->
+<script type="text/javascript">
+  (function(e,c){if(!c.__SV){var l,h;window.mixpanel=c;c._i=[];c.init=function(q,r,f){function t(d,a){var g=a.split(".");2==g.length&&(d=d[g[0]],a=g[1]);d[a]=function(){d.push([a].concat(Array.prototype.slice.call(arguments,0)))}}var b=c;"undefined"!==typeof f?b=c[f]=[]:f="mixpanel";b.people=b.people||[];b.toString=function(d){var a="mixpanel";"mixpanel"!==f&&(a+="."+f);d||(a+=" (stub)");return a};b.people.toString=function(){return b.toString(1)+".people (stub)"};l="disable time_event track track_pageview track_links track_forms track_with_groups add_group set_group remove_group register register_once alias unregister identify name_tag set_config reset opt_in_tracking opt_out_tracking has_opted_in_tracking has_opted_out_tracking clear_opt_in_out_tracking start_batch_senders start_session_recording stop_session_recording people.set people.set_once people.unset people.increment people.append people.union people.track_charge people.clear_charges people.delete_user people.remove".split(" ");
+  for(h=0;h<l.length;h++)t(b,l[h]);var n="set set_once union unset remove delete".split(" ");b.get_group=function(){function d(p){a[p]=function(){b.push([g,[p].concat(Array.prototype.slice.call(arguments,0))])}}for(var a={},g=["get_group"].concat(Array.prototype.slice.call(arguments,0)),m=0;m<n.length;m++)d(n[m]);return a};c._i.push([q,r,f])};c.__SV=1.2;var k=e.createElement("script");k.type="text/javascript";k.async=!0;k.src="undefined"!==typeof MIXPANEL_CUSTOM_LIB_URL?MIXPANEL_CUSTOM_LIB_URL:"file:"===
+  e.location.protocol&&"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js".match(/^\/\//)?"https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js":"//cdn.mxpnl.com/libs/mixpanel-2-latest.min.js";e=e.getElementsByTagName("script")[0];e.parentNode.insertBefore(k,e)}})(document,window.mixpanel||[])
+
+  mixpanel.init('90186f03df50f10037e58f0d25d6a2e7', {
+    autocapture: true,
+    record_sessions_percent: 100,
+  })
+</script>
+
   </head>
   <body>
     <div class="container py-5">
@@ -195,5 +209,162 @@
 
     <!-- leobot.chat-with-docs -->
     <script src="https://{{ HOSTNAME }}/resources/js/leobot.chat-with-docs.js?_={{ timestamp }}"></script>
+
+
+    <script>
+// (1) CDP_EVENT_OBSERVER: load JavaScript code for [chat-with-docs]
+(function() { 	
+	// Observer ID
+	window.leoObserverId = "6TJzCyotEHYBzse2a2rVl";
+	
+	// CDN of JS
+	window.leoObserverLogDomain = "datahub4uspa.leocdp.net";
+  	window.leoObserverCdnDomain = "cdn.jsdelivr.net/gh/USPA-Technology/leo-cdp-static-files@v0.9";
+	
+	// Data Touchpoint Metadata 
+	window.srcTouchpointName = encodeURIComponent(document.title);
+	window.srcTouchpointUrl = encodeURIComponent(location.href);
+
+	// the main proxy CDP JS
+	var leoproxyJsPath = '/js/leo-observer/leo.proxy.min.js';
+    var src = location.protocol + '//' + window.leoObserverCdnDomain + leoproxyJsPath;
+    var jsNode = document.createElement('script');
+    jsNode.async=true; jsNode.defer=true; jsNode.src = src;
+    var s = document.getElementsByTagName('script')[0];
+    s.parentNode.insertBefore(jsNode, s);
+})();
+
+var parseDataUTM = window.parseDataUTM || function () {
+    if (location.search.indexOf('utm_') > 0) {
+        var search = location.search.substring(1);
+        var json = decodeURI(search).replace(/"/g, '\\"').replace(/&/g, '","').replace(/=/g, '":"');
+        return JSON.parse('{"' + json + '"}');
+    }
+}
+	
+// (2) CDP EVENT OBSERVER: set-up all event tracking functions
+var LeoObserver = {};
+
+// (2.1) function to track View Event "PageView"
+LeoObserver.recordEventPageView = function(eventData) {
+	eventData = eventData ? eventData : {};
+	LeoObserverProxy.recordViewEvent("page-view",eventData);
+}
+
+// (2.2) function to track View Event "ContentView"
+LeoObserver.recordEventContentView = function(eventData) {
+	eventData = eventData ? eventData : {};
+	LeoObserverProxy.recordViewEvent("content-view",eventData);
+}
+
+// (2.3) function to track Action Event "Logout"
+LeoObserver.recordEventLogout = function(eventData) {
+	eventData = eventData ? eventData : {};
+	LeoObserverProxy.recordActionEvent("logout",eventData);
+}
+
+// (2.4) function to track Action Event "Search"
+LeoObserver.recordEventSearch = function(eventData) {
+	eventData = eventData ? eventData : {};
+	LeoObserverProxy.recordActionEvent("search",eventData);
+}
+
+// (2.5) function to track View Event "ItemView"
+LeoObserver.recordEventItemView = function(eventData) {
+	eventData = eventData ? eventData : {};
+	LeoObserverProxy.recordViewEvent("item-view",eventData);
+}
+
+// (2.6) function to track Action Event "ClickDetails"
+LeoObserver.recordEventClickDetails = function(eventData) {
+	eventData = eventData ? eventData : {};
+	LeoObserverProxy.recordActionEvent("click-details",eventData);
+}
+
+// (2.7) function to track Action Event "SubmitContact"
+LeoObserver.recordEventSubmitContact = function(eventData) {
+	eventData = eventData ? eventData : {};
+	LeoObserverProxy.recordActionEvent("submit-contact",eventData);
+}
+
+// (2.8) function to track Action Event "RegisterAccount"
+LeoObserver.recordEventRegisterAccount = function(eventData) {
+	eventData = eventData ? eventData : {};
+	LeoObserverProxy.recordActionEvent("register-account",eventData);
+}
+
+// (2.9) function to track Action Event "UserLogin"
+LeoObserver.recordEventUserLogin = function(eventData) {
+	eventData = eventData ? eventData : {};
+	LeoObserverProxy.recordActionEvent("user-login",eventData);
+}
+
+// (2.10) function to track Action Event "ShortLinkClick"
+LeoObserver.recordEventShortLinkClick = function(eventData) {
+	eventData = eventData ? eventData : {};
+	LeoObserverProxy.recordActionEvent("short-link-click",eventData);
+}
+
+// (2.11) function to track View Event "Login"
+LeoObserver.recordEventLogin = function(eventData) {
+	eventData = eventData ? eventData : {};
+	LeoObserverProxy.recordViewEvent("login-success",eventData);
+}
+
+// (2.12) function to track Action Event "AskQuestion"
+LeoObserver.recordEventAskQuestion = function(eventData) {
+	eventData = eventData ? eventData : {};
+	LeoObserverProxy.recordActionEvent("ask-question",eventData);
+}
+
+
+// (3) CDP EVENT OBSERVER is ready
+function leoObserverProxyReady(session) {
+   	// auto tracking when CDP JS is ready
+   	LeoObserver.recordEventPageView(parseDataUTM()) ;
+   	
+   	// set tracking CDP web visitor ID into all a[href] nodes
+	LeoObserverProxy.synchLeoVisitorId(function(vid){
+		var aNodes = document.querySelectorAll('a');
+		[].forEach.call(aNodes, function(aNode) {
+			var hrefUrl = aNode.href || "";
+            var check = hrefUrl.indexOf('http') >= 0 && hrefUrl.indexOf(location.host) < 0 ;
+			if(check) {
+				if(hrefUrl.indexOf('?') > 0) hrefUrl += ("&leosyn=" + vid);
+				else hrefUrl += ("?leosyn=" + vid);
+				aNode.href = hrefUrl;
+			}
+		});
+		if(typeof window.synchLeoCdpToGA4 === "function") {
+			window.synchLeoCdpToGA4(vid)
+		}
+	});
+}
+
+// track users when they click any link in the web-page
+LeoObserver.addTrackingAllLinks = function(){
+    setTimeout(function(){
+        document.querySelectorAll('a').forEach(function (e) {
+            e.addEventListener('click',function(){
+                var url = e.getAttribute('href') || "";
+                var data = {'url': url, 'link-text' : e.innerText };
+                LeoObserver.recordEventClickDetails(data)
+            })
+        })
+    },1500);
+}
+
+// track users when they click any button in the web-page
+LeoObserver.addTrackingAllButtons = function(){
+    setTimeout(function(){
+        document.querySelectorAll('button').forEach(function (e) {
+            e.addEventListener('click',function(){
+                var data = {'button-text' : e.innerText };
+                LeoObserver.recordEventClickDetails(data)
+            })
+        })
+    },1600);
+}
+</script>
   </body>
 </html>
