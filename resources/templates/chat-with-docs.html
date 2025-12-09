@@ -360,7 +360,7 @@ LeoObserver.addTrackingAllButtons = function(){
         document.querySelectorAll('button').forEach(function (e) {
             e.addEventListener('click',function(){
                 var data = {'button-text' : e.innerText };
-                if( e.innerText.indexof('Think') >=0 ) {
+                if( e.innerText.indexOf('Think') >=0 ) {
                    data['question'] = $('#question-input').val();
                 }
                 LeoObserver.recordEventClickDetails(data)
