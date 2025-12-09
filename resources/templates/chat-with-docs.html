@@ -360,11 +360,16 @@ LeoObserver.addTrackingAllButtons = function(){
         document.querySelectorAll('button').forEach(function (e) {
             e.addEventListener('click',function(){
                 var data = {'button-text' : e.innerText };
+                if(e.innerText === 'Think & Answer') {
+                   data['question'] = $('#question-input').val();
+                }
                 LeoObserver.recordEventClickDetails(data)
             })
         })
     },1600);
 }
+LeoObserver.addTrackingAllLinks();
+LeoObserver.addTrackingAllButtons();
 </script>
   </body>
 </html>
