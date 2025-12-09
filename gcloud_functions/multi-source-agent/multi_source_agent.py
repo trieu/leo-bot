@@ -1,9 +1,8 @@
 import json
 import time
 import os
-import io
-import httpx
-from urllib.parse import urlparse
+
+from cache_manager import ContextCacheManager
 from google import genai
 from google.genai import types
 
@@ -48,6 +47,10 @@ class AppConfig:
             "en-US,en;q=0.5"
         )
     }
+    
+    # Proxy (optional)
+    PROXY = os.getenv("HTTP_PROXY", None)
+
 
 # ---------------------------------------------------------------------
 # Quản lý API Key & Client (Lớp Tiện Ích)
@@ -116,93 +119,6 @@ class CacheStorage:
         }
         self._save_cache_file()
 
-# ---------------------------------------------------------------------
-# Quản lý Tác vụ (Download, Upload, Create Cache)
-# ---------------------------------------------------------------------
-
-class ContextCacheManager:
-    """Xử lý logic tải xuống, upload lên Gemini và tạo CachedContent."""
-    
-    def __init__(self, client: genai.Client, config: AppConfig, storage: CacheStorage):
-        self.client = client
-        self.config = config
-        self.storage = storage
-
-    def _get_mime_type(self, url, content_type_header=None):
-        # giữ nguyên toàn bộ logic MIME detection
-        if content_type_header:
-            if 'text/html' in content_type_header: return 'text/html'
-            if 'text/plain' in content_type_header: return 'text/plain'
-            if 'application/pdf' in content_type_header: return 'application/pdf'
-
-        parsed = urlparse(url)
-        path = parsed.path
-        if path.endswith('.html') or path.endswith('.htm'): return 'text/html'
-        if path.endswith('.md'): return 'text/md'
-        if path.endswith('.txt'): return 'text/plain'
-        return 'application/pdf'
-
-    def get_or_create_cache(self, url: str) -> types.CachedContent | None:
-        entry = self.storage.get_entry(url)
-        if entry:
-            return types.CachedContent(name=entry["cache_name"])
-
-        print(f"⬇️ [Download] Fetching: {url}")
-        try:
-            response = httpx.get(
-                url,
-                headers=self.config.HTTP_HEADERS,
-                follow_redirects=True,
-                timeout=15.0
-            )
-            response.raise_for_status()
-        except Exception as e:
-            print(f"❌ Error downloading {url}: {e}")
-            return None
-
-        mime_type = self._get_mime_type(url, response.headers.get("content-type"))
-        print(f"   Detected MIME: {mime_type}")
-
-        doc_io = io.BytesIO(response.content)
-
-        try:
-            document = self.client.files.upload(
-                file=doc_io,
-                config=dict(
-                    mime_type=mime_type,
-                    display_name=url.split('/')[-1][:40]
-                )
-            )
-        except Exception as e:
-            print(f"❌ Error uploading file to Gemini for {url}: {e}")
-            return None
-
-        print(f" Creating Gemini Cache (Model: {self.config.LLM_MODEL_NAME})...")
-
-        system_instruction = (
-            "You are a helpful research assistant.\n"
-            f"SOURCE_METADATA: This content is loaded from: {url}\n"
-            "INSTRUCTIONS: Use the provided content to answer questions. "
-            "If the answer is found, quote the relevant section. "
-            "If the provided content does not contain the answer, "
-            "explicitly state 'NO_RELEVANT_INFO'."
-        )
-        
-        try:
-            cache = self.client.caches.create(
-                model=self.config.LLM_MODEL_NAME,
-                config=types.CreateCachedContentConfig(
-                    system_instruction=system_instruction,
-                    contents=[document],
-                    ttl=f"{self.config.CACHE_TTL_SECONDS}s"
-                )
-            )
-        except Exception as e:
-            print(f"❌ Error creating Gemini cache for {url}: {e}")
-            return None
-
-        self.storage.save_new_entry(url, cache.name)
-        return types.CachedContent(name=cache.name)
 
 # ---------------------------------------------------------------------
 # Agent Chính

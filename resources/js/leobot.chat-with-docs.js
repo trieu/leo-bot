@@ -3,10 +3,11 @@ const ENDPOINT_URL =  "https://multi-source-agent-667689422404.asia-south1.run.a
 
 const defaultData = {
   urls: [
-    "https://thuvienphapluat.vn/ma-so-thue/phap-luat-thue/luong-30-trieu-moi-thang-thi-dong-thue-bao-nhieu-667139-201611.html",
-    "https://einvoice.vn/tin-tuc/luong-bao-nhieu-phai-nop-thue-tncn",
+    "https://www.delve.ai/blog/ai-for-marketing",
+    "https://fpt.ai/vi/bai-viet/agentic-ai/",
+    "https://www.brandsvietnam.com/congdong/topic/341812-10-ung-dung-cua-ai-trong-marketing-cases-study-tu-cac-thuong-hieu-lego-nutella-heinz-coca-cola"
   ],
-  question: "Tiền lương 20 triệu VNĐ thì người đi làm đóng thuế bao nhiêu?",
+  question: "Định nghĩa agentic-ai, cho 5 use cases AI cho marketing ",
 };
 
 $(document).ready(function () {
