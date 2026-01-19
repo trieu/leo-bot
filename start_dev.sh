@@ -4,30 +4,45 @@ set -euo pipefail
 # ------------------------------------------------------------------------------
 # LEO BOT — Improved Parallel Development Startup Script
 # ------------------------------------------------------------------------------
-# Fixes:
-#   - Keycloak now ALWAYS waits for PostgreSQL to be ready before starting.
-#   - Added strong retry loops & exponential wait.
-#   - Prevents race condition where Keycloak starts before PGSQL docker.
-#   - Cleaner logs + safer checks.
-# ------------------------------------------------------------------------------
-
-PG_PORT=5432
-PG_WAIT_MAX=30        # max seconds to wait for PostgreSQL
-KEYCLOAK_REALM="master"
-KEYCLOAK_URL="https://leoid.example.com"
-# KEYCLOAK_URL="http://localhost:8080"
-KEYCLOAK_HEALTHCHECK="${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/.well-known/openid-configuration"
-VENV_PATH=".venv/bin/activate"
-FASTAPI_APP="main_app:leobot"
-FASTAPI_PORT=8888
 
 # Colors for readable logs
 GREEN="\033[1;32m"
 YELLOW="\033[1;33m"
 RED="\033[1;31m"
+BLUE="\033[1;34m"
 NC="\033[0m"
 
-echo -e "${GREEN}🚀 Starting LEO BOT dev environment (improved Startup)...${NC}"
+echo -e "${GREEN}🚀 Starting LEO BOT dev environment...${NC}"
+
+# ------------------------------------------------------------------------------
+# STEP 0: Load .env configuration
+# ------------------------------------------------------------------------------
+if [ -f .env ]; then
+  echo -e "${BLUE}📄 Loading configuration from .env...${NC}"
+  # 'set -a' automatically exports variables defined in the source file
+  set -a
+  source .env
+  set +a
+else
+  echo -e "${RED}⚠️  Warning: .env file not found. Using script defaults.${NC}"
+fi
+
+# ------------------------------------------------------------------------------
+# Configuration (Defaults can be overridden by .env)
+# ------------------------------------------------------------------------------
+PG_PORT="${PG_PORT:-5432}"
+PG_WAIT_MAX=30
+
+# Keycloak Config
+KEYCLOAK_ENABLED="${KEYCLOAK_ENABLED:-false}" # Default to false if missing
+KEYCLOAK_REALM="${KEYCLOAK_REALM:-master}"
+KEYCLOAK_URL="${KEYCLOAK_URL:-https://leoid.example.com}"
+KEYCLOAK_HEALTHCHECK="${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/.well-known/openid-configuration"
+
+# App Config
+VENV_PATH="env/bin/activate"
+FASTAPI_APP="main_app:leobot"
+FASTAPI_PORT="${FASTAPI_PORT:-8888}"
 
 # ------------------------------------------------------------------------------
 # Function: wait for PostgreSQL (5432)
@@ -35,17 +50,15 @@ echo -e "${GREEN}🚀 Starting LEO BOT dev environment (improved Startup)...${NC
 wait_for_postgres() {
   echo -e "${YELLOW}🔍 Checking PostgreSQL on port ${PG_PORT}...${NC}"
 
-  # Already running?
   if nc -z localhost "$PG_PORT" 2>/dev/null; then
     echo -e "${GREEN}✅ PostgreSQL already running.${NC}"
     return 0
   fi
 
-  # Start PG Docker
   echo -e "${YELLOW}⚙️  Starting PostgreSQL docker (pgvector)...${NC}"
+  # Ensure this path exists relative to where you run the script
   bash ./dockers/pgsql/start_pgsql_pgvector.sh
 
-  # Wait until reachable
   for ((i=1; i<=PG_WAIT_MAX; i++)); do
     if nc -z localhost "$PG_PORT" 2>/dev/null; then
       echo -e "${GREEN}✅ PostgreSQL is now up (after ${i}s).${NC}"
@@ -59,26 +72,25 @@ wait_for_postgres() {
 }
 
 # ------------------------------------------------------------------------------
-# Function: wait for Keycloak (must run AFTER PostgreSQL ready)
+# Function: wait for Keycloak
 # ------------------------------------------------------------------------------
 wait_for_keycloak() {
-  echo -e "${YELLOW}🔍 Checking Keycloak health at:${NC}"
-  echo -e "    ${KEYCLOAK_HEALTHCHECK}"
+  echo -e "${YELLOW}🔍 Checking Keycloak health at: ${KEYCLOAK_HEALTHCHECK}${NC}"
 
-  HTTP_STATUS=$(curl -sk --connect-timeout 3 --max-time 5 -o /dev/null -w "%{http_code}" "$KEYCLOAK_HEALTHCHECK")
+  # Quick check if already up
+  HTTP_STATUS=$(curl -sk --connect-timeout 3 --max-time 5 -o /dev/null -w "%{http_code}" "$KEYCLOAK_HEALTHCHECK" || true)
 
   if [[ "$HTTP_STATUS" == "200" ]]; then
     echo -e "${GREEN}✅ Keycloak is healthy.${NC}"
     return 0
   fi
 
-  # Start KC Docker
   echo -e "${YELLOW}⚙️  Starting Keycloak Docker...${NC}"
   bash ./dockers/keycloak/start_keycloak.sh
 
-  # Wait for Keycloak HTTP OK
+  # Wait loop
   for i in {1..40}; do
-    HTTP_STATUS=$(curl -sk --connect-timeout 3 --max-time 5 -o /dev/null -w "%{http_code}" "$KEYCLOAK_HEALTHCHECK")
+    HTTP_STATUS=$(curl -sk --connect-timeout 3 --max-time 5 -o /dev/null -w "%{http_code}" "$KEYCLOAK_HEALTHCHECK" || true)
     if [[ "$HTTP_STATUS" == "200" ]]; then
       echo -e "${GREEN}✅ Keycloak is now healthy (after ${i}s).${NC}"
       return 0
@@ -91,25 +103,26 @@ wait_for_keycloak() {
 }
 
 # ------------------------------------------------------------------------------
-# STEP 1: Wait for PostgreSQL first (Keycloak depends on it)
+# EXECUTION FLOW
 # ------------------------------------------------------------------------------
+
+# 1. Start Postgres (Always required)
 wait_for_postgres
 
-# ------------------------------------------------------------------------------
-# STEP 2: Now check/start Keycloak
-# ------------------------------------------------------------------------------
-wait_for_keycloak
+# 2. Start Keycloak (Only if enabled in .env)
+if [[ "$KEYCLOAK_ENABLED" == "true" ]]; then
+  echo -e "${BLUE}ℹ️  KEYCLOAK_ENABLED is true. Initializing Keycloak...${NC}"
+  wait_for_keycloak
+else
+  echo -e "${BLUE}ℹ️  KEYCLOAK_ENABLED is '$KEYCLOAK_ENABLED'. Skipping Keycloak startup.${NC}"
+fi
 
-# ------------------------------------------------------------------------------
-# STEP 3: Update git repo
-# ------------------------------------------------------------------------------
+# 3. Update Git
 echo -e "${YELLOW}📦 Updating Git repository...${NC}"
 git pull --quiet
 echo -e "${GREEN}✅ Repository updated.${NC}"
 
-# ------------------------------------------------------------------------------
-# STEP 4: Activate Python venv
-# ------------------------------------------------------------------------------
+# 4. Activate Venv
 if [[ -f "$VENV_PATH" ]]; then
   echo -e "${YELLOW}🐍 Activating Python virtual environment...${NC}"
   source "$VENV_PATH"
@@ -118,9 +131,7 @@ else
   exit 1
 fi
 
-# ------------------------------------------------------------------------------
-# STEP 5: Run FastAPI App
-# ------------------------------------------------------------------------------
+# 5. Run FastAPI
 echo -e "${YELLOW}⚡ Launching FastAPI (port ${FASTAPI_PORT})...${NC}"
 uvicorn "$FASTAPI_APP" \
   --reload \
