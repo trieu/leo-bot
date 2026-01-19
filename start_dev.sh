@@ -15,8 +15,9 @@ PG_PORT=5432
 PG_WAIT_MAX=30        # max seconds to wait for PostgreSQL
 KEYCLOAK_REALM="master"
 KEYCLOAK_URL="https://leoid.example.com"
+# KEYCLOAK_URL="http://localhost:8080"
 KEYCLOAK_HEALTHCHECK="${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/.well-known/openid-configuration"
-VENV_PATH="env/bin/activate"
+VENV_PATH=".venv/bin/activate"
 FASTAPI_APP="main_app:leobot"
 FASTAPI_PORT=8888
 
