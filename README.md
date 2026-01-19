@@ -108,24 +108,24 @@ Create a `.env` file or edit `main_config.py`:
 
 ```bash
 # Core LEO BOT
-LEOBOT_DEV_MODE = true
-HOSTNAME = leobot.example.com
-POSTGRES_URL = postgresql://postgres:password@localhost:5432/customer360
+LEOBOT_DEV_MODE=true
+HOSTNAME=leobot.example.com
+POSTGRES_URL=postgresql://postgres:password@localhost:5432/customer360
 
 # Google API
-GOOGLE_APPLICATION_CREDENTIALS = 
-GEMINI_API_KEY = 
+GOOGLE_APPLICATION_CREDENTIALS= 
+GEMINI_API_KEY= 
 
 # Set Redis HOST and PORT 
-REDIS_USER_SESSION_HOST=
-REDIS_USER_SESSION_PORT=
+REDIS_USER_SESSION_HOST=localhost
+REDIS_USER_SESSION_PORT=6379
 
 # Set SMTP email information
-SMTP_HOST = ""
-SMTP_PORT = 587    
-SMTP_USER = "" 
-SMTP_PASSWORD = ""  
-USE_TLS = true 
+SMTP_HOST=""
+SMTP_PORT=587    
+SMTP_USER="" 
+SMTP_PASSWORD=""  
+USE_TLS=true 
 
 # in dev, disable HTTPS check certification
 PYTHONHTTPSVERIFY=1
@@ -135,13 +135,13 @@ KEYCLOAK_ENABLED=false
 KEYCLOAK_URL=https://leoid.example.com
 KEYCLOAK_REALM=master
 KEYCLOAK_CLIENT_ID=leobot
-KEYCLOAK_CLIENT_SECRET= 
+KEYCLOAK_CLIENT_SECRET=""
 KEYCLOAK_CALLBACK_URL=https://leobot.example.com/_leoai/sso/callback
 KEYCLOAK_VERIFY_SSL=false
 
 # Set your Facebook Page Access here
-FB_VERIFY_TOKEN = 
-FB_PAGE_ACCESS_TOKEN = 
+FB_VERIFY_TOKEN=""
+FB_PAGE_ACCESS_TOKEN=""
 ```
 
 **Gemini API setup:**
