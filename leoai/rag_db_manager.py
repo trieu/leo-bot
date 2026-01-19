@@ -11,7 +11,9 @@ class ChatDBManager:
 
     async def save_chat_message(self, user_id, role, message,
                                 cdp_profile_id="_", persona_id="_",
-                                touchpoint_id="_", keywords=[],
+                                touchpoint_id="_", keywords=None, 
+                                last_intent_label=None, 
+                                last_intent_confidence=None,
                                 tenant_id="default"):
         if not user_id or not message:
             return
@@ -35,23 +37,27 @@ class ChatDBManager:
             ).tolist()
         )
         msg_vector_str = to_pgvector(msg_vector)  
-
+        
         async with get_async_pg_conn() as conn:
+            logger.info(f"Attempting to save message for {user_id}, with keywords: {keywords} and intent: {last_intent_label} ({last_intent_confidence})")
             inserted = await conn.fetchrow("""
                 INSERT INTO chat_messages
-                (message_hash, user_id, cdp_profile_id, tenant_id, persona_id, touchpoint_id, role, message, keywords, created_at)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+                (message_hash, user_id, cdp_profile_id, tenant_id, persona_id, touchpoint_id, role, message, keywords, last_intent_label, last_intent_confidence, created_at)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
                 ON CONFLICT (message_hash) DO NOTHING
                 RETURNING message_hash;
-            """, msg_hash, user_id, cdp_profile_id, tenant_id, persona_id, touchpoint_id, role, message, keywords)
+            """, msg_hash, user_id, cdp_profile_id, tenant_id, persona_id, touchpoint_id, role, message, keywords, last_intent_label, last_intent_confidence)
 
             if inserted:
+                logger.info("Message successfully inserted into chat_messages")
                 await conn.execute("""
                     INSERT INTO chat_message_embeddings
                     (message_hash, tenant_id, embedding, created_at)
                     VALUES ($1,$2,$3::vector,NOW())
                     ON CONFLICT (message_hash) DO NOTHING;
                 """, msg_hash, tenant_id, msg_vector_str)
+            else:
+                logger.warning("Message not inserted (duplicate or conflict)")
 
         logger.info(f"💾 Stored {role} message for user={user_id}")
 
