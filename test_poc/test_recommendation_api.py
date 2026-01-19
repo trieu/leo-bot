@@ -1,28 +1,39 @@
 from fastapi import FastAPI, HTTPException
-from typing import List
 from pydantic import BaseModel, Field
+from typing import List, Dict, Any
 
-from test_recommendation import add_profile_to_qdrant, add_product_to_qdrant, recommend_products_for_profile
+import asyncio
+from async_pgvector_recommend import (
+    create_pool,
+    ensure_extension_and_tables,
+    create_hnsw_index_for_products,
+    upsert_profile,
+    upsert_product,
+    batch_upsert_profiles,
+    batch_upsert_products,
+    recommend_products_for_profile,
+)
 
-
+# -----------------------------------
 # FastAPI initialization
-app = FastAPI()
+# -----------------------------------
+app = FastAPI(title="CDP Recommendation API (PGVector)", version="2.0")
 
-# default
-@app.get("/")
-async def index():
-    return {"message": "API of CDP Recommendation"}
+# Connection pool reference
+pool = None
 
 
-# Pydantic models for request data
+# -----------------------------------
+# Pydantic models for input validation
+# -----------------------------------
 class ProfileRequest(BaseModel):
     profile_id: str
     page_view_keywords: List[str]
     purchase_keywords: List[str]
     interest_keywords: List[str]
-    additional_info: dict
-    max_recommendation_size: int = Field(8, description="Default recommendation is 8")
-    except_product_ids: List[str]
+    additional_info: Dict[str, Any] = {}
+    max_recommendation_size: int = Field(8, description="Default top N recommendations")
+    except_product_ids: List[str] = []
 
 
 class ProductRequest(BaseModel):
@@ -30,112 +41,162 @@ class ProductRequest(BaseModel):
     product_name: str
     product_category: str
     product_keywords: List[str]
-    additional_info: dict
+    additional_info: Dict[str, Any] = {}
 
 
-# Endpoint to add profile
+# -----------------------------------
+# Lifecycle events
+# -----------------------------------
+@app.on_event("startup")
+async def on_startup():
+    global pool
+    pool = await create_pool()
+    await ensure_extension_and_tables(pool)
+    await create_hnsw_index_for_products(pool)
+    print("✅ Database initialized and connection pool ready.")
+
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    global pool
+    if pool:
+        await pool.close()
+        print("🛑 Connection pool closed.")
+
+
+# -----------------------------------
+# Default route
+# -----------------------------------
+@app.get("/")
+async def index():
+    return {"message": "CDP Recommendation API using PostgreSQL + pgvector"}
+
+
+# -----------------------------------
+# Profile Endpoints
+# -----------------------------------
 @app.post("/add-profile/")
-async def add_profile(profile: ProfileRequest):
+async def api_add_profile(profile: ProfileRequest):
     try:
-        add_profile_to_qdrant(
+        await upsert_profile(
+            pool,
             profile.profile_id,
             profile.page_view_keywords,
             profile.purchase_keywords,
             profile.interest_keywords,
-            profile.additional_info
+            profile.additional_info,
         )
         return {"status": "Profile added successfully"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Add profile failed: {e}")
 
 
-# Endpoint to check profile and get recommendation in real-time
-@app.post("/check-profile-for-recommendation/")
-async def add_profile(profile: ProfileRequest):
-    try:
-        profile_id = add_profile_to_qdrant(
-            profile.profile_id,
-            profile.page_view_keywords,
-            profile.purchase_keywords,
-            profile.interest_keywords,
-            profile.additional_info
-        )        
-        top_n = profile.max_recommendation_size
-        except_product_ids = profile.except_product_ids
-        rs = recommend_products_for_profile(profile_id, top_n, except_product_ids)
-        if not rs:
-            raise HTTPException(
-                status_code=404, detail="Profile not found or no recommendations available")
-        return rs
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# Endpoint to add multiple profiles
 @app.post("/add-profiles/")
-async def add_profiles(profiles: List[ProfileRequest]):
+async def api_add_profiles(profiles: List[ProfileRequest]):
     try:
-        for profile in profiles:
-            add_profile_to_qdrant(
-                profile.profile_id,
-                profile.page_view_keywords,
-                profile.purchase_keywords,
-                profile.interest_keywords,
-                profile.additional_info
-            )
-        return {"status": "All profiles added successfully"}
+        inserted = await batch_upsert_profiles(
+            pool,
+            [
+                {
+                    "profile_id": p.profile_id,
+                    "page_view_keywords": p.page_view_keywords,
+                    "purchase_keywords": p.purchase_keywords,
+                    "interest_keywords": p.interest_keywords,
+                    "additional_info": p.additional_info,
+                }
+                for p in profiles
+            ],
+        )
+        return {"status": f"{inserted} profiles added/updated successfully"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Batch profile upsert failed: {e}")
 
 
-# Endpoint to add product
+# -----------------------------------
+# Product Endpoints
+# -----------------------------------
 @app.post("/add-product/")
-async def add_product(product: ProductRequest):
+async def api_add_product(product: ProductRequest):
     try:
-        add_product_to_qdrant(
+        await upsert_product(
+            pool,
             product.product_id,
             product.product_name,
             product.product_category,
             product.product_keywords,
-            product.additional_info
+            product.additional_info,
         )
         return {"status": "Product added successfully"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Add product failed: {e}")
 
 
-# Endpoint to add multiple products
 @app.post("/add-products/")
-async def add_products(products: List[ProductRequest]):
+async def api_add_products(products: List[ProductRequest]):
     try:
-        for product in products:
-            add_product_to_qdrant(
-                product.product_id,
-                product.product_name,
-                product.product_category,
-                product.product_keywords,
-                product.additional_info
-            )
-        return {"status": "All products added successfully"}
+        inserted = await batch_upsert_products(
+            pool,
+            [
+                {
+                    "product_id": p.product_id,
+                    "name": p.product_name,
+                    "category": p.product_category,
+                    "keywords": p.product_keywords,
+                    "additional_info": p.additional_info,
+                }
+                for p in products
+            ],
+        )
+        return {"status": f"{inserted} products added/updated successfully"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Batch product upsert failed: {e}")
 
 
-# Endpoint to recommend products based on profile
+# -----------------------------------
+# Recommendation Endpoint
+# -----------------------------------
+@app.post("/recommend/")
+async def api_recommend(profile: ProfileRequest):
+    """
+    Add/update profile, then get recommendations in real-time.
+    """
+    try:
+        await upsert_profile(
+            pool,
+            profile.profile_id,
+            profile.page_view_keywords,
+            profile.purchase_keywords,
+            profile.interest_keywords,
+            profile.additional_info,
+        )
+        result = await recommend_products_for_profile(
+            pool,
+            profile.profile_id,
+            profile.max_recommendation_size,
+            profile.except_product_ids,
+        )
+        if not result or not result.get("recommended_products"):
+            raise HTTPException(status_code=404, detail="No recommendations found")
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Recommendation failed: {e}")
+
+
 @app.get("/recommend/{profile_id}")
-async def recommend(profile_id: str, top_n: int = 8, except_product_ids: str = ""):
+async def api_get_recommend(profile_id: str, top_n: int = 8, except_product_ids: str = ""):
     try:
-        rs = recommend_products_for_profile(profile_id, top_n, except_product_ids.split(","))
-        if not rs:
-            raise HTTPException(
-                status_code=404, detail="Profile not found or no recommendations available")
-        return rs
+        ids = [x for x in except_product_ids.split(",") if x]
+        result = await recommend_products_for_profile(pool, profile_id, top_n, ids)
+        if not result or not result.get("recommended_products"):
+            raise HTTPException(status_code=404, detail="No recommendations found")
+        return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Recommendation failed: {e}")
 
 
-
-# Run the FastAPI app
+# -----------------------------------
+# Run app manually (dev mode)
+# -----------------------------------
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("app_pgvector_recommend:app", host="0.0.0.0", port=8000, reload=True)

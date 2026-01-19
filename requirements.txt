@@ -1,115 +1,66 @@
 # === Web Framework ===
-fastapi                           # Web API framework
+fastapi
 uvicorn[standard]
 
-# === Environment Variable Management ===
-python-dotenv                     # Load environment variables from .env
+# === Markdown, HTTP & Templates ===
+markdown
+httpx                     # modern async HTTP client
+jinja2
+cityhash
 
-# SMTP email client
+# === Environment Variables ===
+python-dotenv
+
+# === Email ===
 aiosmtplib
 
 # === Google Cloud AI & Translation ===
-google-cloud-translate            # Google Translate API v2
-google-api-core                   # Core support for Google Cloud APIs
-google-genai               # Google Gemini SDK (includes Schema, GenerationConfig)
+google-cloud-translate
+google-api-core
+google-genai              # Gemini SDK (already depends on google-api-core)
 
-# === Transformers & Local AI Models dependencies ===
-transformers                      # HuggingFace Transformers (pipeline, AutoModel, etc.)
-torch                             # Required by Transformers for PyTorch models
-sentence-transformers             # Pretrained sentence embedding models
+# === Transformers & Local AI Models ===
+transformers
+torch                     # backend for transformers
+sentence-transformers      # depends on transformers, but needed separately
 huggingface_hub
+llama-cpp-python           # for local GGUF models (Phi-3, etc.)
 
-# for Phi-3-mini-4k-instruct-q4.gguf at https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf
-llama-cpp-python 
+# === LangChain Ecosystem ===
+langchain
 
-# === LangChain ===
-langchain                         # Orchestration framework for LLM pipelines
+# === Data Validation ===
+pydantic                   # used by FastAPI; pin version only if FastAPI compatibility requires it
 
-# === Data Validation & Models ===
-pydantic                          # Data validation and parsing using Python type hints
+# === Databases ===
+psycopg[binary]             # PostgreSQL driver
+asyncpg                     # async PostgreSQL
+sqlalchemy                  # ORM
+python-arango               # ArangoDB driver
+redis                       # caching and stream data
 
-# === PostgreSQL, ArangoDB & Redis  ===
-psycopg[binary]                   # PostgreSQL client (binary version for better performance)
-asyncpg                           # Asynchronous PostgreSQL client
-sqlalchemy                        # ORM and SQL toolkit
-python-arango                     # Python driver for ArangoDB
-redis                             # caching & Realtime Data
+# === Vector Search ===
+pgvector
 
-# === Airflow ETL: Arango → PostgreSQL ===
+# === Airflow ETL ===
 apache-airflow==2.11.0
 apache-airflow-providers-postgres
 apache-airflow-providers-arangodb
 
-# === Vector DB (Qdrant) ===
-qdrant-client                     # Python client for Qdrant vector database
+# === Data & ML ===
+numpy
+pandas
+scikit-learn
 
-# === Data Processing ===
-numpy                             # Numerical computing
-pandas                            # Dataframes and tabular data
-scikit-learn                      # TF-IDF vectorizer and other ML tools
-
-# === Markdown & Web Utilities ===
-markdown                          # Markdown to HTML rendering
-requests                          # HTTP requests (e.g., calling external APIs)
-httpx                             # modern HTTP client for Python
-
-# === Static Files, Templating (used in FastAPI project setup) ===
-jinja2                            # HTML templates if you use `Jinja2Templates` from FastAPI
-
-# === Visualization ===
+# === Visualization & Metrics ===
 matplotlib
+plotly                       # for JSON-serializable chart data
+orjson                       # fast JSON serialization
+pandas-stubs                 # type hints for Pandas in dev
 
-# Web Framework
-fastapi>=0.68.0
-uvicorn>=0.15.0
-python-dotenv>=0.19.0
+# === Security & Auth ===
+fastapi-keycloak             # for OpenID Connect (Keycloak integration)
+python-jose[cryptography]    # JWT handling for auth tokens
 
-# AI/ML Libraries
-google-generativeai>=0.3.0
-langchain>=0.1.0
-chromadb>=0.4.0
-openai>=1.0.0
-tiktoken>=0.5.0
-sentence-transformers>=2.2.0
-
-# Data Processing
-pandas>=1.3.0
-numpy>=1.21.0
-python-multipart>=0.0.5
-
-# Database
-psycopg2-binary>=2.9.0
-pymongo>=4.5.0
-motor>=3.3.0  # Async MongoDB driver
-arangopy>=0.5.7  # ArangoDB Python driver
-
-# Web Scraping
-beautifulsoup4>=4.9.0
-selenium>=4.0.0
-webdriver_manager>=3.8.0
-requests>=2.31.0
-aiohttp>=3.8.0
-
-# File Handling
-aiofiles>=0.8.0
-python-magic>=0.4.27  # For file type detection
-
-# Workflow Management
-apache-airflow>=2.7.0
-
-# Testing
-pytest>=7.0.0
-pytest-asyncio>=0.20.0
-httpx>=0.24.0
-pytest-cov>=4.1.0
-
-# Utilities
-pydantic>=2.0.0  # Data validation
-tenacity>=8.2.0  # Retry mechanism
-loguru>=0.7.0   # Better logging
-python-jose[cryptography]>=3.3.0  # JWT handling
-passlib[bcrypt]>=1.7.4  # Password hashing
-
-# Social Media Integration
-facebook-sdk>=3.1.0
-python-telegram-bot>=20.6
+# === Performance Monitoring ===
+prometheus-fastapi-instrumentator

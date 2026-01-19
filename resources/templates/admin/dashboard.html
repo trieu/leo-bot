@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <title>LEO BOT - AI Assistant Key Metrics</title>
+
+  <style>
+    body {
+      background: #f8f9fa;
+      font-family: "Inter", sans-serif;
+    }
+
+    .dashboard-title {
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    .custom-card {
+      min-height: 150px;
+      border: none;
+      border-radius: 12px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+      cursor: pointer;
+      transition: transform 0.2s ease-in-out;
+    }
+
+    .custom-card:hover {
+      transform: translateY(-4px);
+    }
+
+    .metric-value {
+      font-size: 1.4rem;
+      font-weight: 700;
+    }
+
+    #chartModal .modal-body {
+      height: 400px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container mt-5">
+    <div class="text-center mb-5">
+      <h1 class="dashboard-title">🤖 LEO BOT — AI Assistant Key Metrics</h1>
+      <p class="text-muted">Click any metric below to view detailed time-series insights</p>
+    </div>
+
+    <div class="row g-4">
+      <!-- Active Users -->
+      <div class="col-md-4">
+        <div class="card text-white custom-card"
+          style="background: linear-gradient(135deg, #007bff, #00c6ff);"
+          data-metric="Active Users" data-unit="users">
+          <div class="card-body">
+            <h5><i class="bi bi-people-fill me-2"></i>Active Users</h5>
+            <p class="metric-value">1,240</p>
+            <p class="mb-0 text-light small">↑ 8% vs last week</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Conversations -->
+      <div class="col-md-4">
+        <div class="card text-white custom-card"
+          style="background: linear-gradient(135deg, #20c997, #4ade80);"
+          data-metric="Conversations Processed" data-unit="conversations">
+          <div class="card-body">
+            <h5><i class="bi bi-chat-dots-fill me-2"></i>Conversations Processed</h5>
+            <p class="metric-value">58,920</p>
+            <p class="mb-0 text-light small">+12% MoM growth</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Accuracy -->
+      <div class="col-md-4">
+        <div class="card text-white custom-card"
+          style="background: linear-gradient(135deg, #17a2b8, #00bcd4);"
+          data-metric="AI Response Accuracy" data-unit="%">
+          <div class="card-body">
+            <h5><i class="bi bi-graph-up-arrow me-2"></i>AI Response Accuracy</h5>
+            <p class="metric-value">92%</p>
+            <p class="mb-0 text-light small">Target: 95%</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="text-center mt-5 mb-4 text-muted">
+      <small>© 2025 LEO BOT — AI Assistant Metrics Dashboard for LEO CDP</small>
+    </footer>
+  </div>
+
+  <!-- Modal for charts -->
+  <div class="modal fade" id="chartModal" tabindex="-1" aria-labelledby="chartModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="chartModalLabel">Metric Report</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <canvas id="metricChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+        const HOSTNAME = '{{ HOSTNAME }}';
+        const LEOBOT_DEV_MODE = '{{ LEOBOT_DEV_MODE }}' === "True";
+        const BASE_URL_LEOBOT = location.protocol + '//' + HOSTNAME + '/_leoai/ask';    
+        const NAME = '{{ user }}';
+    </script>
+
+  <script>
+    let chartInstance = null;
+
+    // --- Sample demo data for testing ---
+    const sampleData = {
+      "Active Users": [
+        { date: "2025-10-25", value: 980 },
+        { date: "2025-10-26", value: 1010 },
+        { date: "2025-10-27", value: 1080 },
+        { date: "2025-10-28", value: 1120 },
+        { date: "2025-10-29", value: 1180 },
+        { date: "2025-10-30", value: 1240 },
+        { date: "2025-10-31", value: 1280 }
+      ],
+      "Conversations Processed": [
+        { date: "2025-10-25", value: 48000 },
+        { date: "2025-10-26", value: 49000 },
+        { date: "2025-10-27", value: 51000 },
+        { date: "2025-10-28", value: 53000 },
+        { date: "2025-10-29", value: 54500 },
+        { date: "2025-10-30", value: 56800 },
+        { date: "2025-10-31", value: 58920 }
+      ],
+      "AI Response Accuracy": [
+        { date: "2025-10-25", value: 90 },
+        { date: "2025-10-26", value: 91 },
+        { date: "2025-10-27", value: 92 },
+        { date: "2025-10-28", value: 91 },
+        { date: "2025-10-29", value: 93 },
+        { date: "2025-10-30", value: 92 },
+        { date: "2025-10-31", value: 92 }
+      ]
+    };
+
+    // --- Render chart function ---
+    function renderChart(metricName, unit) {
+      const ctx = document.getElementById("metricChart").getContext("2d");
+      const dataPoints = sampleData[metricName] || [];
+
+      const labels = dataPoints.map(item => item.date);
+      const values = dataPoints.map(item => item.value);
+
+      if (chartInstance) chartInstance.destroy();
+
+      chartInstance = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: labels,
+          datasets: [{
+            label: `${metricName} (${unit})`,
+            data: values,
+            borderColor: "#007bff",
+            backgroundColor: "rgba(0,123,255,0.15)",
+            fill: true,
+            tension: 0.3,
+            pointRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: true, position: "bottom" },
+            tooltip: {
+              callbacks: {
+                label: context => `${context.parsed.y} ${unit}`
+              }
+            }
+          },
+          scales: {
+            x: {
+              title: { display: true, text: "Date" },
+              grid: { display: false }
+            },
+            y: {
+              title: { display: true, text: unit },
+              beginAtZero: false
+            }
+          }
+        }
+      });
+    }
+
+    // --- Attach click handlers ---
+    document.querySelectorAll(".custom-card").forEach(card => {
+      card.addEventListener("click", () => {
+        const metricName = card.dataset.metric;
+        const unit = card.dataset.unit || "value";
+        document.getElementById("chartModalLabel").textContent = `${metricName} — Time Series Report`;
+        const modal = new bootstrap.Modal(document.getElementById("chartModal"));
+        modal.show();
+        renderChart(metricName, unit);
+      });
+    });
+  </script>
+</body>
+
+</html>

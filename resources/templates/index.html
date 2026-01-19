@@ -4,11 +4,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=yes, minimum-scale=1, maximum-scale=5">
     <base href="//{{ HOSTNAME }}/">
-    <link rel="icon" type="image/x-icon" href="//admin.leocdp.com/public/images/leocdp-icon/favicon-32x32.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="//admin.leocdp.com/public/images/leocdp-icon/apple-touch-icon.png">
-	<link rel="icon" type="image/png" sizes="32x32" href="//admin.leocdp.com/public/images/leocdp-icon/favicon-32x32.png">
-	<link rel="icon" type="image/png" sizes="16x16" href="//admin.leocdp.com/public/images/leocdp-icon/favicon-16x16.png">
-	<link rel="mask-icon" href="//admin.leocdp.com/public/images/leocdp-icon/safari-pinned-tab.svg" color="#5bbad5">
+
+    <!-- icon -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
     
     <!-- META FOR FACEBOOK -->
     <meta property="og:site_name" content="leobot.leocdp.com"/>
@@ -45,12 +46,16 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lscache/1.3.2/lscache.min.js" integrity="sha512-ved46eQuz4zEGcBm1JdsWqYsndqlY1jAtUXCrkTe+l88a7Sj0BhstPajJntxq3HwRDPa9qwaqRUVN7Jr8NwhMA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
     <!-- LEO CHATBOT CSS -->
-    <link href="/resources/css/leobot.css?_={{ timestamp }}" rel="stylesheet" media="all" >
+    <link href="https://{{ HOSTNAME }}/resources/css/leobot.css?_={{ timestamp }}" rel="stylesheet" media="all" >
 </head>
 <body>
     <div class="container py-3 ">
         <h2 class="mb-3 text-center" id="leobot_header">
-            <i class="fa fa-commenting-o me-2" aria-hidden="true"></i>LEO BOT
+            <img src="/resources/icons/android-chrome-192x192.png" 
+                alt="LEO BOT Icon" 
+                width="35" height="35" 
+                class="me-2 align-text-bottom rounded-circle">
+            CHATBOT
         </h2>
 
         <div class="d-flex justify-content-center text-center">
@@ -73,6 +78,7 @@
     <!-- load all JS files  -->
     <script src="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" ></script>
+    
     <!-- LEO CHATBOT CONFIGS -->
     <script>
         const HOSTNAME = '{{ HOSTNAME }}';
@@ -81,9 +87,10 @@
         const BASE_URL_GET_VISITOR_INFO = location.protocol + '//' + HOSTNAME + '/_leoai/visitor-info';
         const CDP_TRACKING = false;
     </script>
-    <script src="/resources/js/leocdp.chatbot.js?_={{ timestamp }}" ></script>
+
+     <!-- LEO CHATBOT CODE -->
+    <script src="https://{{ HOSTNAME }}/resources/js/leocdp.chatbot.js?_={{ timestamp }}" ></script>
     <script>   
-        // ready to load
         $(document).ready(function(){
             // ready to load
             var obsjs = location.protocol + '//' + HOSTNAME + "/resources/js/leocdp.observer.js";
@@ -92,10 +99,10 @@
             // only load LEO Observer JS in the domain leocdp.com or example.com
             if(CDP_TRACKING && okToLoad) {
                 $.getScript(obsjs); 
-            } 
+            }
             else {
-                window.startLeoChatBot();
-            }              
+                 window.startLeoChatBot();
+            }      
         });
     </script>
 </body>
