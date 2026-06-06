@@ -62,16 +62,19 @@ else
     docker volume create "$DATA_VOLUME"
   fi
 
+  # docker network ls | grep leo-vlan || docker network create leo-vlan
+
   echo "🚀 Launching new PostgreSQL container '${CONTAINER_NAME}'..."
   docker run -d \
-    --name $CONTAINER_NAME \
-    --network $VLAN_NAME
-    -e POSTGRES_USER=$POSTGRES_USER \
-    -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
-    -e POSTGRES_DB=$DEFAULT_DB \
-    -p $HOST_PORT:5432 \
-    -v $DATA_VOLUME:/var/lib/postgresql/data \
+    --name "$CONTAINER_NAME" \
+    --network "$VLAN_NAME" \
+    -e POSTGRES_USER="$POSTGRES_USER" \
+    -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+    -e POSTGRES_DB="$DEFAULT_DB" \
+    -p "$HOST_PORT:5432" \
+    -v "$DATA_VOLUME:/var/lib/postgresql/data" \
     postgis/postgis:16-3.5
+
 
   wait_for_postgres
 

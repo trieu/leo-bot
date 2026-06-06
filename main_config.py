@@ -39,8 +39,8 @@ RATE_LIMIT_MAX_MESSAGES = 20  # max messages
 RATE_LIMIT_WINDOW_SECONDS = 60  # time window
 
 # --- Redis ---
-REDIS_HOST = os.getenv("REDIS_USER_SESSION_HOST", "localhost")
-REDIS_PORT = int(os.getenv("REDIS_USER_SESSION_PORT", 6379))
+REDIS_HOST = os.getenv("REDIS_USER_SESSION_HOST") or "localhost"
+REDIS_PORT = int(os.getenv("REDIS_USER_SESSION_PORT") or 6379)
 REDIS_CLIENT = Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
 
 # --- Facebook Integration ---
