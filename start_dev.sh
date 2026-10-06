@@ -30,7 +30,7 @@ fi
 # ------------------------------------------------------------------------------
 # Configuration (Defaults can be overridden by .env)
 # ------------------------------------------------------------------------------
-PG_PORT="${PG_PORT:-5432}"
+PG_PORT="${PG_PORT:-5433}"
 PG_WAIT_MAX=30
 
 # Keycloak Config
@@ -45,13 +45,14 @@ FASTAPI_APP="main_app:leobot"
 FASTAPI_PORT="${FASTAPI_PORT:-8888}"
 
 # ------------------------------------------------------------------------------
-# Function: wait for PostgreSQL (5432)
+# Function: wait for PostgreSQL
 # ------------------------------------------------------------------------------
 wait_for_postgres() {
   echo -e "${YELLOW}🔍 Checking PostgreSQL on port ${PG_PORT}...${NC}"
 
   if nc -z localhost "$PG_PORT" 2>/dev/null; then
     echo -e "${GREEN}✅ PostgreSQL already running.${NC}"
+    bash ./dockers/pgsql/start_pgsql_pgvector.sh
     return 0
   fi
 
@@ -130,6 +131,13 @@ else
   echo -e "${RED}❌ Virtual environment not found at $VENV_PATH.${NC}"
   exit 1
 fi
+
+PYTHON_MINOR="$(python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+if [[ "$PYTHON_MINOR" != "3.12" ]]; then
+  echo -e "${RED}❌ Python 3.12 is required, but the active environment uses Python ${PYTHON_MINOR}.${NC}"
+  exit 1
+fi
+echo -e "${GREEN}✅ Using Python ${PYTHON_MINOR}.${NC}"
 
 # 5. Run FastAPI
 echo -e "${YELLOW}⚡ Launching FastAPI (port ${FASTAPI_PORT})...${NC}"

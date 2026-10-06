@@ -4,6 +4,7 @@ from fastapi import APIRouter, Request, Query
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from leoai.leo_datamodel import Message
 from leoai.rag_agent import RAGAgent
+from leoai.ai_core import is_ai_model_ready
 
 from main_config import (
     CDP_TRACKING,
@@ -11,8 +12,7 @@ from main_config import (
     LEOBOT_DEV_MODE,
     REDIS_CLIENT,
     RATE_LIMIT_WINDOW_SECONDS,
-    RATE_LIMIT_MAX_MESSAGES,
-    GEMINI_API_KEY
+    RATE_LIMIT_MAX_MESSAGES
 )
 
 # Router and logger initialization
@@ -56,7 +56,7 @@ async def index(request: Request):
     data = {"request": request, "HOSTNAME": HOSTNAME,
             "LEOBOT_DEV_MODE": LEOBOT_DEV_MODE, "CDP_TRACKING": CDP_TRACKING, "timestamp": ts}
     templates = request.app.state.templates
-    return templates.TemplateResponse("index.html", data)
+    return templates.TemplateResponse(request, "index.html", data)
 
 # === demo-chatbot-ishop ===
 @router.get("/_leoai/demo-chatbot-ishop", response_class=HTMLResponse)
@@ -68,7 +68,7 @@ async def demo_chat_in_ishop(request: Request):
     data = {"request": request, "HOSTNAME": HOSTNAME,
             "LEOBOT_DEV_MODE": LEOBOT_DEV_MODE, "timestamp": ts}
     templates = request.app.state.templates
-    return templates.TemplateResponse("demo-chatbot-ishop.html", data)
+    return templates.TemplateResponse(request, "demo-chatbot-ishop.html", data)
 
 # === chat-with-docss ===
 @router.get("/chat-with-docs", response_class=HTMLResponse)
@@ -81,7 +81,7 @@ async def chat_with_docs(request: Request):
     data = {"request": request, "HOSTNAME": HOSTNAME,
             "LEOBOT_DEV_MODE": LEOBOT_DEV_MODE, "timestamp": ts}
     templates = request.app.state.templates
-    return templates.TemplateResponse("chat-with-docs.html", data)
+    return templates.TemplateResponse(request, "chat-with-docs.html", data)
 
 
 # === Health Check Routes ===
@@ -96,8 +96,8 @@ async def ping():
 @router.get("/_leoai/is-ready", response_class=JSONResponse)
 @router.post("/_leoai/is-ready", response_class=JSONResponse)
 async def is_ready():
-    """Check if API key (Gemini) is available and service is ready."""
-    return {"ok": bool(GEMINI_API_KEY and GEMINI_API_KEY.strip())}
+    """Check whether the configured hosted AI provider has credentials."""
+    return {"ok": is_ai_model_ready()}
 
 
 # === Visitor Info Endpoint ===
@@ -112,9 +112,6 @@ async def get_visitor_info(
     Fetch or update visitor info stored in Redis.
     Used to persist visitor names and touchpoints across sessions.
     """
-    if not GEMINI_API_KEY:
-        return JSONResponse(status_code=500, content={"error": "GEMINI_API_KEY is empty"})
-
     visitor_id = visitor_id.strip()
     if not visitor_id:
         return JSONResponse(status_code=400, content={"error": "visitor_id is empty"})
@@ -155,6 +152,8 @@ async def handle_chat(msg: Message):
 
     if len(msg.question) > 1000:
         return {"error": True, "error_code": 510, "answer": "Question too long"}
+    if not msg.question.strip():
+        return {"error": True, "error_code": 400, "answer": "Question is empty"}
 
     profile_id = REDIS_CLIENT.hget(visitor_id, "profile_id")
     if not is_safe_to_answer(visitor_id):

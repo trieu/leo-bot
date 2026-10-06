@@ -48,6 +48,13 @@ else
   exit 1
 fi
 
+PYTHON_MINOR="$(python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+if [[ "$PYTHON_MINOR" != "3.12" ]]; then
+  echo "❌ Python 3.12 is required, but the active environment uses Python ${PYTHON_MINOR}."
+  exit 1
+fi
+echo "✅ Using Python ${PYTHON_MINOR}."
+
 # Start PGSQL instance
 bash ./dockers/pgsql/start_pgsql_pgvector.sh
 

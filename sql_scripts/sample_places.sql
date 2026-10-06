@@ -1,7 +1,7 @@
 -- SQL Script to Initialize Sample Data for Vietnam Travel MVP Chatbot and Test Queries
 -- Sets 'id' as a BIGINT hash of the 'name' using MD5
 -- Prevents duplicate entries in the 'places' table by checking for existing names
--- Assumes the 'places' table exists in the 'customer360' database with PostGIS extension enabled
+-- Assumes the 'places' table exists in the 'leo360' database with PostGIS extension enabled
 -- Uses PostGIS functions: ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)
 -- Includes test queries to find the nearest place to given coordinates
 
