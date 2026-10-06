@@ -455,6 +455,276 @@ VALUES
     ARRAY['pagoda', 'history', 'culture', 'quiet'],
     NULL,
     ST_SetSRID(ST_MakePoint(106.6870, 10.7790), 4326)
+),
+(
+    'Huyen Sy Church',
+    '1 Ton That Tung, District 1, Ho Chi Minh City',
+    'Historic Catholic church known for its Gothic architecture and central location.',
+    'church',
+    ARRAY['church', 'Catholic', 'architecture', 'history'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6857, 10.7653), 4326)
+),
+(
+    'Cho Quan Church',
+    '120 Tran Binh Trong, District 5, Ho Chi Minh City',
+    'Historic Catholic parish church serving the Cho Quan area.',
+    'church',
+    ARRAY['church', 'Catholic', 'architecture', 'history'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6769, 10.7548), 4326)
+),
+(
+    'Cha Tam Church',
+    '25 Hoc Lac, District 5, Ho Chi Minh City',
+    'Historic Chinese Catholic church in the Cho Lon neighborhood.',
+    'church',
+    ARRAY['church', 'Catholic', 'Cho Lon', 'architecture'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6588, 10.7517), 4326)
+),
+(
+    'St Jeanne d''Arc Church',
+    '116B Hung Vuong, District 5, Ho Chi Minh City',
+    'Distinctive Catholic church commonly known as the Nga Sau Church.',
+    'church',
+    ARRAY['church', 'Catholic', 'architecture', 'photography'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6820, 10.7680), 4326)
+),
+(
+    'Hanh Thong Tay Church',
+    '7 Quang Trung, Go Vap District, Ho Chi Minh City',
+    'Popular Catholic church serving the Hanh Thong Tay neighborhood.',
+    'church',
+    ARRAY['church', 'Catholic', 'community', 'architecture'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6650, 10.8420), 4326)
+),
+(
+    'Go Vap Church',
+    '535 Quang Trung, Go Vap District, Ho Chi Minh City',
+    'Local Catholic church and community landmark in Go Vap.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6660, 10.8370), 4326)
+),
+(
+    'Phu Nhuan Church',
+    '386 Nguyen Kiem, Phu Nhuan District, Ho Chi Minh City',
+    'Catholic parish church near the Phu Nhuan urban center.',
+    'church',
+    ARRAY['church', 'Catholic', 'community', 'architecture'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6790, 10.7990), 4326)
+),
+(
+    'Vuon Xoai Church',
+    '161B Le Van Sy, District 3, Ho Chi Minh City',
+    'Catholic church known for parish activities and a welcoming urban campus.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6800, 10.7860), 4326)
+),
+(
+    'Ky Dong Church',
+    '40 Ky Dong, District 3, Ho Chi Minh City',
+    'Catholic church and pilgrimage destination in central District 3.',
+    'church',
+    ARRAY['church', 'Catholic', 'pilgrimage', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6850, 10.7850), 4326)
+),
+(
+    'Tan Huong Church',
+    '117 Tan Huong, Tan Phu District, Ho Chi Minh City',
+    'Catholic parish church serving the Tan Huong neighborhood.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6270, 10.7890), 4326)
+),
+(
+    'Tan Phu Church',
+    '158 Nguyen Son, Tan Phu District, Ho Chi Minh City',
+    'Catholic church serving families and parish communities in Tan Phu.',
+    'church',
+    ARRAY['church', 'Catholic', 'community', 'architecture'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6250, 10.7900), 4326)
+),
+(
+    'Phu Tho Church',
+    '18 Nguyen Thi Nho, District 10, Ho Chi Minh City',
+    'Catholic parish church near the Phu Tho area and local markets.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6600, 10.7720), 4326)
+),
+(
+    'Binh Thai Church',
+    '173A Pham Phu Thu, District 6, Ho Chi Minh City',
+    'Catholic church serving the Binh Thai community near Cho Lon.',
+    'church',
+    ARRAY['church', 'Catholic', 'Cho Lon', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6570, 10.7560), 4326)
+),
+(
+    'Binh An Church',
+    '178 Nguyen Thi Thap, District 7, Ho Chi Minh City',
+    'Catholic parish church in the growing District 7 urban area.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7240, 10.7410), 4326)
+),
+(
+    'Thanh Da Church',
+    'Thanh Da Peninsula, Binh Thanh District, Ho Chi Minh City',
+    'Riverside Catholic church serving the Thanh Da neighborhood.',
+    'church',
+    ARRAY['church', 'Catholic', 'river', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7280, 10.8080), 4326)
+),
+(
+    'Thu Duc Church',
+    '22 Vo Van Ngan, Thu Duc City, Ho Chi Minh City',
+    'Historic Catholic parish church in the center of Thu Duc.',
+    'church',
+    ARRAY['church', 'Catholic', 'architecture', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7560, 10.8490), 4326)
+),
+(
+    'Thu Thiem Church',
+    'Thu Thiem Ward, Thu Duc City, Ho Chi Minh City',
+    'Historic riverside Catholic church in the Thu Thiem area.',
+    'church',
+    ARRAY['church', 'Catholic', 'history', 'river'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7300, 10.7740), 4326)
+),
+(
+    'Fatima Binh Trieu Church',
+    'Binh Trieu, Thu Duc City, Ho Chi Minh City',
+    'Popular Catholic pilgrimage and parish site near the Saigon River.',
+    'church',
+    ARRAY['church', 'Catholic', 'pilgrimage', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7350, 10.8530), 4326)
+),
+(
+    'Binh Loi Church',
+    'Binh Loi, Binh Thanh District, Ho Chi Minh City',
+    'Catholic church serving the riverside Binh Loi community.',
+    'church',
+    ARRAY['church', 'Catholic', 'river', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7200, 10.8200), 4326)
+),
+(
+    'Ba Diem Church',
+    'Ba Diem, Hoc Mon District, Ho Chi Minh City',
+    'Catholic parish church serving the Ba Diem community northwest of the city.',
+    'church',
+    ARRAY['church', 'Catholic', 'community', 'history'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.5950, 10.8670), 4326)
+),
+(
+    'Bien Hoa Cathedral',
+    '57 Nguyen Ai Quoc, Bien Hoa City, Dong Nai Province',
+    'Major Catholic cathedral serving Bien Hoa and surrounding communities.',
+    'church',
+    ARRAY['church', 'Catholic', 'cathedral', 'architecture'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.8430, 10.9570), 4326)
+),
+(
+    'Tan Mai Church',
+    'Tan Mai Ward, Bien Hoa City, Dong Nai Province',
+    'Large Catholic parish church in the Tan Mai area of Bien Hoa.',
+    'church',
+    ARRAY['church', 'Catholic', 'community', 'architecture'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.8500, 10.9400), 4326)
+),
+(
+    'Tam Hiep Church',
+    'Tam Hiep Ward, Bien Hoa City, Dong Nai Province',
+    'Catholic church serving a large suburban parish east of Ho Chi Minh City.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.8550, 10.9400), 4326)
+),
+(
+    'Phu Cuong Cathedral',
+    '6 Nguyen Truong To, Thu Dau Mot City, Binh Duong Province',
+    'Prominent Catholic cathedral and architectural landmark in Thu Dau Mot.',
+    'church',
+    ARRAY['church', 'Catholic', 'cathedral', 'architecture'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6540, 10.9800), 4326)
+),
+(
+    'Lai Thieu Church',
+    'Lai Thieu Ward, Thuan An City, Binh Duong Province',
+    'Historic Catholic church serving the Lai Thieu community north of the city.',
+    'church',
+    ARRAY['church', 'Catholic', 'history', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7040, 10.9030), 4326)
+),
+(
+    'Ba Ria Cathedral',
+    'Nguyen Tat Thanh, Ba Ria City, Ba Ria - Vung Tau Province',
+    'Catholic cathedral serving Ba Ria and the surrounding coastal province.',
+    'church',
+    ARRAY['church', 'Catholic', 'cathedral', 'architecture'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(107.1680, 10.4950), 4326)
+),
+(
+    'Vung Tau Cathedral',
+    'Tran Hung Dao, Vung Tau City, Ba Ria - Vung Tau Province',
+    'Central Catholic cathedral in Vung Tau near the city waterfront.',
+    'church',
+    ARRAY['church', 'Catholic', 'cathedral', 'architecture'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(107.0840, 10.3460), 4326)
+),
+(
+    'Long Hai Church',
+    'Long Hai, Long Dien District, Ba Ria - Vung Tau Province',
+    'Catholic parish church near the Long Hai coastal area.',
+    'church',
+    ARRAY['church', 'Catholic', 'coast', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(107.2400, 10.3860), 4326)
+),
+(
+    'Phuoc Hai Church',
+    'Phuoc Hai, Dat Do District, Ba Ria - Vung Tau Province',
+    'Catholic church serving the fishing and coastal community of Phuoc Hai.',
+    'church',
+    ARRAY['church', 'Catholic', 'coast', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(107.2600, 10.4080), 4326)
+),
+(
+    'Xuan Loc Cathedral',
+    'Xuan Loc City, Dong Nai Province',
+    'Catholic cathedral and diocesan landmark east of Ho Chi Minh City.',
+    'church',
+    ARRAY['church', 'Catholic', 'cathedral', 'architecture'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(107.2440, 10.9290), 4326)
 )
 ON CONFLICT (name) DO UPDATE SET
     address = EXCLUDED.address,

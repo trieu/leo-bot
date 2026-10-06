@@ -1,7 +1,10 @@
 from leoai.rag_agent import (
     format_place_picker,
     format_place_selection_confirmation,
+    format_nearby_places_answer,
     is_greeting_message,
+    is_nearby_place_question,
+    nearby_place_terms,
     selected_place_index,
 )
 
@@ -36,3 +39,16 @@ def test_place_picker_lists_nearby_places():
 def test_selection_confirmation_names_selected_place():
     answer = format_place_selection_confirmation(PLACES[0], "English")
     assert "Binh Tay Market" in answer
+
+
+def test_nearby_church_question_uses_keyword_intent():
+    question = "What are churches near me?"
+    assert is_nearby_place_question(question)
+    assert nearby_place_terms(question) == ["church", "cathedral", "nhà thờ"]
+
+
+def test_nearby_place_question_formats_direct_results():
+    answer = format_nearby_places_answer(PLACES, "English", ["church"])
+    assert answer.startswith("Nearby churches:")
+    assert "Binh Tay Market" in answer
+    assert "737 m" in answer

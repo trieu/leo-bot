@@ -230,6 +230,68 @@ class ChatDBManager:
             ],
         }
 
+    async def find_nearby_places(
+        self,
+        touchpoint_id: str | None,
+        search_terms: Sequence[str] = (),
+        limit: int = NEARBY_PLACES_LIMIT,
+    ) -> list[dict]:
+        """Find places near a touchpoint, optionally filtered by keywords."""
+        if not touchpoint_id:
+            return []
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+
+        terms = [term.strip().lower() for term in search_terms if term.strip()]
+        async with get_async_pg_conn() as conn:
+            rows = await conn.fetch(
+                """
+                WITH touchpoint AS (
+                    SELECT geom::geography AS point
+                    FROM touchpoints
+                    WHERE touchpoint_id = $1
+                )
+                SELECT p.id, p.name, p.address, p.description, p.category, p.tags,
+                       ST_Distance(p.geom::geography, t.point) AS distance_meters
+                FROM places AS p
+                CROSS JOIN touchpoint AS t
+                WHERE ST_DWithin(p.geom::geography, t.point, $3)
+                  AND (
+                      cardinality($2::text[]) = 0
+                      OR EXISTS (
+                          SELECT 1
+                          FROM unnest($2::text[]) AS term
+                          WHERE lower(coalesce(p.name, '')) LIKE '%' || term || '%'
+                             OR lower(coalesce(p.description, '')) LIKE '%' || term || '%'
+                             OR lower(coalesce(p.category, '')) LIKE '%' || term || '%'
+                             OR EXISTS (
+                                 SELECT 1
+                                 FROM unnest(coalesce(p.tags, ARRAY[]::text[])) AS tag
+                                 WHERE lower(tag) LIKE '%' || term || '%'
+                             )
+                      )
+                  )
+                ORDER BY p.geom::geography <-> t.point
+                LIMIT $4;
+                """,
+                touchpoint_id,
+                terms,
+                NEARBY_PLACES_RADIUS_METERS,
+                limit,
+            )
+        return [
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "address": row["address"],
+                "description": row["description"],
+                "category": row["category"],
+                "tags": row["tags"] or [],
+                "distance_meters": round(float(row["distance_meters"]), 1),
+            }
+            for row in rows
+        ]
+
     async def save_chat_message(self, user_id, role, message,
                                 cdp_profile_id="_", persona_id="_",
                                 touchpoint_id="_", keywords=[],

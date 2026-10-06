@@ -4,7 +4,7 @@ import asyncio
 import re
 from typing import Optional, List, Union, Any
 from leoai.ai_core import GeminiClient, get_embedding_model
-from leoai.rag_db_manager import ChatDBManager
+from leoai.rag_db_manager import ChatDBManager, NEARBY_PLACES_LIMIT
 from leoai.rag_context_manager import ContextManager
 from leoai.rag_prompt_builder import AgentOrchestrator
 from leoai.rag_knowledge_manager import KnowledgeRetriever
@@ -22,6 +22,11 @@ PLACE_SELECTION_PATTERN = re.compile(
     r"^(?:option|choice|select|pick|place|chọn|so|số)?\s*([1-5])\s*[\].):\-]?$",
     re.IGNORECASE,
 )
+NEARBY_QUERY_PATTERN = re.compile(
+    r"\b(?:near\s+me|nearby|close\s+to\s+me|around\s+me|"
+    r"gần\s+(?:tôi|mình|đây)|xung\s+quanh)\b",
+    re.IGNORECASE,
+)
 
 
 def is_greeting_message(message: str) -> bool:
@@ -36,6 +41,58 @@ def selected_place_index(message: str, place_count: int) -> int | None:
         return None
     index = int(match.group(1)) - 1
     return index if index < place_count else None
+
+
+def nearby_place_terms(message: str) -> list[str]:
+    normalized = message.lower()
+    if re.search(r"\b(?:church|churches|cathedral|nhà thờ|nha tho)\b", normalized):
+        return ["church", "cathedral", "nhà thờ"]
+    if re.search(r"\b(?:pagoda|temple|chùa|đền)\b", normalized):
+        return ["pagoda", "temple", "chùa", "đền"]
+    if re.search(r"\b(?:market|markets|chợ)\b", normalized):
+        return ["market", "chợ"]
+    if re.search(r"\b(?:cafe|coffee|restaurant|food|quán|ăn)\b", normalized):
+        return ["cafe", "coffee", "restaurant", "food", "quán"]
+    return []
+
+
+def is_nearby_place_question(message: str) -> bool:
+    normalized = message.lower()
+    return bool(
+        NEARBY_QUERY_PATTERN.search(normalized)
+        and (
+            nearby_place_terms(normalized)
+            or re.search(r"\b(?:place|places|địa điểm|đi đâu)\b", normalized)
+        )
+    )
+
+
+def format_nearby_places_answer(
+    places: list[dict], target_language: str, terms: list[str]
+) -> str:
+    is_vietnamese = target_language.lower().startswith(("vi", "vietnam"))
+    if "church" in terms:
+        subject = "nhà thờ" if is_vietnamese else "churches"
+    else:
+        subject = "địa điểm" if is_vietnamese else "places"
+    heading = (
+        f"Các {subject} gần bạn:"
+        if is_vietnamese
+        else f"Nearby {subject}:"
+    )
+    if not places:
+        return (
+            "Mình không tìm thấy địa điểm phù hợp trong bán kính hiện tại."
+            if is_vietnamese
+            else "I could not find a matching place within the current search radius."
+        )
+    lines = [heading]
+    for index, place in enumerate(places, 1):
+        distance = place.get("distance_meters")
+        distance_text = f"{distance:.0f} m" if distance is not None else "distance unavailable"
+        details = place.get("address") or place.get("description") or ""
+        lines.append(f"{index}. {place['name']} ({distance_text}) - {details}")
+    return "\n".join(lines)
 
 
 def format_place_picker(places: list[dict], target_language: str) -> str:
@@ -149,6 +206,28 @@ class RAGAgent:
             user_context = summarized_context.get("user_context", {})
             nearby_places = user_context.get("nearby_places", [])[:5]
             selected_place = user_context.get("selected_place")
+
+            if is_nearby_place_question(user_message) and touchpoint_id:
+                terms = nearby_place_terms(user_message)
+                matching_places = await self.db.find_nearby_places(
+                    touchpoint_id, terms, NEARBY_PLACES_LIMIT
+                )
+                final_answer = format_nearby_places_answer(
+                    matching_places, target_language, terms
+                )
+                await self.db.save_chat_message(
+                    user_id,
+                    "bot",
+                    final_answer,
+                    cdp_profile_id,
+                    persona_id,
+                    touchpoint_id,
+                )
+                return (
+                    markdown.markdown(final_answer)
+                    if answer_in_format == "html"
+                    else final_answer
+                )
 
             if is_greeting_message(user_message) and nearby_places and not selected_place:
                 final_answer = format_place_picker(nearby_places, target_language)
