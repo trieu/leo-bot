@@ -154,7 +154,7 @@ def format_place_picker(places: list[dict], target_language: str) -> str:
         if is_vietnamese
         else "Hi! Pick one of these nearby places to start:"
     )
-    lines = [heading]
+    lines = [heading, ""]
     for index, place in enumerate(places[:5], 1):
         distance = place.get("distance_meters")
         distance_text = f" ({distance:.0f} m)" if distance is not None else ""

@@ -344,7 +344,12 @@ var askTheContactOfUser = function () {
 };
 
 var sendQuestionToLeoAI = function (context, question) {
-  if (question.length > 1 && question !== "exit") {
+  question = typeof question === "string" ? question.trim() : "";
+  if (!question) {
+    leoBotShowError("Vui lòng nhập câu hỏi hoặc số của địa điểm.", leoBotPromptQuestion);
+    return;
+  }
+  if (question !== "exit") {
 
     //
     var processAnswer = function (answer) {
@@ -400,7 +405,13 @@ var sendQuestionToLeoAI = function (context, question) {
       payload["answer_in_language"] = "Vietnamese";
       payload["answer_in_format"] = "html";
       
-      callPostApi(BASE_URL_LEOBOT, payload, serverCallback);
+      callPostApi(BASE_URL_LEOBOT, payload, serverCallback, function () {
+        getBotUI().message.remove(index);
+        leoBotShowError(
+          "Không thể gửi tin nhắn. Vui lòng thử lại.",
+          leoBotPromptQuestion
+        );
+      });
     };
     showChatBotLoader().then(callServer);
   }

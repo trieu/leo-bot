@@ -253,6 +253,7 @@ Offline tests:
 
 ```bash
 env/bin/python -m pytest -q tests/test_nearby_places.py tests/test_place_selection.py
+node --test tests/leocdp.chatbot.test.cjs
 ```
 
 Optional PostGIS validation uses a temporary schema that is rolled back:

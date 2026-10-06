@@ -27,6 +27,7 @@ def test_place_selection_accepts_numbered_choices():
     assert selected_place_index("option 2", 3) == 1
     assert selected_place_index("chọn 3.", 3) == 2
     assert selected_place_index("5", 3) is None
+    assert selected_place_index("4", 5) == 3
 
 
 def test_place_picker_lists_nearby_places():
@@ -34,6 +35,12 @@ def test_place_picker_lists_nearby_places():
     assert "Binh Tay Market" in answer
     assert "1." in answer
     assert "737 m" in answer
+
+
+def test_place_picker_renders_a_real_html_list():
+    answer = markdown.markdown(format_place_picker(PLACES, "Vietnamese"))
+    assert "<ol>" in answer
+    assert answer.count("<li>") == len(PLACES)
 
 
 def test_selection_confirmation_names_selected_place():
@@ -52,3 +59,4 @@ def test_nearby_place_question_formats_direct_results():
     assert answer.startswith("Nearby churches:")
     assert "Binh Tay Market" in answer
     assert "737 m" in answer
+import markdown
