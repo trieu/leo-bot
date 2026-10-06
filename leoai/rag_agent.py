@@ -16,6 +16,14 @@ from main_config import REDIS_CLIENT
 
 logger = logging.getLogger("RAGAgent")
 logger.setLevel(logging.INFO)
+DOCUMENT_CHAT_TOUCHPOINT_ID = "document_agent"
+
+
+def is_document_chat(context: str, persona_id: str | None) -> bool:
+    return (
+        context.strip().lower() == "agent"
+        and (persona_id or "").strip().lower() == "personal_assistant"
+    )
 
 GREETING_PATTERN = re.compile(
     r"^(?:hi|hello|hey|xin chao|xin chào|chao|chào|good morning|"
@@ -219,8 +227,14 @@ class RAGAgent:
         touchpoint_type: str = "web",
         touchpoint_keywords: Optional[List[str]] = None,
         result_limit: int | None = None,
+        context: str = "chatbot",
     ) -> str:
         try:
+            if is_document_chat(context, persona_id):
+                return await self._process_document_chat(
+                    user_id, user_message, cdp_profile_id, persona_id,
+                    target_language, answer_in_format, temperature_score,
+                )
             if (latitude is None) != (longitude is None):
                 raise ValueError("latitude and longitude must be provided together")
             if is_nearby_place_question(user_message):
@@ -373,6 +387,40 @@ class RAGAgent:
         except Exception as e:
             logger.exception("❌ RAG pipeline error")
             return f"I'm sorry, but something went wrong: {e}"
+
+    async def _process_document_chat(
+        self,
+        user_id: str,
+        user_message: str,
+        cdp_profile_id: str | None,
+        persona_id: str | None,
+        target_language: str,
+        answer_in_format: str,
+        temperature_score: float,
+    ) -> str:
+        """Keep document Q&A separate from the visitor's geolocation conversation."""
+        await self.db.save_chat_message(
+            user_id, "user", user_message, cdp_profile_id, persona_id,
+            DOCUMENT_CHAT_TOUCHPOINT_ID,
+        )
+        summary = await self.context.build_context_summary(
+            user_id, DOCUMENT_CHAT_TOUCHPOINT_ID, cdp_profile_id, user_message,
+            include_location=False,
+        )
+        document_context = ""
+        if not is_greeting_message(user_message):
+            document_context = await self.knowledge.retrieve(
+                user_message, "default", user_id=user_id,
+            )
+        prompt = self.agent_orchestrator.build_document_prompt(
+            user_message, summary, document_context, target_language,
+        )
+        answer = await self._safe_generate(prompt, temperature_score)
+        await self.db.save_chat_message(
+            user_id, "bot", answer, cdp_profile_id, persona_id,
+            DOCUMENT_CHAT_TOUCHPOINT_ID,
+        )
+        return markdown.markdown(answer) if answer_in_format == "html" else answer
 
     async def _safe_generate(self, prompt_router, temperature_score: float) -> str:
         """

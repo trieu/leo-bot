@@ -3,7 +3,10 @@ import logging
 from fastapi import APIRouter, HTTPException, Request, Query
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from leoai.leo_datamodel import GeolocationTouchpointRequest, Message
-from leoai.rag_agent import RAGAgent, is_nearby_place_question, nearby_result_limit
+from leoai.rag_agent import (
+    DOCUMENT_CHAT_TOUCHPOINT_ID, RAGAgent, is_document_chat,
+    is_nearby_place_question, nearby_result_limit,
+)
 from leoai.ai_core import is_ai_model_ready
 
 from main_config import (
@@ -178,7 +181,8 @@ async def handle_chat(msg: Message):
     if not msg.question.strip():
         return {"error": True, "error_code": 400, "answer": "Question is empty"}
 
-    nearby_search = is_nearby_place_question(msg.question)
+    document_chat = is_document_chat(msg.context, msg.persona_id)
+    nearby_search = not document_chat and is_nearby_place_question(msg.question)
     result_limit = msg.result_limit
     if nearby_search:
         try:
@@ -186,19 +190,23 @@ async def handle_chat(msg: Message):
         except ValueError as exc:
             logger.warning("Invalid nearby-place count: %s", exc)
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if (msg.latitude is None) != (msg.longitude is None):
+    if not document_chat and (msg.latitude is None) != (msg.longitude is None):
         raise HTTPException(status_code=400, detail="latitude and longitude must be provided together")
 
     profile_id = REDIS_CLIENT.hget(visitor_id, "profile_id")
     if not is_safe_to_answer(visitor_id):
         return {"error": True, "error_code": 429, "answer": "Too many messages"}
 
-    touchpoint_id = msg.touchpoint_id or REDIS_CLIENT.hget(visitor_id, "touchpoint_id")
+    touchpoint_id = (
+        DOCUMENT_CHAT_TOUCHPOINT_ID if document_chat
+        else msg.touchpoint_id or REDIS_CLIENT.hget(visitor_id, "touchpoint_id")
+    )
     if (
         touchpoint_id is None
         and msg.latitude is not None
         and msg.longitude is not None
         and not nearby_search
+        and not document_chat
     ):
         touchpoint = await rag_agent.create_geolocation_touchpoint(
             visitor_id, msg.latitude, msg.longitude
@@ -213,13 +221,15 @@ async def handle_chat(msg: Message):
         touchpoint_id=touchpoint_id,
         target_language=msg.answer_in_language,
         answer_in_format=msg.answer_in_format,
-        latitude=msg.latitude,
-        longitude=msg.longitude,
+        latitude=None if document_chat else msg.latitude,
+        longitude=None if document_chat else msg.longitude,
         touchpoint_name=msg.touchpoint_name,
         touchpoint_description=msg.touchpoint_description,
         touchpoint_type=msg.touchpoint_type,
         touchpoint_keywords=msg.touchpoint_keywords,
         result_limit=result_limit,
+        context=msg.context,
+        temperature_score=msg.temperature_score,
     )
     return {
         "question": msg.question,

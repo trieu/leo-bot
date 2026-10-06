@@ -220,6 +220,47 @@ Open your browser and visit your configured `HOSTNAME` to test.
 | `/_leoai/zalo-webhook`     | POST     | Zalo OA webhook                  |
 | `/_leoai/ping`             | GET      | Basic health check               |
 | `/_leoai/visitor-info` | GET      | Retrieve visitor info from Redis |
+| `/_leoai/update-knowledge` | POST | Authenticated URL ingestion into visitor-owned knowledge sources/chunks |
+
+### Import a web page into document chat
+
+Send an authenticated **POST**, not a GET, to the query-parameter endpoint:
+
+```bash
+curl --user "$LEO_ADMIN_USER:$LEO_ADMIN_PASSWORD" \
+  --request POST --get \
+  --data-urlencode 'source_type=web_page' \
+  --data-urlencode 'visitor_id=7e7c56b6b2a74869a1b79659711f44d5' \
+  --data-urlencode 'url=https://www.bigdatavietnam.org/2026/04/rag-vs-cag-giai-quyet-iem-mu-cua-ai-voi.html' \
+  'https://leobot.leocdp.com/_leoai/update-knowledge'
+```
+
+The route uses the same HTTP Basic authentication dependency as the email
+endpoint. The shell variables above are the credentials accepted by that
+dependency; they do not configure server authentication themselves.
+
+Required: `url` and `visitor_id`. `source_type` defaults to `web_page` (the only
+URL ingestion type currently supported); `name` optionally overrides the page
+title. The response contains `source_id`, visitor/tenant identifiers, URL/title,
+`status: "active"`, `chunk_count`, and `embedding_dimensions: 768`.
+
+`KnowledgeCreator` extracts readable HTML/plain text, splits it with the existing
+chunker, and generates embeddings using `EMBEDDING_*`. The same URL, source type,
+and visitor reuse a stable source ID. A successful update atomically replaces
+the source's previous chunks; fetch, embedding, or database failures do not
+replace existing knowledge. Sources belong to the supplied visitor in the
+`default` tenant and can be retrieved with `context="agent"` and
+`persona_id="personal_assistant"` using that same `visitor_id`.
+
+Downloads are restricted to public HTTP(S) addresses, including redirects.
+PDFs/binary sources are not supported by this endpoint. The download limit is
+2 MB; extracted text over 100,000 characters is rejected rather than truncated.
+No database migration or additional Python dependencies are needed.
+
+```bash
+env/bin/python -m pytest -q tests/test_knowledge_creator.py
+RUN_KNOWLEDGE_DB_TESTS=1 env/bin/python -m pytest -q tests/test_knowledge_creator.py
+```
 
 ### Nearby-place questions
 
@@ -227,6 +268,15 @@ Open your browser and visit your configured `HOSTNAME` to test.
 “top 3 churches is near me”, and “top 20 churches nearby”. The count in the
 question is passed as a SQL parameter, not fixed in the query. If no count is
 specified, `NEARBY_PLACES_LIMIT` supplies the default.
+
+Requests with **both** `context="agent"` and `persona_id="personal_assistant"`
+use document chat instead. This mode has a separate `document_agent` conversation
+key, ignores cached geolocation and place selections, and does not offer nearby
+place menus. Non-greeting questions retrieve active knowledge excerpts belonging
+to the visitor in the default tenant; greetings invite questions or document
+content. If no excerpts are available, the prompt asks for the relevant document
+rather than assuming location context. Other context/persona combinations keep
+the existing location-aware behavior. `temperature_score` is passed to generation.
 
 ```json
 {
@@ -262,6 +312,7 @@ Offline tests:
 ```bash
 env/bin/python -m pytest -q tests/test_nearby_places.py tests/test_place_selection.py
 env/bin/python -m pytest -q tests/test_conversation_context.py tests/test_ai_core.py
+env/bin/python -m pytest -q tests/test_document_chat.py
 node --test tests/leocdp.chatbot.test.cjs
 ```
 
@@ -276,6 +327,12 @@ in a rollback-only schema:
 
 ```bash
 RUN_CONVERSATION_DB_TESTS=1 env/bin/python -m pytest -q tests/test_conversation_context.py
+```
+
+Document retrieval has a separate rollback-only database check:
+
+```bash
+RUN_DOCUMENT_DB_TESTS=1 env/bin/python -m pytest -q tests/test_document_chat.py
 ```
 
 ---

@@ -11,6 +11,7 @@ from leoai.rag_db_manager import ChatDBManager
 logger = logging.getLogger("ContextManager")
 DELTA_TO_REFRESH_CONTEXT = timedelta(seconds=10)
 PLACE_STATE_KEYS = ("selected_place", "place_choices")
+LOCATION_CONTEXT_KEYS = (*PLACE_STATE_KEYS, "nearby_places", "latitude", "longitude")
 
 SUMMARY_PROMPT_TEMPLATE = """
 You are a data extractor. Please analyze the conversation below. Extract key information and return a single, valid JSON object
@@ -53,16 +54,25 @@ class ContextManager:
         self.client = gemini_client
         self.db = db_manager
 
-    async def build_context_summary(self, user_id, touchpoint_id, cdp_profile_id, user_message):
+    async def build_context_summary(
+        self, user_id, touchpoint_id, cdp_profile_id, user_message, *,
+        include_location: bool = True,
+    ):
         current_context = await asyncio.to_thread(
             self.get_context_summary, user_id, touchpoint_id
         )
         previous_user_context = dict((current_context or {}).get("user_context") or {})
+        if not include_location:
+            for key in LOCATION_CONTEXT_KEYS:
+                previous_user_context.pop(key, None)
         place_state = {
             key: deepcopy(previous_user_context[key])
             for key in PLACE_STATE_KEYS if key in previous_user_context
         }
-        touchpoint_context = await self.db.get_touchpoint_context(touchpoint_id)
+        touchpoint_context = (
+            await self.db.get_touchpoint_context(touchpoint_id)
+            if include_location else None
+        )
         needs_refresh = self._needs_refresh(current_context)
         if needs_refresh:
             text_context = await self._retrieve_semantic_context(
@@ -73,7 +83,7 @@ class ContextManager:
             )
             if refreshed is not None:
                 refreshed_user_context = dict(refreshed.get("user_context") or {})
-                for key in PLACE_STATE_KEYS:
+                for key in (PLACE_STATE_KEYS if include_location else LOCATION_CONTEXT_KEYS):
                     refreshed_user_context.pop(key, None)
                 previous_user_context.update(refreshed_user_context)
                 current_context = {**(current_context or {}), **refreshed}
@@ -82,7 +92,7 @@ class ContextManager:
         if touchpoint_context:
             previous_user_context.update(touchpoint_context)
         current_context["user_context"] = previous_user_context
-        if needs_refresh or touchpoint_context:
+        if needs_refresh or touchpoint_context or not include_location:
             persisted_context = dict(current_context)
             persisted_context.pop("updated_at", None)
             saved = await self.db.save_context_summary(
