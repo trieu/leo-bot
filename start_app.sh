@@ -7,6 +7,7 @@ DIR_PATH="/build/leo-bot"
 VENV_PATH="$DIR_PATH/env"
 HOST="0.0.0.0"
 PORT="8888"
+WORKERS="${UVICORN_WORKERS:-1}"
 SEED_DATA=false
 
 for arg in "$@"; do
@@ -27,6 +28,18 @@ mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/${APP_NAME}-$(date '+%Y-%m-%d_%H-%M-%S').log"
 
 cd "$DIR_PATH" || { echo "❌ Directory not found: $DIR_PATH"; exit 1; }
+
+ENV_FILE="${LEO_ENV_FILE:-$DIR_PATH/.env}"
+if [[ -f "$ENV_FILE" ]]; then
+  echo "📄 Loading configuration from $ENV_FILE..."
+  set -a
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  set +a
+else
+  echo "⚠️  Environment file not found at $ENV_FILE. Using exported environment variables."
+fi
+WORKERS="${UVICORN_WORKERS:-$WORKERS}"
 
 # Clean old logs (older than 2 days)
 echo "🧹 Cleaning logs older than 2 days in $LOG_DIR..."
@@ -54,12 +67,21 @@ else
 fi
 
 # Activate virtual environment
-if [[ -f "$VENV_PATH/bin/activate" ]]; then
-  source "$VENV_PATH/bin/activate"
-else
-  echo "❌ Virtual environment not found at $VENV_PATH"
+if [[ ! -x "$VENV_PATH/bin/python" ]]; then
+  echo "🐍 Virtual environment not found. Creating Python 3.12 environment at $VENV_PATH..."
+  if ! command -v python3.12 >/dev/null 2>&1; then
+    echo "❌ Python 3.12 is required but python3.12 was not found."
+    exit 1
+  fi
+  python3.12 -m venv "$VENV_PATH"
+  "$VENV_PATH/bin/python" -m pip install --upgrade pip
+  "$VENV_PATH/bin/python" -m pip install -r "$DIR_PATH/requirements.txt"
+elif [[ ! -f "$VENV_PATH/bin/activate" ]]; then
+  echo "❌ Virtual environment is incomplete at $VENV_PATH"
   exit 1
 fi
+
+source "$VENV_PATH/bin/activate"
 
 PYTHON_MINOR="$(python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
 if [[ "$PYTHON_MINOR" != "3.12" ]]; then
@@ -79,11 +101,17 @@ fi
 # Start new instance
 echo "🚀 Starting $APP_NAME on port $PORT..."
 
-nohup uvicorn "$APP_MODULE" \
-  --reload \
-  --env-file .env \
-  --host "$HOST" \
-  --port "$PORT" \
+UVICORN_ARGS=(
+  "$APP_MODULE"
+  --host "$HOST"
+  --port "$PORT"
+  --workers "$WORKERS"
+)
+if [[ -f "$ENV_FILE" ]]; then
+  UVICORN_ARGS+=(--env-file "$ENV_FILE")
+fi
+
+nohup uvicorn "${UVICORN_ARGS[@]}" \
   >> "$LOG_FILE" 2>&1 &
 
 NEW_PID=$!

@@ -12,7 +12,7 @@ from leoai.ai_core import get_embedding_model
 # ----------------------------
 # PGVector configuration
 # ----------------------------
-DB_DSN = os.getenv("PG_DSN", "postgresql://postgres:password@localhost:5433/leo360")
+DB_DSN = os.getenv("PGSQL_DB_URL", "postgresql://postgres:password@localhost:5433/leo360")
 
 model = get_embedding_model()
 VECTOR_DIM_SIZE = model.dimensions

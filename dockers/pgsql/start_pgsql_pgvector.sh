@@ -17,7 +17,8 @@ POSTGRES_USER="postgres"
 POSTGRES_PASSWORD="password"
 DEFAULT_DB="postgres"
 TARGET_DB="leo360"
-HOST_PORT="${PG_PORT:-5433}"
+KEYCLOAK_DB="keycloak"
+HOST_PORT="${PGSQL_DB_PORT:-5433}"
 
 # --- SQL schema config ---
 SCHEMA_VERSION=251203
@@ -146,6 +147,20 @@ DB_EXISTS="$(printf '%s' "$DB_EXISTS" | tr -d '[:space:]')"
 if [ "$DB_EXISTS" != "1" ]; then
   echo "🚀 Creating database '${TARGET_DB}'..."
   docker exec -u postgres "$CONTAINER_NAME" psql -v ON_ERROR_STOP=1 -d "$DEFAULT_DB" -c "CREATE DATABASE ${TARGET_DB};" || { echo "❌ Failed to create database '${TARGET_DB}'."; exit 1; }
+fi
+
+echo "🔄 Checking if database '${KEYCLOAK_DB}' exists..."
+if ! KEYCLOAK_DB_EXISTS=$(docker exec -u postgres "$CONTAINER_NAME" psql -v ON_ERROR_STOP=1 -d "$DEFAULT_DB" -tc "SELECT 1 FROM pg_database WHERE datname='${KEYCLOAK_DB}';"); then
+  echo "❌ Failed to check whether database '${KEYCLOAK_DB}' exists."
+  exit 1
+fi
+KEYCLOAK_DB_EXISTS="$(printf '%s' "$KEYCLOAK_DB_EXISTS" | tr -d '[:space:]')"
+if [ "$KEYCLOAK_DB_EXISTS" != "1" ]; then
+  echo "🚀 Creating database '${KEYCLOAK_DB}'..."
+  docker exec -u postgres "$CONTAINER_NAME" psql -v ON_ERROR_STOP=1 -d "$DEFAULT_DB" -c "CREATE DATABASE ${KEYCLOAK_DB};" || {
+    echo "❌ Failed to create database '${KEYCLOAK_DB}'."
+    exit 1
+  }
 fi
 
 # --- Ensure connection to target database ---

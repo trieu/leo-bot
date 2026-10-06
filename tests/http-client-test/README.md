@@ -17,7 +17,7 @@ env/bin/python test_poc/test_recommendation.py
 
 Both entry points use `RecommendationService`, with `RecommendationConfig`,
 `VectorBuilder`, and `RecommendationRepository` as separate, injectable components.
-Set `PG_DSN` (or `POSTGRES_URL`) and the hosted embedding settings in `.env`.
+Set `PGSQL_DB_URL` (or `PGSQL_DB_URL`) and the hosted embedding settings in `.env`.
 Profile and product embeddings use the same dimension (768 by default); HNSW
 rejects dimensions above 2000.
 

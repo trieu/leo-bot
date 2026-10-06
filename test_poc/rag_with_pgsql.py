@@ -27,7 +27,7 @@ from leoai.ai_core import AIClient, get_embedding_model
 # -------------------- Config --------------------
 @dataclass
 class Settings:
-    pg_dsn: str = os.getenv("PG_DSN", "postgresql://rag_user:changeme@localhost:5433/leo360")
+    pg_dsn: str = os.getenv("PGSQL_DB_URL", "postgresql://rag_user:changeme@localhost:5433/leo360")
     chunk_size: int = int(os.getenv("CHUNK_SIZE", "700"))
     chunk_overlap: int = int(os.getenv("CHUNK_OVERLAP", "120"))
     top_k: int = int(os.getenv("TOP_K", "4"))

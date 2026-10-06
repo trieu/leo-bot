@@ -11,7 +11,7 @@ load_dotenv(override=True)
 
 DEFAULT_EMBED_DIM = 768
 DEFAULT_DATABASE_URL = '"postgresql://postgres:password@localhost:5433/leo360"'
-DATABASE_URL = os.getenv("POSTGRES_URL", DEFAULT_DATABASE_URL )
+DATABASE_URL = os.getenv("PGSQL_DB_URL", DEFAULT_DATABASE_URL )
 
 
 # --- DB Connection ---

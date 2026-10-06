@@ -112,7 +112,7 @@ AI_PROVIDER=google
 # Optional embedding overrides: EMBEDDING_PROVIDER, EMBEDDING_MODEL,
 # EMBEDDING_DIMENSIONS (defaults to 768 to match the database vector columns).
 # EMBEDDING_API_KEY can override the provider-specific embedding key.
-POSTGRES_URL=postgresql://postgres:password@localhost:5433/leo360
+PGSQL_DB_URL=postgresql://postgres:password@localhost:5433/leo360
 
 # Google API
 GOOGLE_APPLICATION_CREDENTIALS= 

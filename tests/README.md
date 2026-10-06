@@ -11,7 +11,7 @@ Run offline regression tests (no hosted AI or database requests):
 env/bin/python -m pytest -q tests/test_recommendation.py
 ```
 
-To additionally validate PostgreSQL/pgvector using `PG_DSN` (or `POSTGRES_URL`):
+To additionally validate PostgreSQL/pgvector using `PGSQL_DB_URL` (or `PGSQL_DB_URL`):
 
 ```bash
 RUN_RECOMMENDATION_DB_TESTS=1 env/bin/python -m pytest -q tests/test_recommendation.py

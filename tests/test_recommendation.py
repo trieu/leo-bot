@@ -81,8 +81,8 @@ def test_config_accepts_exact_hnsw_dimension_limit():
 
 
 def test_config_uses_dsn_fallback_without_exposing_credentials(monkeypatch):
-    monkeypatch.setenv("PG_DSN", "")
-    monkeypatch.setenv("POSTGRES_URL", "postgresql://example")
+    monkeypatch.setenv("PGSQL_DB_URL", "")
+    monkeypatch.setenv("PGSQL_DB_URL", "postgresql://example")
     config = RecommendationConfig.from_env()
     assert config.dsn == "postgresql://example"
     assert "postgresql" not in repr(config)

@@ -50,7 +50,7 @@ class RecommendationConfig:
 
     def __post_init__(self) -> None:
         if not self.dsn.strip():
-            raise ValueError("PG_DSN or POSTGRES_URL must be configured.")
+            raise ValueError("PGSQL_DB_URL or PGSQL_DB_URL must be configured.")
         if not 1 <= self.dimensions <= HNSW_MAX_DIMENSIONS:
             raise ValueError(
                 f"HNSW vector dimensions must be between 1 and {HNSW_MAX_DIMENSIONS}."
@@ -64,7 +64,7 @@ class RecommendationConfig:
 
     @classmethod
     def from_env(cls) -> RecommendationConfig:
-        return cls(dsn=os.getenv("PG_DSN") or os.getenv("POSTGRES_URL") or "")
+        return cls(dsn=os.getenv("PGSQL_DB_URL") or os.getenv("PGSQL_DB_URL") or "")
 
 
 def _validate_keywords(keywords: Sequence[str], name: str) -> None:

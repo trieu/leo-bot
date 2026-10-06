@@ -22,9 +22,9 @@ if [[ ! -f "$SEED_FILE" ]]; then
   exit 1
 fi
 
-DATABASE_URL="${PG_DSN:-${POSTGRES_URL:-}}"
+DATABASE_URL="${PGSQL_DB_URL:-${PGSQL_DB_URL:-}}"
 if [[ -z "$DATABASE_URL" ]]; then
-  echo "❌ PG_DSN or POSTGRES_URL must be configured in $ENV_FILE" >&2
+  echo "❌ PGSQL_DB_URL or PGSQL_DB_URL must be configured in $ENV_FILE" >&2
   exit 1
 fi
 
