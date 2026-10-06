@@ -32,6 +32,19 @@ DEFAULT_EMBEDDING_MODEL_ID = os.getenv("EMBEDDING_MODEL") or (
 )
 DEFAULT_EMBEDDING_DIMENSIONS = int(os.getenv("EMBEDDING_DIMENSIONS", "768"))
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+TOUCHPOINT_EMBEDDING_PROVIDER = (
+    os.getenv("TOUCHPOINT_EMBEDDING_PROVIDER") or EMBEDDING_PROVIDER
+).strip().lower()
+TOUCHPOINT_EMBEDDING_MODEL = os.getenv("TOUCHPOINT_EMBEDDING_MODEL") or (
+    "gemini-embedding-001"
+    if TOUCHPOINT_EMBEDDING_PROVIDER == "google"
+    else "text-embedding-3-small"
+    if TOUCHPOINT_EMBEDDING_PROVIDER == "openai"
+    else "openai/text-embedding-3-small"
+)
+TOUCHPOINT_EMBEDDING_DIMENSIONS = int(
+    os.getenv("TOUCHPOINT_EMBEDDING_DIMENSIONS", "768")
+)
 
 SUPPORTED_PROVIDERS = {"google", "openai", "openrouter"}
 JSON_TYPE = "application/json"
@@ -43,13 +56,23 @@ def _default_chat_model(provider: str) -> str:
         "openai": "gpt-4.1-mini",
         "openrouter": "openai/gpt-4.1-mini",
     }[provider]
-    return os.getenv("AI_MODEL") or provider_default
+    return os.getenv("AI_CHAT_MODEL") or provider_default
 
 
 @lru_cache(maxsize=1)
 def get_embedding_model():
     """Return a lightweight adapter that requests embeddings from a configured API."""
     return RemoteEmbeddingModel()
+
+
+@lru_cache(maxsize=1)
+def get_touchpoint_embedding_model():
+    """Return the dedicated touchpoint embedding adapter."""
+    return RemoteEmbeddingModel(
+        provider=TOUCHPOINT_EMBEDDING_PROVIDER,
+        model_name=TOUCHPOINT_EMBEDDING_MODEL,
+        dimensions=TOUCHPOINT_EMBEDDING_DIMENSIONS,
+    )
 
 
 @lru_cache(maxsize=1)
@@ -127,10 +150,15 @@ class RemoteEmbeddingModel:
         **kwargs: Any,
     ) -> list[list[float]]: ...
 
-    def __init__(self):
-        self.provider = EMBEDDING_PROVIDER
-        self.model_name = DEFAULT_EMBEDDING_MODEL_ID
-        self.dimensions = DEFAULT_EMBEDDING_DIMENSIONS
+    def __init__(
+        self,
+        provider: str = EMBEDDING_PROVIDER,
+        model_name: str = DEFAULT_EMBEDDING_MODEL_ID,
+        dimensions: int = DEFAULT_EMBEDDING_DIMENSIONS,
+    ):
+        self.provider = provider
+        self.model_name = model_name
+        self.dimensions = dimensions
 
     def encode(
         self,

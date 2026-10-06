@@ -7,6 +7,19 @@ DIR_PATH="/build/leo-bot"
 VENV_PATH="$DIR_PATH/env"
 HOST="0.0.0.0"
 PORT="8888"
+SEED_DATA=false
+
+for arg in "$@"; do
+  case "$arg" in
+    --seed-data)
+      SEED_DATA=true
+      ;;
+    *)
+      echo "❌ Unknown option: $arg"
+      exit 1
+      ;;
+  esac
+done
 
 # Logs go into /build/leo-bot/logs
 LOG_DIR="$DIR_PATH/logs"
@@ -57,6 +70,11 @@ echo "✅ Using Python ${PYTHON_MINOR}."
 
 # Start PGSQL instance
 bash ./dockers/pgsql/start_pgsql_pgvector.sh
+
+if [[ "$SEED_DATA" == true ]]; then
+  echo "🌱 --seed-data enabled. Loading sample places..."
+  bash ./start-seeding-data.sh
+fi
 
 # Start new instance
 echo "🚀 Starting $APP_NAME on port $PORT..."

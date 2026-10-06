@@ -53,9 +53,22 @@ class ContextManager:
 
     async def build_context_summary(self, user_id, touchpoint_id, cdp_profile_id, user_message):
         current_context = self.get_context_summary(user_id, touchpoint_id)
+        touchpoint_context = await self.db.get_touchpoint_context(touchpoint_id)
         if self._needs_refresh(current_context):
             text_context = await self._retrieve_semantic_context(user_id, user_message)
-            return await self._summarize_context(user_id, touchpoint_id, cdp_profile_id, text_context)
+            current_context = await self._summarize_context(
+                user_id, touchpoint_id, cdp_profile_id, text_context
+            )
+        if touchpoint_context:
+            current_context = dict(current_context or {})
+            user_context = dict(current_context.get("user_context") or {})
+            user_context.update(touchpoint_context)
+            current_context["user_context"] = user_context
+            persisted_context = dict(current_context)
+            persisted_context.pop("updated_at", None)
+            await self.db.save_context_summary(
+                user_id, touchpoint_id, cdp_profile_id, persisted_context
+            )
         return current_context
 
     def _needs_refresh(self, context):

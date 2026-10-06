@@ -14,6 +14,19 @@ NC="\033[0m"
 
 echo -e "${GREEN}🚀 Starting LEO BOT dev environment...${NC}"
 
+SEED_DATA=false
+for arg in "$@"; do
+  case "$arg" in
+    --seed-data)
+      SEED_DATA=true
+      ;;
+    *)
+      echo -e "${RED}❌ Unknown option: $arg${NC}"
+      exit 1
+      ;;
+  esac
+done
+
 # ------------------------------------------------------------------------------
 # STEP 0: Load .env configuration
 # ------------------------------------------------------------------------------
@@ -109,6 +122,11 @@ wait_for_keycloak() {
 
 # 1. Start Postgres (Always required)
 wait_for_postgres
+
+if [[ "$SEED_DATA" == true ]]; then
+  echo -e "${BLUE}🌱 --seed-data enabled. Loading sample places...${NC}"
+  bash ./start-seeding-data.sh
+fi
 
 # 2. Start Keycloak (Only if enabled in .env)
 if [[ "$KEYCLOAK_ENABLED" == "true" ]]; then

@@ -171,6 +171,59 @@ echo "🔧 Enabling extensions in '${TARGET_DB}'..."
 docker exec -u postgres $CONTAINER_NAME psql -d $TARGET_DB -c "CREATE EXTENSION IF NOT EXISTS vector;" || { echo "❌ Failed to enable 'vector'"; exit 1; }
 docker exec -u postgres $CONTAINER_NAME psql -d $TARGET_DB -c "CREATE EXTENSION IF NOT EXISTS postgis;" || { echo "❌ Failed to enable 'postgis'"; exit 1; }
 
+# --- Ensure touchpoint schema and 768-dimensional embeddings ---
+echo "🔧 Ensuring touchpoint schema..."
+docker exec -u postgres "$CONTAINER_NAME" psql -v ON_ERROR_STOP=1 -d "$TARGET_DB" -c "
+CREATE TABLE IF NOT EXISTS touchpoints (
+    touchpoint_id VARCHAR(64) PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    tenant_id VARCHAR(50) NOT NULL DEFAULT 'default',
+    latitude DECIMAL(9, 6) NOT NULL CHECK (latitude BETWEEN -90 AND 90),
+    longitude DECIMAL(9, 6) NOT NULL CHECK (longitude BETWEEN -180 AND 180),
+    geom GEOMETRY(Point, 4326) NOT NULL,
+    name TEXT,
+    description TEXT,
+    type VARCHAR(50),
+    keywords TEXT[],
+    embedding VECTOR(768),
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    last_seen_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE touchpoints ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE touchpoints ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE touchpoints ADD COLUMN IF NOT EXISTS type VARCHAR(50);
+ALTER TABLE touchpoints ADD COLUMN IF NOT EXISTS keywords TEXT[];
+ALTER TABLE touchpoints ADD COLUMN IF NOT EXISTS embedding VECTOR(768);
+DROP INDEX IF EXISTS idx_touchpoints_embedding;
+DO \$\$
+DECLARE
+    embedding_type TEXT;
+BEGIN
+    SELECT format_type(a.atttypid, a.atttypmod)
+    INTO embedding_type
+    FROM pg_attribute AS a
+    JOIN pg_class AS c ON c.oid = a.attrelid
+    WHERE c.relname = 'touchpoints'
+      AND a.attname = 'embedding'
+      AND NOT a.attisdropped;
+
+    IF embedding_type = 'vector(384)' THEN
+        ALTER TABLE touchpoints
+        ALTER COLUMN embedding TYPE VECTOR(768)
+        USING NULL;
+    END IF;
+END\$\$;
+CREATE INDEX IF NOT EXISTS idx_touchpoints_geom ON touchpoints USING GIST (geom);
+CREATE INDEX IF NOT EXISTS idx_touchpoints_geog
+    ON touchpoints USING GIST ((geom::geography));
+CREATE INDEX IF NOT EXISTS idx_touchpoints_user ON touchpoints (user_id, tenant_id);
+CREATE INDEX IF NOT EXISTS idx_touchpoints_embedding
+    ON touchpoints USING hnsw (embedding vector_cosine_ops)
+    WHERE embedding IS NOT NULL;
+" || { echo "❌ Failed to prepare touchpoint schema."; exit 1; }
+
 # --- Create schema_migrations table ---
 echo "🔧 Creating schema_migrations table..."
 docker exec -u postgres $CONTAINER_NAME psql -d $TARGET_DB -c "
@@ -214,7 +267,7 @@ if [ $CURRENT_VERSION -lt $SCHEMA_VERSION ]; then
 fi
 
 # --- Verify all tables exist ---
-TABLES=("chat_messages" "chat_message_embeddings" "places" "schema_migrations" "system_users" "conversational_context" "knowledge_sources" "knowledge_chunks" "customer_profile" "transactional_context" "customer_metrics" "tenant_metrics_config")
+TABLES=("chat_messages" "chat_message_embeddings" "places" "touchpoints" "schema_migrations" "system_users" "conversational_context" "knowledge_sources" "knowledge_chunks" "customer_profile" "transactional_context" "customer_metrics" "tenant_metrics_config")
 for table in "${TABLES[@]}"; do
   docker exec -u postgres $CONTAINER_NAME psql -d $TARGET_DB -tc "SELECT 1 FROM pg_tables WHERE tablename = '$table'" | grep -q 1 || { echo "❌ Table '$table' missing"; exit 1; }
 done

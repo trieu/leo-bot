@@ -178,10 +178,22 @@ Production mode:
 ./start_app.sh
 ```
 
+To initialize or refresh the 50 Ho Chi Minh City sample places:
+
+```bash
+./start_app.sh --seed-data
+```
+
 Development mode:
 
 ```bash
 ./start_dev.sh
+```
+
+Development mode with sample place data:
+
+```bash
+./start_dev.sh --seed-data
 ```
 
 LeoBot will run at `0.0.0.0:8888`.
@@ -195,6 +207,7 @@ Open your browser and visit your configured `HOSTNAME` to test.
 | ------------------- | -------- | -------------------------------- |
 | `/_leoai/ask`              | POST     | Main chatbot endpoint            |
 | `/_leoai/is-ready`         | GET/POST | Configured AI provider readiness check |
+| `/_leoai/touchpoint/geolocation` | POST | Create/update a geolocation touchpoint and return nearby places |
 | `/_leoai/fb-webhook`       | GET/POST | Facebook Messenger webhook       |
 | `/_leoai/zalo-webhook`     | POST     | Zalo OA webhook                  |
 | `/_leoai/ping`             | GET      | Basic health check               |
@@ -207,7 +220,13 @@ Open your browser and visit your configured `HOSTNAME` to test.
 * Built on **FastAPI** with full async I/O.
 * Message context stored in **Redis**.
 * Hosted embeddings via Google GenAI, OpenAI, or OpenRouter.
+* Touchpoint metadata embeddings use a separate 768-dimensional configuration;
+  existing chat/context embeddings remain 768-dimensional.
 * Compatible with **pgvector** and other vector databases.
+* The browser chatbot can request HTML5 geolocation permission. Coordinates are
+  stored as PostGIS touchpoints, and nearby rows from `places` are included in
+  the conversation context. If permission is denied, normal chat continues
+  without location context.
 
 To extend LeoBot:
 

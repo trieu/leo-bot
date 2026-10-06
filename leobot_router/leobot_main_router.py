@@ -2,7 +2,7 @@ import time
 import logging
 from fastapi import APIRouter, Request, Query
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
-from leoai.leo_datamodel import Message
+from leoai.leo_datamodel import GeolocationTouchpointRequest, Message
 from leoai.rag_agent import RAGAgent
 from leoai.ai_core import is_ai_model_ready
 
@@ -118,14 +118,14 @@ async def get_visitor_info(
 
     redis_data = REDIS_CLIENT.hgetall(visitor_id)
     cached_name = redis_data.get("name", "")
-    cached_touchpoint = redis_data.get("init_touchpoint_id", "")
+    cached_touchpoint = redis_data.get("touchpoint_id", "")
 
     # Update cache only if new values differ
     updates = {}
     if name and name != cached_name:
         updates["name"] = name
     if touchpoint_id and touchpoint_id != cached_touchpoint:
-        updates["init_touchpoint_id"] = touchpoint_id
+        updates["touchpoint_id"] = touchpoint_id
     if updates:
         REDIS_CLIENT.hset(visitor_id, mapping=updates)
 
@@ -136,6 +136,29 @@ async def get_visitor_info(
         "cached": bool(redis_data),
         "error_code": 0
     }
+
+
+@router.post("/_leoai/touchpoint/geolocation", response_class=JSONResponse)
+@router.post("/touchpoint/geolocation", response_class=JSONResponse)
+async def create_geolocation_touchpoint(
+    payload: GeolocationTouchpointRequest,
+):
+    """Create/update a geolocation touchpoint and return nearby places."""
+    result = await rag_agent.create_geolocation_touchpoint(
+        payload.visitor_id.strip(),
+        payload.latitude,
+        payload.longitude,
+        payload.touchpoint_id,
+        payload.name,
+        payload.description,
+        payload.type,
+        payload.keywords,
+    )
+    REDIS_CLIENT.hset(
+        payload.visitor_id.strip(),
+        mapping={"touchpoint_id": result["touchpoint_id"]},
+    )
+    return result
 
 
 # === Main Chat API ===
@@ -159,13 +182,36 @@ async def handle_chat(msg: Message):
     if not is_safe_to_answer(visitor_id):
         return {"error": True, "error_code": 429, "answer": "Too many messages"}
 
+    touchpoint_id = msg.touchpoint_id
+    if (
+        touchpoint_id is None
+        and msg.latitude is not None
+        and msg.longitude is not None
+    ):
+        touchpoint = await rag_agent.create_geolocation_touchpoint(
+            visitor_id, msg.latitude, msg.longitude
+        )
+        touchpoint_id = touchpoint["touchpoint_id"]
+
     answer = await rag_agent.process_chat_message(
         user_id=visitor_id,
         user_message=msg.question,
         persona_id=msg.persona_id,
         cdp_profile_id=profile_id,
-        touchpoint_id=msg.touchpoint_id,
+        touchpoint_id=touchpoint_id,
         target_language=msg.answer_in_language,
         answer_in_format=msg.answer_in_format,
+        latitude=msg.latitude,
+        longitude=msg.longitude,
+        touchpoint_name=msg.touchpoint_name,
+        touchpoint_description=msg.touchpoint_description,
+        touchpoint_type=msg.touchpoint_type,
+        touchpoint_keywords=msg.touchpoint_keywords,
     )
-    return {"question": msg.question, "answer": answer, "visitor_id": visitor_id, "error_code": 0}
+    return {
+        "question": msg.question,
+        "answer": answer,
+        "visitor_id": visitor_id,
+        "touchpoint_id": touchpoint_id,
+        "error_code": 0,
+    }

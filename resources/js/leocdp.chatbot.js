@@ -1,4 +1,10 @@
-var currentUserProfile = { visitorId: "", displayName: "friend" };
+var currentUserProfile = {
+  visitorId: "",
+  displayName: "friend",
+  touchpointId: "",
+  latitude: null,
+  longitude: null,
+};
 
 
 function loadChatSessionWithProfile() {
@@ -34,13 +40,81 @@ function buildUserProfileUrl(visitorId) {
   return url;
 }
 
+function touchpointCacheKey(visitorId) {
+  return "touchpoint_id_" + visitorId;
+}
+
+function requestUserGeolocation(visitorId) {
+  if (!navigator.geolocation || typeof BASE_URL_TOUCHPOINT === "undefined") {
+    return Promise.resolve(null);
+  }
+
+  return new Promise(function (resolve) {
+    navigator.geolocation.getCurrentPosition(
+      function (position) {
+        var payload = {
+          visitor_id: visitorId,
+          name: document.title || "Web visitor",
+          description: "Browser geolocation touchpoint",
+          type: "web",
+          keywords: [window.location.hostname],
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          touchpoint_id:
+            currentUserProfile.touchpointId ||
+            lscache.get(touchpointCacheKey(visitorId)) ||
+            null,
+        };
+        $.ajax({
+          url: BASE_URL_TOUCHPOINT,
+          type: "POST",
+          contentType: "application/json",
+          data: JSON.stringify(payload),
+        })
+          .done(function (data) {
+            currentUserProfile.touchpointId = data.touchpoint_id || "";
+            currentUserProfile.latitude = data.latitude;
+            currentUserProfile.longitude = data.longitude;
+            if (currentUserProfile.touchpointId) {
+              lscache.set(
+                touchpointCacheKey(visitorId),
+                currentUserProfile.touchpointId
+              );
+            }
+            console.info("Location-aware touchpoint ready", data.touchpoint_id);
+            resolve(data);
+          })
+          .fail(function () {
+            console.warn("Unable to create location touchpoint.");
+            resolve(null);
+          });
+      },
+      function (error) {
+        console.info("Geolocation unavailable or denied:", error.message);
+        resolve(null);
+      },
+      { enableHighAccuracy: false, maximumAge: 300000, timeout: 10000 }
+    );
+  });
+}
+
 function initLeoChatBot(context, visitorId, okCallback) {
   window.leoBotContext = context;
   window.currentUserProfile.visitorId = visitorId;
+  currentUserProfile.touchpointId =
+    lscache.get(touchpointCacheKey(visitorId)) || "";
   window.leoBotUI = new BotUI("LEO_ChatBot_Container");
 
   loadChatSessionWithProfile()
-  $.getJSON(buildUserProfileUrl(visitorId), function (data) {
+  Promise.all([
+    requestUserGeolocation(visitorId),
+    new Promise(function (resolve) {
+      $.getJSON(buildUserProfileUrl(visitorId), resolve).fail(function () {
+        resolve({ error_code: 500 });
+      });
+    }),
+  ]).then(function (results) {
+    var data = results[1];
     var error_code = data.error_code;
     var name = data.name;
     console.log(data);
@@ -292,7 +366,14 @@ var sendQuestionToLeoAI = function (context, question) {
         var error_code = data.error_code;
         var answer = data.answer;
         if (error_code === 0) {
-          currentUserProfile.displayName = data.name;
+          currentUserProfile.displayName = data.name || currentUserProfile.displayName;
+          if (data.touchpoint_id) {
+            currentUserProfile.touchpointId = data.touchpoint_id;
+            lscache.set(
+              touchpointCacheKey(currentUserProfile.visitorId),
+              data.touchpoint_id
+            );
+          }
           processAnswer(answer);
         } else if (error_code === 404) {
           // askTheContactOfUser();
@@ -312,6 +393,9 @@ var sendQuestionToLeoAI = function (context, question) {
       payload["context"] = context;
       payload["question"] = question;
       payload["visitor_id"] = currentUserProfile.visitorId;
+      payload["touchpoint_id"] = currentUserProfile.touchpointId || null;
+      payload["latitude"] = currentUserProfile.latitude;
+      payload["longitude"] = currentUserProfile.longitude;
       payload["answer_in_language"] = "Vietnamese";
       payload["answer_in_format"] = "html";
       
@@ -393,4 +477,3 @@ var startLeoChatBot = function (visitorId) {
   }
 
 };
-
