@@ -2,9 +2,13 @@ import logging
 import markdown
 import asyncio
 import re
+from html import escape
+from urllib.parse import urlencode
 from typing import Optional, List, Union, Any
 from leoai.ai_core import GeminiClient, get_embedding_model
-from leoai.rag_db_manager import ChatDBManager, NEARBY_PLACES_LIMIT
+from leoai.rag_db_manager import (
+    ChatDBManager, NEARBY_PLACES_LIMIT, NearbyLocationUnavailable,
+)
 from leoai.rag_context_manager import ContextManager
 from leoai.rag_prompt_builder import AgentOrchestrator
 from leoai.rag_knowledge_manager import KnowledgeRetriever
@@ -45,7 +49,7 @@ def selected_place_index(message: str, place_count: int) -> int | None:
 
 def nearby_place_terms(message: str) -> list[str]:
     normalized = message.lower()
-    if re.search(r"\b(?:church|churches|cathedral|nhà thờ|nha tho)\b", normalized):
+    if re.search(r"\b(?:church|churches|cathedrals?|nhà\s+thờ|nha\s+tho)\b", normalized):
         return ["church", "cathedral", "nhà thờ"]
     if re.search(r"\b(?:pagoda|temple|chùa|đền)\b", normalized):
         return ["pagoda", "temple", "chùa", "đền"]
@@ -67,10 +71,37 @@ def is_nearby_place_question(message: str) -> bool:
     )
 
 
+def nearby_result_limit(message: str, explicit_limit: int | None = None) -> int:
+    """Resolve the requested count; an API result_limit overrides the question."""
+    if explicit_limit is not None:
+        limit = explicit_limit
+    else:
+        match = re.search(r"\btop\s+([+-]?\d+(?:\.\d+)?)\b", message, re.IGNORECASE)
+        if match is None:
+            match = re.search(
+                r"(?<![\w.])([+-]?\d+(?:\.\d+)?)\s+(?:(?:nearest|closest)\s+)?"
+                r"(?:church(?:es)?|cathedrals?|places?|markets?|pagodas?|temples?|"
+                r"cafes?|restaurants?|nhà\s+thờ|nha\s+tho|địa\s+điểm|chùa|chợ)\b",
+                message,
+                re.IGNORECASE,
+            )
+        if match is not None:
+            try:
+                limit = int(match.group(1))
+            except ValueError as exc:
+                raise ValueError("Requested place count must be a positive integer.") from exc
+        else:
+            limit = NEARBY_PLACES_LIMIT
+    if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
+        raise ValueError("Requested place count must be a positive integer.")
+    return limit
+
+
 def format_nearby_places_answer(
-    places: list[dict], target_language: str, terms: list[str]
+    places: list[dict], target_language: str, terms: list[str],
+    answer_in_format: str = "text",
 ) -> str:
-    is_vietnamese = target_language.lower().startswith(("vi", "vietnam"))
+    is_vietnamese = (target_language or "").lower().startswith(("vi", "vietnam"))
     if "church" in terms:
         subject = "nhà thờ" if is_vietnamese else "churches"
     else:
@@ -81,17 +112,38 @@ def format_nearby_places_answer(
         else f"Nearby {subject}:"
     )
     if not places:
-        return (
+        message = (
             "Mình không tìm thấy địa điểm phù hợp trong bán kính hiện tại."
             if is_vietnamese
             else "I could not find a matching place within the current search radius."
         )
-    lines = [heading]
+        return f"<p>{escape(message)}</p>" if answer_in_format == "html" else message
+    lines = [heading, ""]
+    items = []
     for index, place in enumerate(places, 1):
         distance = place.get("distance_meters")
         distance_text = f"{distance:.0f} m" if distance is not None else "distance unavailable"
-        details = place.get("address") or place.get("description") or ""
-        lines.append(f"{index}. {place['name']} ({distance_text}) - {details}")
+        details = [place[key] for key in ("address", "description") if place.get(key)]
+        lines.append(
+            f"{index}. {place['name']} ({distance_text})"
+            + (" - " + " - ".join(details) if details else "")
+        )
+        maps_query = ", ".join(
+            value for value in (place["name"], place.get("address")) if value
+        )
+        maps_url = "https://www.google.com/maps/search/?" + urlencode(
+            {"api": "1", "query": maps_query}
+        )
+        items.append(
+            f'<li><a href="{escape(maps_url, quote=True)}" '
+            f'target="_blank" rel="noopener noreferrer">'
+            f"<strong>{escape(place['name'])}</strong></a> "
+            f"({escape(distance_text)})"
+            + "".join(f"<br>{escape(detail)}" for detail in details)
+            + "</li>"
+        )
+    if answer_in_format == "html":
+        return f"<p>{escape(heading)}</p><ol>{''.join(items)}</ol>"
     return "\n".join(lines)
 
 
@@ -166,10 +218,39 @@ class RAGAgent:
         touchpoint_description: str = "",
         touchpoint_type: str = "web",
         touchpoint_keywords: Optional[List[str]] = None,
+        result_limit: int | None = None,
     ) -> str:
         try:
             if (latitude is None) != (longitude is None):
                 raise ValueError("latitude and longitude must be provided together")
+            if is_nearby_place_question(user_message):
+                terms = nearby_place_terms(user_message)
+                limit = nearby_result_limit(user_message, result_limit)
+                try:
+                    matching_places = await self.db.find_nearby_places(
+                        touchpoint_id, terms, limit,
+                        user_id=user_id, latitude=latitude, longitude=longitude,
+                    )
+                except NearbyLocationUnavailable:
+                    logger.info("Nearby search requires location for visitor %s", user_id)
+                    message = (
+                        "Hãy chia sẻ vị trí của bạn để mình tìm các địa điểm gần nhất."
+                        if (target_language or "").lower().startswith(("vi", "vietnam"))
+                        else "Please share your location so I can find nearby places."
+                    )
+                    return (
+                        f"<p>{escape(message)}</p>"
+                        if answer_in_format == "html" else message
+                    )
+                final_answer = format_nearby_places_answer(
+                    matching_places, target_language, terms, answer_in_format
+                )
+                for role, message in (("user", user_message), ("bot", final_answer)):
+                    await self.db.save_chat_message(
+                        user_id, role, message, cdp_profile_id, persona_id,
+                        touchpoint_id or "web_leobot", embed=False,
+                    )
+                return final_answer
             if latitude is not None and longitude is not None:
                 touchpoint = await self.create_geolocation_touchpoint(
                     user_id,
@@ -206,28 +287,6 @@ class RAGAgent:
             user_context = summarized_context.get("user_context", {})
             nearby_places = user_context.get("nearby_places", [])[:5]
             selected_place = user_context.get("selected_place")
-
-            if is_nearby_place_question(user_message) and touchpoint_id:
-                terms = nearby_place_terms(user_message)
-                matching_places = await self.db.find_nearby_places(
-                    touchpoint_id, terms, NEARBY_PLACES_LIMIT
-                )
-                final_answer = format_nearby_places_answer(
-                    matching_places, target_language, terms
-                )
-                await self.db.save_chat_message(
-                    user_id,
-                    "bot",
-                    final_answer,
-                    cdp_profile_id,
-                    persona_id,
-                    touchpoint_id,
-                )
-                return (
-                    markdown.markdown(final_answer)
-                    if answer_in_format == "html"
-                    else final_answer
-                )
 
             if is_greeting_message(user_message) and nearby_places and not selected_place:
                 final_answer = format_place_picker(nearby_places, target_language)

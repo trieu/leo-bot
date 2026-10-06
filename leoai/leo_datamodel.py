@@ -27,6 +27,9 @@ class Message(BaseModel):
     touchpoint_description: str = Field("")
     touchpoint_type: str = Field("web", max_length=50)
     touchpoint_keywords: List[str] = Field(default_factory=list)
+    result_limit: Optional[int] = Field(
+        None, gt=0, strict=True, description="Nearby result count; overrides a count in the question."
+    )
 
 
 class GeolocationTouchpointRequest(BaseModel):

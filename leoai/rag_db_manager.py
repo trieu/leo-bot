@@ -19,6 +19,10 @@ TOUCHPOINT_NAME_DEFAULT = "Web visitor"
 TOUCHPOINT_TYPE_DEFAULT = "web"
 
 
+class NearbyLocationUnavailable(ValueError):
+    """The visitor has not supplied coordinates or an owned location touchpoint."""
+
+
 def build_touchpoint_embedding_text(
     name: str | None,
     description: str | None,
@@ -235,32 +239,51 @@ class ChatDBManager:
         touchpoint_id: str | None,
         search_terms: Sequence[str] = (),
         limit: int = NEARBY_PLACES_LIMIT,
+        *,
+        user_id: str,
+        latitude: float | None = None,
+        longitude: float | None = None,
     ) -> list[dict]:
-        """Find places near a touchpoint, optionally filtered by keywords."""
-        if not touchpoint_id:
-            return []
-        if limit <= 0:
+        """Find the requested number of matching places using coordinates or an owned touchpoint."""
+        if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
             raise ValueError("limit must be positive")
+        if (latitude is None) != (longitude is None):
+            raise ValueError("latitude and longitude must be provided together")
 
         terms = [term.strip().lower() for term in search_terms if term.strip()]
         async with get_async_pg_conn() as conn:
+            if latitude is None or longitude is None:
+                location = await conn.fetchrow(
+                    """
+                    SELECT latitude, longitude FROM touchpoints
+                    WHERE touchpoint_id = $1 AND user_id = $2;
+                    """,
+                    touchpoint_id,
+                    user_id,
+                )
+                if location is None:
+                    raise NearbyLocationUnavailable("A visitor location is required.")
+                latitude = float(location["latitude"])
+                longitude = float(location["longitude"])
+            if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
+                raise ValueError("latitude or longitude is out of range")
             rows = await conn.fetch(
                 """
-                WITH touchpoint AS (
-                    SELECT geom::geography AS point
-                    FROM touchpoints
-                    WHERE touchpoint_id = $1
+                WITH location AS (
+                    SELECT ST_SetSRID(ST_MakePoint(
+                        $1::double precision, $2::double precision
+                    ), 4326)::geography AS point
                 )
                 SELECT p.id, p.name, p.address, p.description, p.category, p.tags,
                        ST_Distance(p.geom::geography, t.point) AS distance_meters
                 FROM places AS p
-                CROSS JOIN touchpoint AS t
-                WHERE ST_DWithin(p.geom::geography, t.point, $3)
+                CROSS JOIN location AS t
+                WHERE ST_DWithin(p.geom::geography, t.point, $4)
                   AND (
-                      cardinality($2::text[]) = 0
+                      cardinality($3::text[]) = 0
                       OR EXISTS (
                           SELECT 1
-                          FROM unnest($2::text[]) AS term
+                          FROM unnest($3::text[]) AS term
                           WHERE lower(coalesce(p.name, '')) LIKE '%' || term || '%'
                              OR lower(coalesce(p.description, '')) LIKE '%' || term || '%'
                              OR lower(coalesce(p.category, '')) LIKE '%' || term || '%'
@@ -271,10 +294,11 @@ class ChatDBManager:
                              )
                       )
                   )
-                ORDER BY p.geom::geography <-> t.point
-                LIMIT $4;
+                ORDER BY distance_meters, p.id
+                LIMIT $5;
                 """,
-                touchpoint_id,
+                longitude,
+                latitude,
                 terms,
                 NEARBY_PLACES_RADIUS_METERS,
                 limit,
@@ -295,7 +319,7 @@ class ChatDBManager:
     async def save_chat_message(self, user_id, role, message,
                                 cdp_profile_id="_", persona_id="_",
                                 touchpoint_id="_", keywords=[],
-                                tenant_id="default"):
+                                tenant_id="default", *, embed: bool = True):
         if not user_id or not message:
             return
 
@@ -309,15 +333,16 @@ class ChatDBManager:
             keywords = []
 
         msg_hash = sha256_hash(f"{user_id}:{message}")
-        loop = asyncio.get_event_loop()
-
-        msg_vector = await loop.run_in_executor(
-            None,
-            lambda: self.embedding_model.encode(
-                f"{role}: {message}", normalize_embeddings=True
-            ).tolist()
-        )
-        msg_vector_str = to_pgvector(msg_vector)  
+        msg_vector_str = None
+        if embed:
+            loop = asyncio.get_event_loop()
+            msg_vector = await loop.run_in_executor(
+                None,
+                lambda: self.embedding_model.encode(
+                    f"{role}: {message}", normalize_embeddings=True
+                ).tolist()
+            )
+            msg_vector_str = to_pgvector(msg_vector)
 
         async with get_async_pg_conn() as conn:
             inserted = await conn.fetchrow("""
@@ -328,7 +353,7 @@ class ChatDBManager:
                 RETURNING message_hash;
             """, msg_hash, user_id, cdp_profile_id, tenant_id, persona_id, touchpoint_id, role, message, keywords)
 
-            if inserted:
+            if inserted and msg_vector_str is not None:
                 await conn.execute("""
                     INSERT INTO chat_message_embeddings
                     (message_hash, tenant_id, embedding, created_at)

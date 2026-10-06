@@ -195,10 +195,10 @@ var processMessageNode  = function(rawAnswer) {
     return {'html':iframe.outerHTML,'type':'iframe','id': node_id};
   } 
   else {
-     var span = document.createElement('span');
-    span.setAttribute('id',node_id)
-    span.innerHTML =  marked.parse(rawAnswer)
-    return {'html':span.outerHTML,'type':'span','id': node_id}; 
+    var container = document.createElement('div');
+    container.setAttribute('id',node_id)
+    container.innerHTML = marked.parse(rawAnswer)
+    return {'html':container.outerHTML,'type':'div','id': node_id};
   }
 }
 
@@ -238,7 +238,8 @@ var leoBotShowAnswer = function (rawAnswer, providedDelay) {
         .find("a")
         .each(function () {
           $(this).attr("target", "_blank");
-          var href = $(this).attr("href");
+          $(this).attr("rel", "noopener noreferrer");
+          var href = $(this).attr("href") || "";
           if (href.indexOf("google.com") < 0) {
             href =
               "https://www.google.com/search?q=" +

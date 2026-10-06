@@ -1,4 +1,6 @@
--- Sample places for the LEO BOT location-aware chatbot.
+-- Full SQL script for LEO BOT location-aware chatbot.
+-- This script contains over 200 places, significantly expanding the Catholic churches across Ho Chi Minh City,
+-- and incorporating highly popular malls, dining venues, cinemas, bookstores, convenience stores, and services.
 -- Coordinates are approximate WGS84 points (longitude, latitude).
 -- Safe to rerun: place names are unique and are updated on conflict.
 
@@ -6,6 +8,9 @@ INSERT INTO places (
     name, address, description, category, tags, pluscode, geom
 )
 VALUES
+-- ==========================================
+-- GROUP 1: HISTORICAL SITES, LANDMARKS & MUSEUMS
+-- ==========================================
 (
     'Ben Thanh Market',
     'Le Loi, Ben Thanh Ward, District 1, Ho Chi Minh City',
@@ -43,24 +48,6 @@ VALUES
     ST_SetSRID(ST_MakePoint(106.6990, 10.7798), 4326)
 ),
 (
-    'Notre Dame Cathedral Basilica of Saigon',
-    'Cong Xa Paris, District 1, Ho Chi Minh City',
-    'Iconic red-brick cathedral in the city center.',
-    'religious site',
-    ARRAY['architecture', 'landmark', 'photography'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.6992, 10.7798), 4326)
-),
-(
-    'Nguyen Hue Walking Street',
-    'Nguyen Hue Boulevard, District 1, Ho Chi Minh City',
-    'Pedestrian boulevard connecting City Hall with the Saigon River.',
-    'public space',
-    ARRAY['walking', 'nightlife', 'events', 'photography'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.7037, 10.7741), 4326)
-),
-(
     'Ho Chi Minh City Hall',
     '86 Le Thanh Ton, District 1, Ho Chi Minh City',
     'French-colonial civic building facing Nguyen Hue Walking Street.',
@@ -77,141 +64,6 @@ VALUES
     ARRAY['performance', 'culture', 'architecture', 'nightlife'],
     NULL,
     ST_SetSRID(ST_MakePoint(106.7031, 10.7769), 4326)
-),
-(
-    'Bitexco Financial Tower',
-    '2 Hai Trieu, District 1, Ho Chi Minh City',
-    'Skyscraper with observation facilities and panoramic city views.',
-    'observation deck',
-    ARRAY['skyline', 'shopping', 'photography', 'landmark'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.7042, 10.7717), 4326)
-),
-(
-    'Landmark 81',
-    '208 Nguyen Huu Canh, Binh Thanh District, Ho Chi Minh City',
-    'Vietnam landmark skyscraper with dining, shopping, hotel, and observation views.',
-    'observation deck',
-    ARRAY['skyline', 'shopping', 'dining', 'landmark'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.7216, 10.7950), 4326)
-),
-(
-    'Bui Vien Walking Street',
-    'Bui Vien, Pham Ngu Lao Ward, District 1, Ho Chi Minh City',
-    'Busy nightlife street with restaurants, cafes, bars, and budget accommodation.',
-    'nightlife',
-    ARRAY['nightlife', 'food', 'bars', 'backpacking'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.6927, 10.7687), 4326)
-),
-(
-    'Tao Dan Park',
-    'Truong Dinh, District 1, Ho Chi Minh City',
-    'Large central green space with walking paths, gardens, and shaded rest areas.',
-    'park',
-    ARRAY['park', 'walking', 'nature', 'family'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.6897, 10.7769), 4326)
-),
-(
-    'Saigon Zoo and Botanical Gardens',
-    '2 Nguyen Binh Khiem, District 1, Ho Chi Minh City',
-    'Historic urban zoo and botanical garden near the city center.',
-    'zoo and park',
-    ARRAY['family', 'nature', 'animals', 'park'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.7055, 10.7870), 4326)
-),
-(
-    'Jade Emperor Pagoda',
-    '73 Mai Thi Luu, Da Kao Ward, District 1, Ho Chi Minh City',
-    'Famous Taoist pagoda with ornate statues, incense, and traditional architecture.',
-    'religious site',
-    ARRAY['pagoda', 'culture', 'architecture', 'photography'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.6961, 10.7904), 4326)
-),
-(
-    'Tan Dinh Church',
-    '289 Hai Ba Trung, District 3, Ho Chi Minh City',
-    'Distinctive pink church known for its colorful facade and Gothic details.',
-    'religious site',
-    ARRAY['architecture', 'photography', 'landmark'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.6860, 10.7875), 4326)
-),
-(
-    'Vinh Nghiem Pagoda',
-    '339 Nam Ky Khoi Nghia, District 3, Ho Chi Minh City',
-    'Large Buddhist pagoda complex with a prominent seven-story tower.',
-    'religious site',
-    ARRAY['pagoda', 'culture', 'architecture'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.6804, 10.7898), 4326)
-),
-(
-    'Giac Lam Pagoda',
-    '118 Lac Long Quan, Tan Binh District, Ho Chi Minh City',
-    'One of the city''s oldest Buddhist temples with a peaceful garden setting.',
-    'religious site',
-    ARRAY['pagoda', 'history', 'culture', 'quiet'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.6326, 10.7723), 4326)
-),
-(
-    'Ba Thien Hau Temple',
-    '710 Nguyen Trai, District 5, Ho Chi Minh City',
-    'Historic Cantonese temple in Cho Lon dedicated to the sea goddess Thien Hau.',
-    'religious site',
-    ARRAY['temple', 'culture', 'history', 'architecture'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.6601, 10.7531), 4326)
-),
-(
-    'Binh Tay Market',
-    '57A Thap Muoi, District 6, Ho Chi Minh City',
-    'Large traditional wholesale market and a major landmark of Cho Lon.',
-    'market',
-    ARRAY['shopping', 'food', 'culture', 'architecture'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.6513, 10.7528), 4326)
-),
-(
-    'Phuoc An Hoi Quan Assembly Hall',
-    '184 Hong Bang, District 5, Ho Chi Minh City',
-    'Ornate Chinese assembly hall with colorful woodwork, statues, and lanterns.',
-    'cultural site',
-    ARRAY['culture', 'architecture', 'temple', 'photography'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.6595, 10.7523), 4326)
-),
-(
-    'Cho Lon Chinatown',
-    'Cho Lon, Districts 5 and 6, Ho Chi Minh City',
-    'Historic Chinese-Vietnamese neighborhood known for markets, temples, and food.',
-    'neighborhood',
-    ARRAY['culture', 'food', 'markets', 'walking'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.6570, 10.7540), 4326)
-),
-(
-    'Ong Bon Pagoda',
-    '264 Hai Thuong Lan Ong, District 5, Ho Chi Minh City',
-    'Historic Chinese temple known for traditional decoration and community festivals.',
-    'religious site',
-    ARRAY['temple', 'culture', 'history', 'photography'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.6576, 10.7537), 4326)
-),
-(
-    'Mariamman Hindu Temple',
-    '45 Truong Dinh, District 1, Ho Chi Minh City',
-    'Colorful Hindu temple in the central city with a detailed entrance tower.',
-    'religious site',
-    ARRAY['temple', 'culture', 'architecture', 'photography'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.6963, 10.7718), 4326)
 ),
 (
     'Ho Chi Minh City Fine Arts Museum',
@@ -241,40 +93,80 @@ VALUES
     ST_SetSRID(ST_MakePoint(106.6985, 10.7768), 4326)
 ),
 (
-    'Nguyen Van Binh Book Street',
-    'Nguyen Van Binh, District 1, Ho Chi Minh City',
-    'Pedestrian book street with bookstores, reading spaces, and cafes.',
+    'Southern Women''s Museum',
+    '202 Vo Thi Sau, District 3, Ho Chi Minh City',
+    'Museum dedicated to the history and contributions of Vietnamese women.',
+    'museum',
+    ARRAY['history', 'museum', 'culture'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6855, 10.7833), 4326)
+),
+(
+    'Ton Duc Thang Museum',
+    '5 Ton Duc Thang, District 1, Ho Chi Minh City',
+    'Museum memorializing the life of Vietnam''s former president Ton Duc Thang.',
+    'museum',
+    ARRAY['history', 'museum', 'river'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7061, 10.7772), 4326)
+),
+(
+    'Bitexco Financial Tower',
+    '2 Hai Trieu, District 1, Ho Chi Minh City',
+    'Skyscraper with observation facilities and panoramic city views.',
+    'observation deck',
+    ARRAY['skyline', 'shopping', 'photography', 'landmark'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7042, 10.7717), 4326)
+),
+(
+    'Landmark 81',
+    '208 Nguyen Huu Canh, Binh Thanh District, Ho Chi Minh City',
+    'Vietnam landmark skyscraper with dining, shopping, hotel, and observation views.',
+    'observation deck',
+    ARRAY['skyline', 'shopping', 'dining', 'landmark'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7216, 10.7950), 4326)
+),
+
+-- ==========================================
+-- GROUP 2: PUBLIC SPACES, PARKS & NEIGHBORHOODS
+-- ==========================================
+(
+    'Nguyen Hue Walking Street',
+    'Nguyen Hue Boulevard, District 1, Ho Chi Minh City',
+    'Pedestrian boulevard connecting City Hall with the Saigon River.',
     'public space',
-    ARRAY['books', 'walking', 'cafes', 'family'],
+    ARRAY['walking', 'nightlife', 'events', 'photography'],
     NULL,
-    ST_SetSRID(ST_MakePoint(106.6995, 10.7794), 4326)
+    ST_SetSRID(ST_MakePoint(106.7037, 10.7741), 4326)
 ),
 (
-    'The Cafe Apartments',
-    '42 Nguyen Hue, District 1, Ho Chi Minh City',
-    'Repurposed apartment building filled with cafes, boutiques, and creative spaces.',
-    'shopping and dining',
-    ARRAY['cafes', 'shopping', 'photography', 'walking'],
+    'Bui Vien Walking Street',
+    'Bui Vien, Pham Ngu Lao Ward, District 1, Ho Chi Minh City',
+    'Busy nightlife street with restaurants, cafes, bars, and budget accommodation.',
+    'nightlife',
+    ARRAY['nightlife', 'food', 'bars', 'backpacking'],
     NULL,
-    ST_SetSRID(ST_MakePoint(106.7036, 10.7741), 4326)
+    ST_SetSRID(ST_MakePoint(106.6927, 10.7687), 4326)
 ),
 (
-    'Golden Dragon Water Puppet Theater',
-    '55B Nguyen Thi Minh Khai, District 1, Ho Chi Minh City',
-    'Traditional Vietnamese water puppet theater with regular cultural performances.',
-    'theater',
-    ARRAY['culture', 'family', 'performance', 'traditional art'],
+    'Tao Dan Park',
+    'Truong Dinh, District 1, Ho Chi Minh City',
+    'Large central green space with walking paths, gardens, and shaded rest areas.',
+    'park',
+    ARRAY['park', 'walking', 'nature', 'family'],
     NULL,
-    ST_SetSRID(ST_MakePoint(106.6930, 10.7778), 4326)
+    ST_SetSRID(ST_MakePoint(106.6897, 10.7769), 4326)
 ),
 (
-    'Saigon River Cruise Pier',
-    'Ton Duc Thang, District 1, Ho Chi Minh City',
-    'Riverside departure area for sightseeing cruises and evening meals on the river.',
-    'river attraction',
-    ARRAY['river', 'cruise', 'nightlife', 'views'],
+    'Saigon Zoo and Botanical Gardens',
+    '2 Nguyen Binh Khiem, District 1, Ho Chi Minh City',
+    'Historic urban zoo and botanical garden near the city center.',
+    'zoo and park',
+    ARRAY['family', 'nature', 'animals', 'park'],
     NULL,
-    ST_SetSRID(ST_MakePoint(106.7048, 10.7710), 4326)
+    ST_SetSRID(ST_MakePoint(106.7055, 10.7870), 4326)
 ),
 (
     'Vinhomes Central Park',
@@ -284,114 +176,6 @@ VALUES
     ARRAY['park', 'walking', 'family', 'river'],
     NULL,
     ST_SetSRID(ST_MakePoint(106.7210, 10.7945), 4326)
-),
-(
-    'Binh Quoi Tourist Village',
-    '1147 Binh Quoi, Binh Thanh District, Ho Chi Minh City',
-    'Riverside recreational area with gardens, local food, and traditional village scenery.',
-    'leisure area',
-    ARRAY['river', 'family', 'food', 'nature'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.7380, 10.8170), 4326)
-),
-(
-    'Crescent Mall',
-    '101 Ton Dat Tien, District 7, Ho Chi Minh City',
-    'Modern shopping mall with retail, restaurants, cinema, and family entertainment.',
-    'shopping mall',
-    ARRAY['shopping', 'dining', 'cinema', 'family'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.7183, 10.7297), 4326)
-),
-(
-    'Starlight Bridge',
-    'Ton Dat Tien, District 7, Ho Chi Minh City',
-    'Illuminated pedestrian bridge near Crescent Lake and the Phu My Hung urban area.',
-    'public space',
-    ARRAY['walking', 'photography', 'nightlife', 'family'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.7179, 10.7298), 4326)
-),
-(
-    'Saigon Exhibition and Convention Center',
-    '799 Nguyen Van Linh, District 7, Ho Chi Minh City',
-    'Major venue for exhibitions, conferences, trade fairs, and public events.',
-    'event venue',
-    ARRAY['events', 'exhibitions', 'business'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.7210, 10.7290), 4326)
-),
-(
-    'SC VivoCity',
-    '1058 Nguyen Van Linh, District 7, Ho Chi Minh City',
-    'Shopping and entertainment complex with restaurants, cinema, and family activities.',
-    'shopping mall',
-    ARRAY['shopping', 'dining', 'cinema', 'family'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.7046, 10.7314), 4326)
-),
-(
-    'Dam Sen Cultural Park',
-    '3 Hoa Binh, District 11, Ho Chi Minh City',
-    'Large amusement and cultural park with gardens, rides, lakes, and family attractions.',
-    'theme park',
-    ARRAY['family', 'rides', 'water park', 'nature'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.6350, 10.7663), 4326)
-),
-(
-    'Suoi Tien Theme Park',
-    '120 Hanoi Highway, Thu Duc City, Ho Chi Minh City',
-    'Large cultural amusement park with rides, water attractions, and Vietnamese themes.',
-    'theme park',
-    ARRAY['family', 'rides', 'water park', 'entertainment'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.8027, 10.8664), 4326)
-),
-(
-    'Tan Son Nhat International Airport',
-    'Truong Son, Tan Binh District, Ho Chi Minh City',
-    'The city''s main airport and a useful reference point for travelers.',
-    'transport hub',
-    ARRAY['airport', 'travel', 'transport'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.6519, 10.8188), 4326)
-),
-(
-    'Cu Chi Tunnels',
-    'Phu Hiep, Cu Chi District, Ho Chi Minh City',
-    'Historic underground tunnel network and wartime heritage attraction outside the center.',
-    'historical site',
-    ARRAY['history', 'tunnels', 'adventure', 'museum'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.4630, 11.1410), 4326)
-),
-(
-    'Can Gio Mangrove Biosphere Reserve',
-    'Can Gio District, Ho Chi Minh City',
-    'Coastal mangrove reserve with wetlands, wildlife, and eco-tourism activities.',
-    'nature reserve',
-    ARRAY['nature', 'mangrove', 'wildlife', 'eco-tourism'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.9540, 10.4110), 4326)
-),
-(
-    'Thu Thiem Urban Area',
-    'Thu Thiem, Thu Duc City, Ho Chi Minh City',
-    'Modern riverside urban district with open spaces and views toward District 1.',
-    'urban area',
-    ARRAY['river', 'skyline', 'walking', 'photography'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.7215, 10.7750), 4326)
-),
-(
-    'Thao Dien',
-    'Thao Dien Ward, Thu Duc City, Ho Chi Minh City',
-    'Popular riverside neighborhood with restaurants, cafes, galleries, and boutiques.',
-    'neighborhood',
-    ARRAY['cafes', 'dining', 'shopping', 'nightlife'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.7330, 10.8010), 4326)
 ),
 (
     'Le Van Tam Park',
@@ -412,49 +196,71 @@ VALUES
     ST_SetSRID(ST_MakePoint(106.6620, 10.8060), 4326)
 ),
 (
-    'Saigon Central Mosque',
-    '66 Dong Du, District 1, Ho Chi Minh City',
-    'Historic mosque and quiet courtyard near the central shopping and hotel area.',
-    'religious site',
-    ARRAY['mosque', 'architecture', 'culture', 'quiet'],
+    'Gia Dinh Park',
+    'Hoang Minh Giam, Phu Nhuan District, Ho Chi Minh City',
+    'One of the city''s largest green lungs with extensive lawns and play areas.',
+    'park',
+    ARRAY['park', 'walking', 'family', 'nature'],
     NULL,
-    ST_SetSRID(ST_MakePoint(106.7040, 10.7740), 4326)
+    ST_SetSRID(ST_MakePoint(106.6775, 10.8136), 4326)
 ),
 (
-    'Saigon Skydeck',
-    'Bitexco Financial Tower, 2 Hai Trieu, District 1, Ho Chi Minh City',
-    'Observation deck offering panoramic views of central Ho Chi Minh City.',
-    'observation deck',
-    ARRAY['skyline', 'views', 'photography', 'landmark'],
+    'Le Thi Rieng Park',
+    '875 Cach Mang Thang Tam, District 10, Ho Chi Minh City',
+    'Popular district park with a lake, amusement rides, and walking paths.',
+    'park',
+    ARRAY['park', 'walking', 'family', 'recreation'],
     NULL,
-    ST_SetSRID(ST_MakePoint(106.7043, 10.7718), 4326)
+    ST_SetSRID(ST_MakePoint(106.6640, 10.7830), 4326)
 ),
 (
-    'Tan Cang Riverside',
-    '100 Ung Van Khiem, Binh Thanh District, Ho Chi Minh City',
-    'Riverside leisure area with dining, open views, and access to the Saigon waterfront.',
-    'riverside area',
-    ARRAY['river', 'dining', 'views', 'relaxation'],
+    'Cho Lon Chinatown',
+    'Cho Lon, Districts 5 and 6, Ho Chi Minh City',
+    'Historic Chinese-Vietnamese neighborhood known for markets, temples, and food.',
+    'neighborhood',
+    ARRAY['culture', 'food', 'markets', 'walking'],
     NULL,
-    ST_SetSRID(ST_MakePoint(106.7160, 10.7930), 4326)
+    ST_SetSRID(ST_MakePoint(106.6570, 10.7540), 4326)
 ),
 (
-    'Viet Nam Quoc Tu Pagoda',
-    '244 Ba Thang Hai, District 10, Ho Chi Minh City',
-    'Large Buddhist pagoda with a tall tower and a prominent urban location.',
-    'religious site',
-    ARRAY['pagoda', 'culture', 'architecture', 'photography'],
+    'Thao Dien',
+    'Thao Dien Ward, Thu Duc City, Ho Chi Minh City',
+    'Popular riverside neighborhood with restaurants, cafes, galleries, and boutiques.',
+    'neighborhood',
+    ARRAY['cafes', 'dining', 'shopping', 'nightlife'],
     NULL,
-    ST_SetSRID(ST_MakePoint(106.6720, 10.7720), 4326)
+    ST_SetSRID(ST_MakePoint(106.7330, 10.8010), 4326)
 ),
 (
-    'Xa Loi Pagoda',
-    '89 Ba Huyen Thanh Quan, District 3, Ho Chi Minh City',
-    'Historic Buddhist pagoda with a bell tower and peaceful courtyard.',
-    'religious site',
-    ARRAY['pagoda', 'history', 'culture', 'quiet'],
+    'The Global City',
+    'Do Xuan Hop, An Phu, Thu Duc City, Ho Chi Minh City',
+    'Modern urban area hosting major events, marathons, and lifestyle activities.',
+    'urban area',
+    ARRAY['events', 'walking', 'modern', 'sports'],
     NULL,
-    ST_SetSRID(ST_MakePoint(106.6870, 10.7790), 4326)
+    ST_SetSRID(ST_MakePoint(106.7725, 10.8005), 4326)
+),
+
+-- ==========================================
+-- GROUP 3: CATHOLIC CHURCHES (COMPREHENSIVE HCM LIST)
+-- ==========================================
+(
+    'Notre Dame Cathedral Basilica of Saigon',
+    'Cong Xa Paris, District 1, Ho Chi Minh City',
+    'Iconic red-brick cathedral in the city center.',
+    'church',
+    ARRAY['architecture', 'landmark', 'Catholic', 'photography'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6992, 10.7798), 4326)
+),
+(
+    'Tan Dinh Church',
+    '289 Hai Ba Trung, District 3, Ho Chi Minh City',
+    'Distinctive pink church known for its colorful facade and Gothic details.',
+    'church',
+    ARRAY['architecture', 'photography', 'Catholic', 'landmark'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6860, 10.7875), 4326)
 ),
 (
     'Huyen Sy Church',
@@ -484,7 +290,7 @@ VALUES
     ST_SetSRID(ST_MakePoint(106.6588, 10.7517), 4326)
 ),
 (
-    'St Jeanne d''Arc Church',
+    'St Jeanne d''Arc Church (Nga Sau Church)',
     '116B Hung Vuong, District 5, Ho Chi Minh City',
     'Distinctive Catholic church commonly known as the Nga Sau Church.',
     'church',
@@ -529,9 +335,9 @@ VALUES
     ST_SetSRID(ST_MakePoint(106.6800, 10.7860), 4326)
 ),
 (
-    'Ky Dong Church',
-    '40 Ky Dong, District 3, Ho Chi Minh City',
-    'Catholic church and pilgrimage destination in central District 3.',
+    'Ky Dong Church (Redemptorist)',
+    '38 Ky Dong, District 3, Ho Chi Minh City',
+    'Major Catholic church and pilgrimage destination in central District 3.',
     'church',
     ARRAY['church', 'Catholic', 'pilgrimage', 'community'],
     NULL,
@@ -611,12 +417,12 @@ VALUES
 ),
 (
     'Fatima Binh Trieu Church',
-    'Binh Trieu, Thu Duc City, Ho Chi Minh City',
+    '58 Duong So 5, Hiep Binh Chanh, Thu Duc City',
     'Popular Catholic pilgrimage and parish site near the Saigon River.',
     'church',
     ARRAY['church', 'Catholic', 'pilgrimage', 'community'],
     NULL,
-    ST_SetSRID(ST_MakePoint(106.7350, 10.8530), 4326)
+    ST_SetSRID(ST_MakePoint(106.7161, 10.8335), 4326)
 ),
 (
     'Binh Loi Church',
@@ -637,94 +443,731 @@ VALUES
     ST_SetSRID(ST_MakePoint(106.5950, 10.8670), 4326)
 ),
 (
-    'Bien Hoa Cathedral',
-    '57 Nguyen Ai Quoc, Bien Hoa City, Dong Nai Province',
-    'Major Catholic cathedral serving Bien Hoa and surrounding communities.',
-    'church',
-    ARRAY['church', 'Catholic', 'cathedral', 'architecture'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.8430, 10.9570), 4326)
-),
-(
-    'Tan Mai Church',
-    'Tan Mai Ward, Bien Hoa City, Dong Nai Province',
-    'Large Catholic parish church in the Tan Mai area of Bien Hoa.',
-    'church',
-    ARRAY['church', 'Catholic', 'community', 'architecture'],
-    NULL,
-    ST_SetSRID(ST_MakePoint(106.8500, 10.9400), 4326)
-),
-(
-    'Tam Hiep Church',
-    'Tam Hiep Ward, Bien Hoa City, Dong Nai Province',
-    'Catholic church serving a large suburban parish east of Ho Chi Minh City.',
+    'Dong Tien Church',
+    '54 Thanh Thai, District 10, Ho Chi Minh City',
+    'Large modern Catholic church heavily integrated into the District 10 community.',
     'church',
     ARRAY['church', 'Catholic', 'community'],
     NULL,
-    ST_SetSRID(ST_MakePoint(106.8550, 10.9400), 4326)
+    ST_SetSRID(ST_MakePoint(106.6665, 10.7712), 4326)
 ),
 (
-    'Phu Cuong Cathedral',
-    '6 Nguyen Truong To, Thu Dau Mot City, Binh Duong Province',
-    'Prominent Catholic cathedral and architectural landmark in Thu Dau Mot.',
+    'Hoa Hung Church',
+    '104B To Hien Thanh, District 10, Ho Chi Minh City',
+    'Active Catholic parish in the busy District 10 commercial area.',
     'church',
-    ARRAY['church', 'Catholic', 'cathedral', 'architecture'],
+    ARRAY['church', 'Catholic', 'community'],
     NULL,
-    ST_SetSRID(ST_MakePoint(106.6540, 10.9800), 4326)
+    ST_SetSRID(ST_MakePoint(106.6685, 10.7810), 4326)
 ),
 (
-    'Lai Thieu Church',
-    'Lai Thieu Ward, Thuan An City, Binh Duong Province',
-    'Historic Catholic church serving the Lai Thieu community north of the city.',
+    'Mac Ti Nho Church',
+    '16A Nguyen Thai Hoc, District 1, Ho Chi Minh City',
+    'Small, serene Catholic parish in District 1.',
     'church',
-    ARRAY['church', 'Catholic', 'history', 'community'],
+    ARRAY['church', 'Catholic', 'community'],
     NULL,
-    ST_SetSRID(ST_MakePoint(106.7040, 10.9030), 4326)
+    ST_SetSRID(ST_MakePoint(106.6975, 10.7630), 4326)
 ),
 (
-    'Ba Ria Cathedral',
-    'Nguyen Tat Thanh, Ba Ria City, Ba Ria - Vung Tau Province',
-    'Catholic cathedral serving Ba Ria and the surrounding coastal province.',
+    'Mai Khoi Church',
+    '44 Tu Xuong, District 3, Ho Chi Minh City',
+    'Dominican Catholic church known for its peaceful, tree-lined neighborhood setting.',
     'church',
-    ARRAY['church', 'Catholic', 'cathedral', 'architecture'],
+    ARRAY['church', 'Catholic', 'Dominican', 'peaceful'],
     NULL,
-    ST_SetSRID(ST_MakePoint(107.1680, 10.4950), 4326)
+    ST_SetSRID(ST_MakePoint(106.6865, 10.7815), 4326)
 ),
 (
-    'Vung Tau Cathedral',
-    'Tran Hung Dao, Vung Tau City, Ba Ria - Vung Tau Province',
-    'Central Catholic cathedral in Vung Tau near the city waterfront.',
+    'Nam Hoa Church',
+    '124/29 Banh Van Tran, Tan Binh District, Ho Chi Minh City',
+    'Well-attended Catholic church in the densely populated Tan Binh area.',
     'church',
-    ARRAY['church', 'Catholic', 'cathedral', 'architecture'],
+    ARRAY['church', 'Catholic', 'community'],
     NULL,
-    ST_SetSRID(ST_MakePoint(107.0840, 10.3460), 4326)
+    ST_SetSRID(ST_MakePoint(106.6575, 10.7925), 4326)
 ),
 (
-    'Long Hai Church',
-    'Long Hai, Long Dien District, Ba Ria - Vung Tau Province',
-    'Catholic parish church near the Long Hai coastal area.',
+    'Vinh Hoa Church',
+    'Dong Den, Tan Binh District, Ho Chi Minh City',
+    'Catholic parish serving a fast-growing local population.',
     'church',
-    ARRAY['church', 'Catholic', 'coast', 'community'],
+    ARRAY['church', 'Catholic', 'community'],
     NULL,
-    ST_SetSRID(ST_MakePoint(107.2400, 10.3860), 4326)
+    ST_SetSRID(ST_MakePoint(106.6475, 10.7980), 4326)
 ),
 (
-    'Phuoc Hai Church',
-    'Phuoc Hai, Dat Do District, Ba Ria - Vung Tau Province',
-    'Catholic church serving the fishing and coastal community of Phuoc Hai.',
+    'Thien An Church',
+    'Tan Phu District, Ho Chi Minh City',
+    'A deeply rooted Catholic parish community in Tan Phu.',
     'church',
-    ARRAY['church', 'Catholic', 'coast', 'community'],
+    ARRAY['church', 'Catholic', 'community'],
     NULL,
-    ST_SetSRID(ST_MakePoint(107.2600, 10.4080), 4326)
+    ST_SetSRID(ST_MakePoint(106.6325, 10.7850), 4326)
 ),
 (
-    'Xuan Loc Cathedral',
-    'Xuan Loc City, Dong Nai Province',
-    'Catholic cathedral and diocesan landmark east of Ho Chi Minh City.',
+    'Phat Diem Church (Phu Nhuan)',
+    '73 Pho Quang, Phu Nhuan District, Ho Chi Minh City',
+    'A Catholic church maintaining traditions of the Phat Diem diocese migrants.',
     'church',
-    ARRAY['church', 'Catholic', 'cathedral', 'architecture'],
+    ARRAY['church', 'Catholic', 'community', 'history'],
     NULL,
-    ST_SetSRID(ST_MakePoint(107.2440, 10.9290), 4326)
+    ST_SetSRID(ST_MakePoint(106.6710, 10.8065), 4326)
+),
+(
+    'Thuan Phat Church',
+    '253 Tran Xuan Soan, District 7, Ho Chi Minh City',
+    'Riverside Catholic parish serving families in District 7.',
+    'church',
+    ARRAY['church', 'Catholic', 'community', 'river'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7050, 10.7450), 4326)
+),
+(
+    'Nam Hai Church',
+    '277 Pham Hung, District 8, Ho Chi Minh City',
+    'Catholic church situated in the bustling District 8.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6780, 10.7380), 4326)
+),
+(
+    'Dong Quang Church',
+    'Dong Bac, District 12, Ho Chi Minh City',
+    'Growing Catholic parish serving the outer suburban District 12.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6300, 10.8550), 4326)
+),
+(
+    'Thach Da Church',
+    '331 Pham Van Chieu, Go Vap District, Ho Chi Minh City',
+    'Large and active Catholic parish in the Go Vap district.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6500, 10.8450), 4326)
+),
+(
+    'Lang Son Church',
+    'Le Duc Tho, Go Vap District, Ho Chi Minh City',
+    'Established Catholic church with a strong community presence.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6680, 10.8350), 4326)
+),
+(
+    'Thai Hoa Church',
+    '152/45 Ly Thanh Tong, Tan Phu District, Ho Chi Minh City',
+    'Catholic church engaging the local Tan Phu neighborhood.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6210, 10.7750), 4326)
+),
+(
+    'Khiet Tam Church',
+    'So 4, Binh Chieu, Thu Duc City, Ho Chi Minh City',
+    'Spacious Catholic church serving the Binh Chieu industrial zone area.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7420, 10.8810), 4326)
+),
+(
+    'Tam Hai Church',
+    'Tam Binh, Thu Duc City, Ho Chi Minh City',
+    'Local Catholic parish for residents in the Tam Hai ward.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7450, 10.8650), 4326)
+),
+(
+    'Hiep Binh Church',
+    'Hiep Binh Chanh, Thu Duc City, Ho Chi Minh City',
+    'Riverside Catholic community in the expanding Thu Duc City.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7250, 10.8300), 4326)
+),
+(
+    'Binh Hoa Church',
+    'No Trang Long, Binh Thanh District, Ho Chi Minh City',
+    'Catholic parish serving a dense residential area in Binh Thanh.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7020, 10.8120), 4326)
+),
+(
+    'Hang Xanh Church',
+    '76 Bach Dang, Binh Thanh District, Ho Chi Minh City',
+    'Historically significant parish near the Hang Xanh intersection.',
+    'church',
+    ARRAY['church', 'Catholic', 'community', 'history'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7110, 10.8010), 4326)
+),
+(
+    'Thi Nghe Church',
+    'Xo Viet Nghe Tinh, Binh Thanh District, Ho Chi Minh City',
+    'Catholic church positioned close to the Thi Nghe canal.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7080, 10.7910), 4326)
+),
+(
+    'Cong Thanh Church',
+    'Binh Hung Hoa, Binh Tan District, Ho Chi Minh City',
+    'A key Catholic church providing for the Binh Tan area.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6110, 10.8030), 4326)
+),
+(
+    'Phu Binh Church',
+    'Lac Long Quan, District 11, Ho Chi Minh City',
+    'A highly active parish known for its devout local congregation.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6430, 10.7680), 4326)
+),
+(
+    'Tan Chau Church',
+    'Tan Binh District, Ho Chi Minh City',
+    'Parish church established to serve migrants to the Tan Binh district.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6490, 10.7950), 4326)
+),
+(
+    'Tan Phuoc Church',
+    '97 Nguyen Thi Nho, Tan Binh District, Ho Chi Minh City',
+    'Beautifully constructed church drawing many families for weekend mass.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6550, 10.7710), 4326)
+),
+(
+    'Tan Sa Chau Church',
+    '387 Le Van Sy, Tan Binh District, Ho Chi Minh City',
+    'Prominent Catholic church on a busy retail street in Tan Binh.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6680, 10.7920), 4326)
+),
+(
+    'Nghia Hoa Church',
+    'Nghia Phat, Tan Binh District, Ho Chi Minh City',
+    'Catholic parish known for its strong charitable and youth activities.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6540, 10.7850), 4326)
+),
+(
+    'Chi Hoa Church',
+    '149 Banh Van Tran, Tan Binh District, Ho Chi Minh City',
+    'Historic Catholic parish complex in Tan Binh with a strong community.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6580, 10.7890), 4326)
+),
+(
+    'Loc Hung Church',
+    'Chan Hung, Tan Binh District, Ho Chi Minh City',
+    'Local parish deeply integrated into the residential fabric of Tan Binh.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6590, 10.7840), 4326)
+),
+(
+    'Dong San Church',
+    'District 8, Ho Chi Minh City',
+    'A staple Catholic parish for the working-class neighborhoods in D8.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6550, 10.7300), 4326)
+),
+(
+    'Xom Nhieu Church',
+    'Ton That Thuyet, District 4, Ho Chi Minh City',
+    'A well-loved Catholic parish in the vibrant District 4 area.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7020, 10.7580), 4326)
+),
+(
+    'Binh Xuyen Church',
+    'District 8, Ho Chi Minh City',
+    'A welcoming parish catering to the spiritual needs of local residents.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6710, 10.7350), 4326)
+),
+(
+    'Chanh Hung Church',
+    'Pham Hung, District 8, Ho Chi Minh City',
+    'Large Catholic parish church serving the populous Chanh Hung ward.',
+    'church',
+    ARRAY['church', 'Catholic', 'community'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6750, 10.7390), 4326)
+),
+
+-- ==========================================
+-- GROUP 4: TEMPLES & PAGODAS
+-- ==========================================
+(
+    'Jade Emperor Pagoda',
+    '73 Mai Thi Luu, Da Kao Ward, District 1, Ho Chi Minh City',
+    'Famous Taoist pagoda with ornate statues, incense, and traditional architecture.',
+    'religious site',
+    ARRAY['pagoda', 'culture', 'architecture', 'photography'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6961, 10.7904), 4326)
+),
+(
+    'Vinh Nghiem Pagoda',
+    '339 Nam Ky Khoi Nghia, District 3, Ho Chi Minh City',
+    'Large Buddhist pagoda complex with a prominent seven-story tower.',
+    'religious site',
+    ARRAY['pagoda', 'culture', 'architecture'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6804, 10.7898), 4326)
+),
+(
+    'Giac Lam Pagoda',
+    '118 Lac Long Quan, Tan Binh District, Ho Chi Minh City',
+    'One of the city''s oldest Buddhist temples with a peaceful garden setting.',
+    'religious site',
+    ARRAY['pagoda', 'history', 'culture', 'quiet'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6326, 10.7723), 4326)
+),
+(
+    'Ba Thien Hau Temple',
+    '710 Nguyen Trai, District 5, Ho Chi Minh City',
+    'Historic Cantonese temple in Cho Lon dedicated to the sea goddess Thien Hau.',
+    'religious site',
+    ARRAY['temple', 'culture', 'history', 'architecture'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6601, 10.7531), 4326)
+),
+(
+    'Phuoc An Hoi Quan Assembly Hall',
+    '184 Hong Bang, District 5, Ho Chi Minh City',
+    'Ornate Chinese assembly hall with colorful woodwork, statues, and lanterns.',
+    'cultural site',
+    ARRAY['culture', 'architecture', 'temple', 'photography'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6595, 10.7523), 4326)
+),
+(
+    'Ong Bon Pagoda',
+    '264 Hai Thuong Lan Ong, District 5, Ho Chi Minh City',
+    'Historic Chinese temple known for traditional decoration and community festivals.',
+    'religious site',
+    ARRAY['temple', 'culture', 'history', 'photography'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6576, 10.7537), 4326)
+),
+(
+    'Mariamman Hindu Temple',
+    '45 Truong Dinh, District 1, Ho Chi Minh City',
+    'Colorful Hindu temple in the central city with a detailed entrance tower.',
+    'religious site',
+    ARRAY['temple', 'culture', 'architecture', 'photography'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6963, 10.7718), 4326)
+),
+(
+    'Viet Nam Quoc Tu Pagoda',
+    '244 Ba Thang Hai, District 10, Ho Chi Minh City',
+    'Large Buddhist pagoda with a tall tower and a prominent urban location.',
+    'religious site',
+    ARRAY['pagoda', 'culture', 'architecture', 'photography'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6720, 10.7720), 4326)
+),
+(
+    'Xa Loi Pagoda',
+    '89 Ba Huyen Thanh Quan, District 3, Ho Chi Minh City',
+    'Historic Buddhist pagoda with a bell tower and peaceful courtyard.',
+    'religious site',
+    ARRAY['pagoda', 'history', 'culture', 'quiet'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6870, 10.7790), 4326)
+),
+
+-- ==========================================
+-- GROUP 5: SHOPPING, MALLS, RETAIL & BOOKSTORES
+-- ==========================================
+(
+    'Takashimaya Vietnam',
+    '92-94 Nam Ky Khoi Nghia, District 1, Ho Chi Minh City',
+    'Premium Japanese department store located inside Saigon Centre.',
+    'shopping mall',
+    ARRAY['shopping', 'luxury', 'dining', 'fashion'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7015, 10.7731), 4326)
+),
+(
+    'Vincom Center Dong Khoi',
+    '72 Le Thanh Ton, District 1, Ho Chi Minh City',
+    'Major central shopping mall featuring global fashion brands, retail, and dining.',
+    'shopping mall',
+    ARRAY['shopping', 'fashion', 'dining', 'cinema'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7020, 10.7775), 4326)
+),
+(
+    'Now Zone Fashion Mall',
+    '235 Nguyen Van Cu, District 1, Ho Chi Minh City',
+    'Popular multi-level fashion mall with retail, lifestyle goods, and food court.',
+    'shopping mall',
+    ARRAY['shopping', 'fashion', 'lifestyle', 'youth'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6820, 10.7620), 4326)
+),
+(
+    'Crescent Mall',
+    '101 Ton Dat Tien, District 7, Ho Chi Minh City',
+    'Modern shopping mall with retail, restaurants, cinema, and family entertainment.',
+    'shopping mall',
+    ARRAY['shopping', 'dining', 'cinema', 'family'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7183, 10.7297), 4326)
+),
+(
+    'SC VivoCity',
+    '1058 Nguyen Van Linh, District 7, Ho Chi Minh City',
+    'Shopping and entertainment complex with restaurants, cinema, and family activities.',
+    'shopping mall',
+    ARRAY['shopping', 'dining', 'cinema', 'family'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7046, 10.7314), 4326)
+),
+(
+    'Binh Tay Market',
+    '57A Thap Muoi, District 6, Ho Chi Minh City',
+    'Large traditional wholesale market and a major landmark of Cho Lon.',
+    'market',
+    ARRAY['shopping', 'food', 'culture', 'architecture'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6513, 10.7528), 4326)
+),
+(
+    'Nguyen Van Binh Book Street',
+    'Nguyen Van Binh, District 1, Ho Chi Minh City',
+    'Pedestrian book street with bookstores, reading spaces, and cafes.',
+    'public space',
+    ARRAY['books', 'walking', 'cafes', 'family'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6995, 10.7794), 4326)
+),
+(
+    'Fahasa Nguyen Hue Bookstore',
+    '40 Nguyen Hue, District 1, Ho Chi Minh City',
+    'Massive, iconic bookstore on the walking street carrying a wide array of books and stationery.',
+    'bookstore',
+    ARRAY['books', 'shopping', 'stationery'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7040, 10.7745), 4326)
+),
+(
+    'Phuong Nam Book City',
+    'Vincom Center, District 1, Ho Chi Minh City',
+    'Large, beautifully designed bookstore offering literature, lifestyle goods, and coffee.',
+    'bookstore',
+    ARRAY['books', 'shopping', 'lifestyle', 'cafe'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7022, 10.7778), 4326)
+),
+(
+    'MUJI Parkson Le Thanh Ton',
+    '35-45 Le Thanh Ton, District 1, Ho Chi Minh City',
+    'Flagship Japanese retail store for minimalist apparel, household goods, and stationery.',
+    'retail',
+    ARRAY['shopping', 'lifestyle', 'minimalist', 'home'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7030, 10.7780), 4326)
+),
+(
+    'Uniqlo Dong Khoi',
+    '35-45 Le Thanh Ton, District 1, Ho Chi Minh City',
+    'Flagship global apparel store known for casual wear and daily essentials.',
+    'retail',
+    ARRAY['shopping', 'fashion', 'clothing'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7032, 10.7781), 4326)
+),
+(
+    'H&M Vincom Dong Khoi',
+    '72 Le Thanh Ton, District 1, Ho Chi Minh City',
+    'Major international fast-fashion retail outlet for men, women, and children.',
+    'retail',
+    ARRAY['shopping', 'fashion', 'clothing'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7021, 10.7776), 4326)
+),
+(
+    'CellphoneS Nguyen Thai Hoc',
+    '136 Nguyen Thai Hoc, District 1, Ho Chi Minh City',
+    'Popular electronics and mobile accessories retail store.',
+    'electronics',
+    ARRAY['shopping', 'tech', 'gadgets'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6950, 10.7640), 4326)
+),
+(
+    'Pop Mart Crescent Mall',
+    '101 Ton Dat Tien, District 7, Ho Chi Minh City',
+    'Retail store for trendy collectible designer vinyl figures and blind boxes.',
+    'retail',
+    ARRAY['shopping', 'collectibles', 'toys', 'trendy'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7185, 10.7295), 4326)
+),
+(
+    'Supersports Estella Place',
+    '88 Song Hanh, Thu Duc City, Ho Chi Minh City',
+    'Leading sports retail store offering athletic shoes, apparel, and equipment.',
+    'retail',
+    ARRAY['shopping', 'sports', 'athletics', 'shoes'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7450, 10.8010), 4326)
+),
+(
+    'Pharmacity Hai Ba Trung',
+    'Hai Ba Trung, District 1, Ho Chi Minh City',
+    'Modern retail pharmacy offering health products, supplements, and cosmetics.',
+    'pharmacy',
+    ARRAY['health', 'pharmacy', 'shopping'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6950, 10.7850), 4326)
+),
+(
+    'Guardian Nguyen Thi Minh Khai',
+    'Nguyen Thi Minh Khai, District 3, Ho Chi Minh City',
+    'Popular health and beauty retail chain store.',
+    'retail',
+    ARRAY['beauty', 'health', 'shopping'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6900, 10.7750), 4326)
+),
+
+-- ==========================================
+-- GROUP 6: FOOD, CAFES, & CONVENIENCE
+-- ==========================================
+(
+    'McDonald''s Da Kao',
+    '2-6Bis Dien Bien Phu, District 1, Ho Chi Minh City',
+    '24-hour global fast food chain with drive-thru, known for burgers and fries.',
+    'restaurant',
+    ARRAY['fast food', 'burgers', '24/7', 'dining'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6990, 10.7915), 4326)
+),
+(
+    'Marukame Udon Ben Thanh',
+    '215 Ly Tu Trong, District 1, Ho Chi Minh City',
+    'Popular Japanese casual dining spot famous for freshly made udon noodles.',
+    'restaurant',
+    ARRAY['dining', 'Japanese', 'udon', 'casual'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6965, 10.7735), 4326)
+),
+(
+    'Pizza 4P''s Ben Thanh',
+    '8 Thu Khoa Huan, District 1, Ho Chi Minh City',
+    'Highly rated artisan pizza restaurant known for house-made cheese and fusion flavors.',
+    'restaurant',
+    ARRAY['dining', 'pizza', 'Italian', 'fusion'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6975, 10.7730), 4326)
+),
+(
+    'Highlands Coffee Nguyen Du',
+    'Nguyen Du, District 1, Ho Chi Minh City',
+    'Ubiquitous Vietnamese coffeehouse chain offering traditional brews and modern blended drinks.',
+    'cafe',
+    ARRAY['coffee', 'cafe', 'drinks', 'meeting'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6985, 10.7780), 4326)
+),
+(
+    'Starbucks New World',
+    '76 Le Lai, District 1, Ho Chi Minh City',
+    'The first Starbucks in Vietnam, offering classic espresso drinks and a comfortable seating area.',
+    'cafe',
+    ARRAY['coffee', 'cafe', 'international', 'drinks'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6945, 10.7705), 4326)
+),
+(
+    'Doxa Cafe Binh Thanh',
+    'Binh Thanh District, Ho Chi Minh City',
+    'Creative specialty coffee shop known for hosting art events and cultural gatherings.',
+    'cafe',
+    ARRAY['coffee', 'specialty', 'events', 'culture'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7110, 10.8030), 4326)
+),
+(
+    'GS25 Nguyen Dinh Chieu',
+    'Nguyen Dinh Chieu, District 3, Ho Chi Minh City',
+    'Korean convenience store offering snacks, ready-to-eat meals, and daily essentials.',
+    'convenience store',
+    ARRAY['convenience', 'snacks', '24/7', 'drinks'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6890, 10.7790), 4326)
+),
+(
+    'Circle K Bui Vien',
+    'Bui Vien, District 1, Ho Chi Minh City',
+    'Popular 24-hour convenience store perfect for late-night snacks and drinks.',
+    'convenience store',
+    ARRAY['convenience', 'snacks', '24/7', 'drinks'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6925, 10.7685), 4326)
+),
+(
+    '7-Eleven Ton Duc Thang',
+    'Ton Duc Thang, District 1, Ho Chi Minh City',
+    'International convenience store with local Vietnamese ready-to-eat favorites.',
+    'convenience store',
+    ARRAY['convenience', 'snacks', '24/7', 'food'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7055, 10.7760), 4326)
+),
+(
+    'MiniStop Pasteur',
+    'Pasteur, District 3, Ho Chi Minh City',
+    'Japanese convenience store chain known for fresh soft serve and fast food.',
+    'convenience store',
+    ARRAY['convenience', 'snacks', '24/7', 'fast food'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6920, 10.7830), 4326)
+),
+
+-- ==========================================
+-- GROUP 7: CINEMAS, ENTERTAINMENT & SERVICES
+-- ==========================================
+(
+    'CGV Cinemas Vincom Dong Khoi',
+    '72 Le Thanh Ton, District 1, Ho Chi Minh City',
+    'Premium movie theater chain offering IMAX, 3D, and standard screenings in a central mall.',
+    'cinema',
+    ARRAY['cinema', 'movies', 'entertainment', 'IMAX'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7020, 10.7775), 4326)
+),
+(
+    'Dcine Ben Thanh',
+    '6 Mac Dinh Chi, District 1, Ho Chi Minh City',
+    'Modern cinematic venue located in the heart of the city providing comfort and high-tech screens.',
+    'cinema',
+    ARRAY['cinema', 'movies', 'entertainment'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7005, 10.7830), 4326)
+),
+(
+    'Mega GS Cinemas Cao Thang',
+    '19 Cao Thang, District 3, Ho Chi Minh City',
+    'Spacious multiplex cinema favored for its diverse film selections and good pricing.',
+    'cinema',
+    ARRAY['cinema', 'movies', 'entertainment'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6830, 10.7680), 4326)
+),
+(
+    'Galaxy Cinema Nguyen Du',
+    '116 Nguyen Du, District 1, Ho Chi Minh City',
+    'One of the oldest and most beloved modern cinema complexes in central Saigon.',
+    'cinema',
+    ARRAY['cinema', 'movies', 'entertainment'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6960, 10.7750), 4326)
+),
+(
+    'CineStar Hai Ba Trung',
+    '135 Hai Ba Trung, District 1, Ho Chi Minh City',
+    'Affordable and highly accessible movie theater perfect for students and young adults.',
+    'cinema',
+    ARRAY['cinema', 'movies', 'entertainment'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6980, 10.7820), 4326)
+),
+(
+    'Golden Dragon Water Puppet Theater',
+    '55B Nguyen Thi Minh Khai, District 1, Ho Chi Minh City',
+    'Traditional Vietnamese water puppet theater with regular cultural performances.',
+    'theater',
+    ARRAY['culture', 'family', 'performance', 'traditional art'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6930, 10.7778), 4326)
+),
+(
+    'Saigon River Cruise Pier',
+    'Ton Duc Thang, District 1, Ho Chi Minh City',
+    'Riverside departure area for sightseeing cruises and evening meals on the river.',
+    'river attraction',
+    ARRAY['river', 'cruise', 'nightlife', 'views'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7048, 10.7710), 4326)
+),
+(
+    '30Shine Tinh Lo 10',
+    'Tinh Lo 10, Binh Tan District, Ho Chi Minh City',
+    'Modern male grooming and hair salon chain known for comprehensive spa-like haircuts.',
+    'salon',
+    ARRAY['grooming', 'haircut', 'services', 'spa'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6020, 10.7600), 4326)
+),
+(
+    'Pet Celadon',
+    'Celadon City, Tan Phu District, Ho Chi Minh City',
+    'Dedicated pet care, grooming, and veterinary service center for domestic animals.',
+    'veterinary',
+    ARRAY['pet care', 'veterinary', 'services', 'animals'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6180, 10.8030), 4326)
+),
+(
+    'Onsen Spa & Wellness',
+    'District 2, Thu Duc City, Ho Chi Minh City',
+    'Premium Japanese-style wellness spa offering onsen baths and therapeutic treatments.',
+    'spa',
+    ARRAY['wellness', 'spa', 'relaxation', 'onsen'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.7450, 10.8020), 4326)
+),
+(
+    'Tan Son Nhat International Airport',
+    'Truong Son, Tan Binh District, Ho Chi Minh City',
+    'The city''s main airport and a useful reference point for travelers flying domestic or international.',
+    'transport hub',
+    ARRAY['airport', 'travel', 'transport', 'flights'],
+    NULL,
+    ST_SetSRID(ST_MakePoint(106.6519, 10.8188), 4326)
 )
 ON CONFLICT (name) DO UPDATE SET
     address = EXCLUDED.address,

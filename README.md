@@ -221,6 +221,46 @@ Open your browser and visit your configured `HOSTNAME` to test.
 | `/_leoai/ping`             | GET      | Basic health check               |
 | `/_leoai/visitor-info` | GET      | Retrieve visitor info from Redis |
 
+### Nearby-place questions
+
+`/_leoai/ask` recognizes requests such as “what are churches near me?”,
+“top 3 churches is near me”, and “top 20 churches nearby”. The count in the
+question is passed as a SQL parameter, not fixed in the query. If no count is
+specified, `NEARBY_PLACES_LIMIT` supplies the default.
+
+```json
+{
+  "visitor_id": "visitor-id",
+  "question": "top 10 churches near me",
+  "latitude": 10.747904,
+  "longitude": 106.6467328,
+  "answer_in_language": "en",
+  "answer_in_format": "html"
+}
+```
+
+An optional positive integer `result_limit` overrides the count in the question.
+The search uses supplied coordinates or the visitor's saved touchpoint, keyword
+matches in place names/categories/descriptions/tags, and PostGIS radius/distance
+filtering. Results are nearest-first; there may be fewer than requested within
+`NEARBY_PLACES_RADIUS_METERS`. Missing location prompts the visitor to share it.
+HTML answers contain an escaped ordered list (`<ol>` / `<li>`); `text` answers
+remain numbered plain text. Each bold place name in an HTML answer links to a
+Google Maps search using its name and address. Nearby searches query PostgreSQL directly without
+AI generation, summarization, or embedding requests.
+
+Offline tests:
+
+```bash
+env/bin/python -m pytest -q tests/test_nearby_places.py tests/test_place_selection.py
+```
+
+Optional PostGIS validation uses a temporary schema that is rolled back:
+
+```bash
+RUN_NEARBY_DB_TESTS=1 env/bin/python -m pytest -q tests/test_nearby_places.py
+```
+
 ---
 
 ## 🧰 Developer Notes
