@@ -289,6 +289,14 @@ class RAGAgent:
             selected_place = user_context.get("selected_place")
 
             if is_greeting_message(user_message) and nearby_places and not selected_place:
+                user_context["place_choices"] = [dict(place) for place in nearby_places]
+                summarized_context["user_context"] = user_context
+                persisted_context = dict(summarized_context)
+                persisted_context.pop("updated_at", None)
+                if not await self.db.save_context_summary(
+                    user_id, touchpoint_id, cdp_profile_id, persisted_context
+                ):
+                    raise RuntimeError("Failed to save the nearby-place choices.")
                 final_answer = format_place_picker(nearby_places, target_language)
                 await self.db.save_chat_message(
                     user_id,
@@ -304,16 +312,18 @@ class RAGAgent:
                     else final_answer
                 )
 
-            selection_index = selected_place_index(user_message, len(nearby_places))
-            if selection_index is not None and not selected_place:
-                selected_place = nearby_places[selection_index]
+            place_choices = user_context.get("place_choices", nearby_places)
+            selection_index = selected_place_index(user_message, len(place_choices))
+            if selection_index is not None:
+                selected_place = dict(place_choices[selection_index])
                 user_context["selected_place"] = selected_place
                 summarized_context["user_context"] = user_context
                 persisted_context = dict(summarized_context)
                 persisted_context.pop("updated_at", None)
-                await self.db.save_context_summary(
+                if not await self.db.save_context_summary(
                     user_id, touchpoint_id, cdp_profile_id, persisted_context
-                )
+                ):
+                    raise RuntimeError("Failed to save the selected place.")
                 final_answer = format_place_selection_confirmation(
                     selected_place, target_language
                 )
@@ -375,11 +385,15 @@ class RAGAgent:
         else:
             method = self.client.generate_content
 
+        generation_kwargs: dict[str, Any] = {"temperature": temperature_score}
+        if prompt_router.purpose != "generate_report" and isinstance(self.client, GeminiClient):
+            generation_kwargs["system_instruction"] = prompt_router.system_instruction
+
         # Handle async vs sync automatically
         if asyncio.iscoroutinefunction(method):
-            return await method(prompt_router.prompt_text, temperature=temperature_score)
+            return await method(prompt_router.prompt_text, **generation_kwargs)
         else:
             loop = asyncio.get_running_loop()
             return await loop.run_in_executor(
-                None, lambda: method(prompt_router.prompt_text, temperature=temperature_score)
+                None, lambda: method(prompt_router.prompt_text, **generation_kwargs)
             )

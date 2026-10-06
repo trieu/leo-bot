@@ -82,3 +82,40 @@ def test_ai_client_uses_openai_json_mode(monkeypatch):
     assert result == {"ok": True}
     assert completions.kwargs["model"] == "test-chat"
     assert completions.kwargs["response_format"] == {"type": "json_object"}
+
+
+def test_google_generation_sends_system_instruction(monkeypatch):
+    class FakeModels:
+        def generate_content(self, **kwargs):
+            self.kwargs = kwargs
+            return SimpleNamespace(text="History of Cha Tam Church")
+
+    models = FakeModels()
+    monkeypatch.setattr(
+        ai_core, "_get_api_client",
+        lambda provider, api_key: SimpleNamespace(models=models),
+    )
+    client = ai_core.AIClient(provider="google", model_name="test", api_key="key")
+    answer = client.generate_content("history", system_instruction="Keep the selected place.")
+    assert answer == "History of Cha Tam Church"
+    assert models.kwargs["config"].system_instruction == "Keep the selected place."
+
+
+def test_openrouter_generation_sends_a_system_message(monkeypatch):
+    class FakeCompletions:
+        def create(self, **kwargs):
+            self.kwargs = kwargs
+            return SimpleNamespace(choices=[
+                SimpleNamespace(message=SimpleNamespace(content="History of Cha Tam Church"))
+            ])
+
+    completions = FakeCompletions()
+    monkeypatch.setattr(ai_core, "_get_api_client", lambda provider, api_key: SimpleNamespace(
+        chat=SimpleNamespace(completions=completions)
+    ))
+    client = ai_core.AIClient(provider="openrouter", model_name="test", api_key="key")
+    client.generate_content("history", system_instruction="Keep the selected place.")
+    assert completions.kwargs["messages"] == [
+        {"role": "system", "content": "Keep the selected place."},
+        {"role": "user", "content": "history"},
+    ]

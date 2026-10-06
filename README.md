@@ -249,10 +249,19 @@ remain numbered plain text. Each bold place name in an HTML answer links to a
 Google Maps search using its name and address. Nearby searches query PostgreSQL directly without
 AI generation, summarization, or embedding requests.
 
+When a greeting presents the five-place picker, the backend saves the exact
+numbered choices. Choosing `4` saves that place as `selected_place` for the
+visitor/touchpoint conversation. Short follow-ups such as “history”, “lịch sử”,
+or “opening hours” use the selected place as their subject, even after summary
+refreshes or nearby-result reordering. Numeric replies can explicitly change the
+selection. The prompt distinguishes stored place facts from uncertain background
+information; selection alone does not provide verified historical dates/hours.
+
 Offline tests:
 
 ```bash
 env/bin/python -m pytest -q tests/test_nearby_places.py tests/test_place_selection.py
+env/bin/python -m pytest -q tests/test_conversation_context.py tests/test_ai_core.py
 node --test tests/leocdp.chatbot.test.cjs
 ```
 
@@ -260,6 +269,13 @@ Optional PostGIS validation uses a temporary schema that is rolled back:
 
 ```bash
 RUN_NEARBY_DB_TESTS=1 env/bin/python -m pytest -q tests/test_nearby_places.py
+```
+
+Selection persistence can also be tested against PostgreSQL with fake embeddings
+in a rollback-only schema:
+
+```bash
+RUN_CONVERSATION_DB_TESTS=1 env/bin/python -m pytest -q tests/test_conversation_context.py
 ```
 
 ---

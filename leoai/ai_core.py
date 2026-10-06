@@ -293,14 +293,16 @@ class AIClient:
         json_schema: Schema | dict | None = None,
         image_bytes: bytes | None = None,
         max_output_tokens: int | None = None,
+        system_instruction: str | None = None,
     ) -> str:
         if self.provider == "google":
-            config = types.GenerateContentConfig(
-                temperature=temperature,
-                max_output_tokens=max_output_tokens,
-                response_mime_type=JSON_TYPE if json_schema is not None else None,
-                response_schema=json_schema,
-            )
+            config = types.GenerateContentConfig.model_validate({
+                "temperature": temperature,
+                "max_output_tokens": max_output_tokens,
+                "response_mime_type": JSON_TYPE if json_schema is not None else None,
+                "response_schema": json_schema,
+                "system_instruction": system_instruction,
+            })
             contents: str | list[Any] = prompt
             if image_bytes is not None:
                 contents = [
@@ -350,6 +352,10 @@ class AIClient:
             "messages": [{"role": "user", "content": content}],
             "temperature": temperature,
         }
+        if system_instruction:
+            request["messages"].insert(0, {
+                "role": "system", "content": system_instruction,
+            })
         if json_schema is not None:
             request["response_format"] = {"type": "json_object"}
         if max_output_tokens is not None:
@@ -364,6 +370,8 @@ class AIClient:
         temperature: float = 0.6,
         on_error: str = '',
         max_output_tokens: int | None = None,
+        *,
+        system_instruction: str | None = None,
     ) -> str:
         """
         Generate text from a prompt using the configured AI provider.
@@ -381,6 +389,7 @@ class AIClient:
                 prompt,
                 temperature=temperature,
                 max_output_tokens=max_output_tokens,
+                system_instruction=system_instruction,
             )
             if text:
                 return text

@@ -223,6 +223,7 @@ class ChatDBManager:
             "keywords": row["keywords"] or [],
             "nearby_places": [
                 {
+                    "id": place["id"],
                     "name": place["name"],
                     "address": place["address"],
                     "description": place["description"],
