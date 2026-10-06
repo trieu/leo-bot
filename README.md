@@ -184,6 +184,14 @@ To initialize or refresh the 50 Ho Chi Minh City sample places:
 ./start_app.sh --seed-data
 ```
 
+To replace the old PostgreSQL 16 data with a fresh PostgreSQL 18 database:
+
+```bash
+./start_app.sh --reset-db
+```
+
+The reset option is destructive and must be passed explicitly.
+
 Development mode:
 
 ```bash

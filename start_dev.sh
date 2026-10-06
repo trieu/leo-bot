@@ -18,10 +18,14 @@ NC="\033[0m"
 echo -e "${GREEN}🚀 Starting LEO BOT dev environment...${NC}"
 
 SEED_DATA=false
+RESET_DB=false
 for arg in "$@"; do
   case "$arg" in
     --seed-data)
       SEED_DATA=true
+      ;;
+    --reset-db)
+      RESET_DB=true
       ;;
     *)
       echo -e "${RED}❌ Unknown option: $arg${NC}"
@@ -68,13 +72,20 @@ wait_for_postgres() {
 
   if nc -z localhost "$PGSQL_DB_PORT" 2>/dev/null; then
     echo -e "${GREEN}✅ PostgreSQL already running.${NC}"
-    bash ./dockers/pgsql/start_pgsql_pgvector.sh
+    PGSQL_ARGS=()
+    if [[ "$RESET_DB" == true ]]; then
+      PGSQL_ARGS+=(--reset-db)
+    fi
+    bash ./dockers/pgsql/start_pgsql_pgvector.sh "${PGSQL_ARGS[@]}"
     return 0
   fi
 
   echo -e "${YELLOW}⚙️  Starting PostgreSQL docker (pgvector)...${NC}"
-  # Ensure this path exists relative to where you run the script
-  bash ./dockers/pgsql/start_pgsql_pgvector.sh
+  PGSQL_ARGS=()
+  if [[ "$RESET_DB" == true ]]; then
+    PGSQL_ARGS+=(--reset-db)
+  fi
+  bash ./dockers/pgsql/start_pgsql_pgvector.sh "${PGSQL_ARGS[@]}"
 
   for ((i=1; i<=PG_WAIT_MAX; i++)); do
     if nc -z localhost "$PGSQL_DB_PORT" 2>/dev/null; then

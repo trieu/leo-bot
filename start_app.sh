@@ -9,11 +9,15 @@ HOST="0.0.0.0"
 PORT="8888"
 WORKERS="${UVICORN_WORKERS:-1}"
 SEED_DATA=false
+RESET_DB=false
 
 for arg in "$@"; do
   case "$arg" in
     --seed-data)
       SEED_DATA=true
+      ;;
+    --reset-db)
+      RESET_DB=true
       ;;
     *)
       echo "❌ Unknown option: $arg"
@@ -91,7 +95,12 @@ fi
 echo "✅ Using Python ${PYTHON_MINOR}."
 
 # Start PGSQL instance
-bash ./dockers/pgsql/start_pgsql_pgvector.sh
+PGSQL_ARGS=()
+if [[ "$RESET_DB" == true ]]; then
+  echo "⚠️  --reset-db enabled. Existing PostgreSQL 16 data will be deleted."
+  PGSQL_ARGS+=(--reset-db)
+fi
+bash ./dockers/pgsql/start_pgsql_pgvector.sh "${PGSQL_ARGS[@]}"
 
 if [[ "$SEED_DATA" == true ]]; then
   echo "🌱 --seed-data enabled. Loading sample places..."
