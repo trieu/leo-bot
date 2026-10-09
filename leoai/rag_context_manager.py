@@ -10,7 +10,11 @@ from leoai.rag_db_manager import ChatDBManager
 
 logger = logging.getLogger("ContextManager")
 DELTA_TO_REFRESH_CONTEXT = timedelta(seconds=10)
-PLACE_STATE_KEYS = ("selected_place", "place_choices")
+PLACE_STATE_KEYS = (
+    "selected_place",
+    "place_choices",
+    "selected_place_knowledge",
+)
 LOCATION_CONTEXT_KEYS = (*PLACE_STATE_KEYS, "nearby_places", "latitude", "longitude")
 
 SUMMARY_PROMPT_TEMPLATE = """

@@ -120,7 +120,8 @@ def test_hi_four_delayed_history_keeps_the_exact_displayed_place():
         greeting = await agent.process_chat_message(
             "visitor", "hi", touchpoint_id="tp", answer_in_format="html"
         )
-        assert greeting.count("<li>") == 5
+        assert "<ol>" not in greeting
+        assert greeting.count("\n") == 6
         assert state[("visitor", "tp")]["user_context"]["place_choices"][3]["name"] == "Cha Tam Church"
         # Reordering fresh geo results must not change what the displayed "4" means.
         db.get_touchpoint_context.return_value = {"nearby_places": list(reversed(PLACES))}
@@ -141,6 +142,30 @@ def test_hi_four_delayed_history_keeps_the_exact_displayed_place():
         )["name"] == "Cha Tam Church"
         assert "Do not ask which place" in prompt.system_instruction
         assert state[("visitor", "tp")]["user_context"]["selected_place"]["id"] == 4
+
+    asyncio.run(scenario())
+
+
+def test_selected_place_knowledge_is_added_to_answer_context():
+    async def scenario():
+        agent, _, _ = make_memory_conversation()
+        agent.knowledge = SimpleNamespace(
+            retrieve_selected_place=AsyncMock(
+                return_value="Source: Place Guide\nVerified place history."
+            )
+        )
+        await agent.process_chat_message("visitor", "hi", touchpoint_id="tp")
+        await agent.process_chat_message("visitor", "4", touchpoint_id="tp")
+        await agent.process_chat_message(
+            "visitor", "history", touchpoint_id="tp"
+        )
+
+        agent.knowledge.retrieve_selected_place.assert_awaited_once_with(
+            PLACES[3], "history", limit=3
+        )
+        prompt = agent._safe_generate.call_args.args[0].prompt_text
+        assert "### Selected Place Knowledge" in prompt
+        assert "Verified place history." in prompt
 
     asyncio.run(scenario())
 

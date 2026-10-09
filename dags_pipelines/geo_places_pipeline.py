@@ -30,7 +30,7 @@ from dagster import (
 from google.genai.errors import ClientError as GenAIClientError
 from psycopg2.extras import Json, RealDictCursor, execute_values
 
-from dags_pipelines.agent_search_client import BravePlaceSearchClient, BraveSearchClient
+from dags_pipelines.agent_search_client import BraveAgentSearch, BravePlaceSearchClient
 from dags_pipelines.geo_places_sql_code import (
     DELETE_SEARCH_SOURCES,
     DELETE_KNOWLEDGE_CHUNKS,
@@ -216,8 +216,8 @@ class BraveSearchResource(ConfigurableResource):
     def build_client(self) -> BravePlaceSearchClient:
         return BravePlaceSearchClient()
 
-    def build_context_client(self) -> BraveSearchClient:
-        return BraveSearchClient()
+    def build_context_client(self) -> BraveAgentSearch:
+        return BraveAgentSearch()
 
 
 class AIResource(ConfigurableResource):
@@ -511,8 +511,8 @@ def church_brave_search(
 ) -> MaterializeResult:
     if config.refresh_days < 0:
         raise ValueError("Brave Search refresh_days must not be negative")
-    if not 1 <= config.count <= 20:
-        raise ValueError("Brave Search count must be between 1 and 20")
+    if not 1 <= config.count <= 50:
+        raise ValueError("Brave Search count must be between 1 and 50")
     if not config.search_lang.strip():
         raise ValueError("Brave Search search_lang must not be empty")
 

@@ -81,7 +81,7 @@ def test_exact_document_agent_payload_never_uses_cached_geolocation(api_client):
     assert response.status_code == 200
     result = response.json()
     assert result["error_code"] == 0
-    assert result["answer"] == "<p>Hi! Ask me about your documents.</p>"
+    assert result["answer"] == "Hi! Ask me about your documents."
     assert result["touchpoint_id"] == DOCUMENT_CHAT_TOUCHPOINT_ID
     assert all(call.args[1] != "touchpoint_id" for call in redis.hget.call_args_list)
     agent.create_geolocation_touchpoint.assert_not_awaited()
@@ -189,6 +189,46 @@ def test_document_retriever_uses_asyncpg_and_scopes_active_sources_to_visitor(mo
         assert await KnowledgeRetriever(model).retrieve(
             "history", "default", user_id="visitor"
         ) == ""
+
+    asyncio.run(scenario())
+
+
+def test_selected_place_retriever_uses_place_metadata_and_returns_three_results(monkeypatch):
+    async def scenario():
+        conn = SimpleNamespace(fetch=AsyncMock(return_value=[
+            {
+                "content": "Verified place excerpt.",
+                "source_name": "Place Guide",
+                "uri": "https://example.com/place",
+            },
+        ]))
+
+        @asynccontextmanager
+        async def connect():
+            yield conn
+
+        monkeypatch.setattr(rag_knowledge_manager, "get_async_pg_conn", connect)
+        encoded_queries = []
+
+        def encode(text, **kwargs):
+            encoded_queries.append(text)
+            return np.ones(768)
+
+        model = SimpleNamespace(encode=encode)
+        result = await KnowledgeRetriever(model).retrieve_selected_place(
+            {"id": "place-1", "name": "Cha Tam Church"},
+            "history",
+        )
+        assert "Source: Place Guide" in result
+        assert "Verified place excerpt." in result
+        sql, tenant, place_id, query, vector, limit = conn.fetch.call_args.args
+        assert tenant == "default"
+        assert place_id == "place-1"
+        assert "Cha Tam Church" in query
+        assert "history" in encoded_queries[0]
+        assert "ks.metadata->>'geo_place_id'" in sql
+        assert "plainto_tsquery" in sql
+        assert vector.startswith("[") and limit == 3
 
     asyncio.run(scenario())
 

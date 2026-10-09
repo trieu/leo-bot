@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from test_poc import test_place_search_api as place_search_poc
-from dags_pipelines.agent_search_client import BravePlaceSearchClient, BraveSearchClient
+from dags_pipelines.agent_search_client import BraveAgentSearch, BravePlaceSearchClient
 
 
 def test_poc_main_uses_requested_church_search(monkeypatch, capsys):
@@ -77,6 +77,12 @@ def test_search_sends_auth_location_and_returns_decoded_response():
         longitude=-122.4194,
         radius=1000,
         count=5,
+        country="US",
+        search_lang="en",
+        ui_lang="en-US",
+        units="imperial",
+        safesearch="moderate",
+        spellcheck=False,
     )
 
     assert result == payload
@@ -89,6 +95,12 @@ def test_search_sends_auth_location_and_returns_decoded_response():
             "latitude": 37.7749,
             "longitude": -122.4194,
             "radius": 1000,
+            "country": "US",
+            "search_lang": "en",
+            "ui_lang": "en-US",
+            "units": "imperial",
+            "safesearch": "moderate",
+            "spellcheck": False,
         },
         headers={
             "Accept": "application/json",
@@ -96,6 +108,24 @@ def test_search_sends_auth_location_and_returns_decoded_response():
         },
         timeout=15.0,
     )
+
+
+def test_search_uses_vietnamese_defaults():
+    response = Mock()
+    response.json.return_value = {"results": []}
+    session = Mock()
+    session.get.return_value = response
+    client = BravePlaceSearchClient(api_key="test-token", session=session)
+
+    client.search("church")
+
+    params = session.get.call_args.kwargs["params"]
+    assert params["country"] == "ALL"
+    assert params["search_lang"] == "vi"
+    assert params["ui_lang"] == "en-US"
+    assert params["units"] == "metric"
+    assert params["safesearch"] == "strict"
+    assert params["spellcheck"] is True
 
 
 @pytest.mark.parametrize(
@@ -110,6 +140,12 @@ def test_search_sends_auth_location_and_returns_decoded_response():
         {"count": 0},
         {"count": 101},
         {"query": "  "},
+        {"country": "V"},
+        {"search_lang": "v"},
+        {"ui_lang": "  "},
+        {"units": "unknown"},
+        {"safesearch": "unknown"},
+        {"spellcheck": "true"},
     ],
 )
 def test_search_rejects_invalid_arguments(kwargs):
@@ -138,7 +174,7 @@ def test_context_search_uses_only_grounding_generic():
             },
         )
 
-    client = BraveSearchClient(
+    client = BraveAgentSearch(
         api_key="test-token",
         transport=httpx.MockTransport(handle_request),
     )
@@ -154,10 +190,91 @@ def test_context_search_uses_only_grounding_generic():
     assert request.url.path == "/res/v1/llm/context"
     assert dict(request.url.params) == {
         "q": "Nghia Hoa Church",
+        "country": "all",
         "count": "10",
         "search_lang": "vi",
+        "maximum_number_of_urls": "20",
+        "maximum_number_of_tokens": "8192",
+        "maximum_number_of_snippets": "50",
+        "maximum_number_of_tokens_per_url": "4096",
+        "maximum_number_of_snippets_per_url": "50",
     }
     assert request.headers["X-Subscription-Token"] == "test-token"
+    assert request.headers["X-Loc-City"] == "Ho Chi Minh City"
+    assert request.headers["X-Loc-State"] == "Ho Chi Minh City"
+    assert request.headers["X-Loc-Country"] == "VN"
+
+
+def test_context_search_allows_location_header_overrides_and_omissions():
+    requests = []
+
+    def handle_request(request):
+        requests.append(request)
+        return httpx.Response(200, json={"grounding": {"generic": []}})
+
+    client = BraveAgentSearch(
+        api_key="test-token",
+        transport=httpx.MockTransport(handle_request),
+    )
+
+    asyncio.run(
+        client.search(
+            "Church",
+            location_city="Da Nang",
+            location_state="Da Nang",
+            location_country="VN",
+        )
+    )
+    assert requests[0].headers["X-Loc-City"] == "Da Nang"
+    assert requests[0].headers["X-Loc-State"] == "Da Nang"
+    assert requests[0].headers["X-Loc-Country"] == "VN"
+
+    asyncio.run(
+        client.search(
+            "Church",
+            location_city=None,
+            location_state=None,
+            location_country=None,
+        )
+    )
+    assert "X-Loc-City" not in requests[1].headers
+    assert "X-Loc-State" not in requests[1].headers
+    assert "X-Loc-Country" not in requests[1].headers
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"query": "x" * 601},
+        {"query": " ".join(["church"] * 76)},
+        {"count": 0},
+        {"count": 51},
+        {"country": "V"},
+        {"search_lang": "v"},
+        {"maximum_number_of_urls": 0},
+        {"maximum_number_of_urls": 51},
+        {"maximum_number_of_tokens": 1023},
+        {"maximum_number_of_tokens": 32769},
+        {"maximum_number_of_snippets": 0},
+        {"maximum_number_of_snippets": 257},
+        {"maximum_number_of_tokens_per_url": 511},
+        {"maximum_number_of_tokens_per_url": 8193},
+        {"maximum_number_of_snippets_per_url": 0},
+        {"maximum_number_of_snippets_per_url": 101},
+        {"location_city": "  "},
+        {"location_state": "  "},
+        {"location_country": "V"},
+    ],
+)
+def test_context_search_rejects_invalid_arguments(kwargs):
+    client = BraveAgentSearch(
+        api_key="test-token",
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json={})),
+    )
+
+    with pytest.raises(ValueError):
+        query = kwargs.pop("query", "Nghia Hoa Church")
+        asyncio.run(client.search(query, **kwargs))
 
 
 def test_context_search_rejects_response_without_generic_grounding():
@@ -165,7 +282,7 @@ def test_context_search_rejects_response_without_generic_grounding():
         assert request.url.path == "/res/v1/llm/context"
         return httpx.Response(200, json={"grounding": {}})
 
-    client = BraveSearchClient(
+    client = BraveAgentSearch(
         api_key="test-token",
         transport=httpx.MockTransport(handle_request),
     )
@@ -179,7 +296,7 @@ def test_context_search_surfaces_http_failures():
         assert request.method == "GET"
         return httpx.Response(429, json={"error": "rate limited"})
 
-    client = BraveSearchClient(
+    client = BraveAgentSearch(
         api_key="test-token",
         transport=httpx.MockTransport(handle_request),
     )
@@ -196,7 +313,7 @@ def test_context_search_reuses_client_connection_with_async_context():
         return httpx.Response(200, json={"grounding": {"generic": []}})
 
     async def scenario():
-        client = BraveSearchClient(
+        client = BraveAgentSearch(
             api_key="test-token",
             transport=httpx.MockTransport(handle_request),
         )

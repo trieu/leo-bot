@@ -38,7 +38,7 @@ CHURCH_PLACES_CONFIG: dict[str, Any] = {
     "latitude": 10.7536097,
     "longitude": 106.6284595,
     "radius": 6000,
-    "count": 3,
+    "count": 5,
 }
 # The other assets define defaults for every field, so only church_places needs config.
 RUN_CONFIG: dict[str, Any] = {"ops": {"church_places": {"config": CHURCH_PLACES_CONFIG}}}

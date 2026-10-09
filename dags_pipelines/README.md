@@ -183,6 +183,11 @@ python -m pip install -r requirements.txt
 ./start_dagster.sh
 ```
 
+`start_dagster.sh` starts `dockers/pgsql/start_pgsql_pgvector.sh` first. The
+PostgreSQL helper creates `TARGET_DB` when it is missing; `TARGET_DB` defaults
+to `leo360` and can be overridden through the environment. Pass
+`--reset-db` to reset the PostgreSQL data before Dagster starts.
+
 The script uses `env/bin/dagster` when available, otherwise `dagster` from
 `PATH`. By default it starts the local Dagster development deployment. To run
 the webserver and daemon as separate supervised processes, use cluster mode:

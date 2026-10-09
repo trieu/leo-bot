@@ -6,6 +6,17 @@ var currentUserProfile = {
   longitude: null,
 };
 
+function getLeoUiText(key, fallback) {
+  if (typeof window.leoUiText === "function") {
+    return window.leoUiText(key);
+  }
+  return fallback;
+}
+
+function getLeoUiLanguage() {
+  return window.LEO_UI_LANGUAGE === "en" ? "en" : "vi";
+}
+
 
 function loadChatSessionWithProfile() {
   let userProfile = {};
@@ -44,11 +55,19 @@ function touchpointCacheKey(visitorId) {
   return "touchpoint_id_" + visitorId;
 }
 
-function requestUserGeolocation(visitorId) {
+function emitLocationState(state, data) {
+  $(document).trigger("leo:location", [
+    { state: state, data: data || null },
+  ]);
+}
+
+function requestUserGeolocation(visitorId, forceRefresh) {
   if (!navigator.geolocation || typeof BASE_URL_TOUCHPOINT === "undefined") {
+    emitLocationState("unavailable");
     return Promise.resolve(null);
   }
 
+  emitLocationState("requesting");
   return new Promise(function (resolve) {
     navigator.geolocation.getCurrentPosition(
       function (position) {
@@ -72,6 +91,7 @@ function requestUserGeolocation(visitorId) {
           data: JSON.stringify(payload),
         })
           .done(function (data) {
+            data.accuracy = position.coords.accuracy;
             currentUserProfile.touchpointId = data.touchpoint_id || "";
             currentUserProfile.latitude = data.latitude;
             currentUserProfile.longitude = data.longitude;
@@ -82,18 +102,31 @@ function requestUserGeolocation(visitorId) {
               );
             }
             console.info("Location-aware touchpoint ready", data.touchpoint_id);
+            emitLocationState("ready", data);
             resolve(data);
           })
           .fail(function () {
             console.warn("Unable to create location touchpoint.");
+            emitLocationState("error");
             resolve(null);
           });
       },
       function (error) {
         console.info("Geolocation unavailable or denied:", error.message);
+        emitLocationState(
+          error.code === error.PERMISSION_DENIED
+            ? "denied"
+            : error.code === error.POSITION_UNAVAILABLE
+              ? "unavailable"
+              : "error"
+        );
         resolve(null);
       },
-      { enableHighAccuracy: false, maximumAge: 300000, timeout: 10000 }
+      {
+        enableHighAccuracy: Boolean(forceRefresh),
+        maximumAge: forceRefresh ? 0 : 300000,
+        timeout: 10000,
+      }
     );
   });
 }
@@ -160,7 +193,7 @@ function getGreetingMessage(displayName, language) {
 }
 
 var showLeoChatBot = function (displayName) {
-  var msg = getGreetingMessage(displayName, "vi");
+  var msg = getGreetingMessage(displayName, getLeoUiLanguage());
   var msgObj = { content: msg, cssClass: "leobot-answer" };
   getBotUI().message.removeAll();
   getBotUI().message.bot(msgObj).then(leoBotPromptQuestion);
@@ -171,10 +204,9 @@ var leoBotPromptQuestion = function (delay) {
     .action.text({
       delay: typeof delay === "number" ? delay : 800,
       action: {
-        icon: "question-circle",
         cssClass: "leobot-question-input",
         value: "", // show the prevous answer if any
-        placeholder: "..................",
+        placeholder: getLeoUiText("chatPlaceholder", "What would you like to find?"),
       },
     })
     .then(function (res) {
@@ -346,7 +378,13 @@ var askTheContactOfUser = function () {
 var sendQuestionToLeoAI = function (context, question) {
   question = typeof question === "string" ? question.trim() : "";
   if (!question) {
-    leoBotShowError("Vui lòng nhập câu hỏi hoặc số của địa điểm.", leoBotPromptQuestion);
+    leoBotShowError(
+      getLeoUiText(
+        "emptyQuestion",
+        "Please enter a question or a place number."
+      ),
+      leoBotPromptQuestion
+    );
     return;
   }
   if (question !== "exit") {
@@ -402,13 +440,17 @@ var sendQuestionToLeoAI = function (context, question) {
       payload["touchpoint_id"] = currentUserProfile.touchpointId || null;
       payload["latitude"] = currentUserProfile.latitude;
       payload["longitude"] = currentUserProfile.longitude;
-      payload["answer_in_language"] = "Vietnamese";
+      payload["answer_in_language"] =
+        getLeoUiLanguage() === "en" ? "English" : "Vietnamese";
       payload["answer_in_format"] = "html";
       
       callPostApi(BASE_URL_LEOBOT, payload, serverCallback, function () {
         getBotUI().message.remove(index);
         leoBotShowError(
-          "Không thể gửi tin nhắn. Vui lòng thử lại.",
+          getLeoUiText(
+            "networkError",
+            "Unable to send your message. Please try again."
+          ),
           leoBotPromptQuestion
         );
       });
@@ -468,12 +510,23 @@ async function getVisitorId(ttlDays = 365) {
 
 
 var startLeoChatBot = function (visitorId) {
+  if (window.leoBotStarted === true) {
+    return;
+  }
+  window.leoBotStarted = true;
   lscache.setBucket('leobot');
   
   var setupChatBot = function (vid) {
     currentUserProfile.visitorId = vid;
-    $("#LEO_ChatBot_Container_Loader").hide();
-    $("#LEO_ChatBot_Container").show();
+    $("#LEO_ChatBot_Container_Loader")
+      .stop(true, true)
+      .removeClass("d-flex")
+      .addClass("d-none")
+      .hide();
+    $("#LEO_ChatBot_Container")
+      .stop(true, true)
+      .show()
+      .css("opacity", "1");
     initLeoChatBot("leobot_website", vid);
   }
 

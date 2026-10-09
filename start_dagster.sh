@@ -6,13 +6,25 @@ cd "$SCRIPT_DIR"
 
 MODE="dev"
 SCRIPT_ARGS=()
+PGSQL_ARGS=()
 for arg in "$@"; do
   if [[ "$arg" == "--cluster" ]]; then
     MODE="cluster"
+  elif [[ "$arg" == "--reset-db" ]]; then
+    PGSQL_ARGS+=("$arg")
   else
     SCRIPT_ARGS+=("$arg")
   fi
 done
+
+PGSQL_SCRIPT="$SCRIPT_DIR/dockers/pgsql/start_pgsql_pgvector.sh"
+if [[ ! -f "$PGSQL_SCRIPT" ]]; then
+  echo "PostgreSQL startup script not found: $PGSQL_SCRIPT" >&2
+  exit 1
+fi
+
+echo "Starting PostgreSQL and ensuring TARGET_DB is available."
+bash "$PGSQL_SCRIPT" "${PGSQL_ARGS[@]}"
 
 DAGSTER_BIN="$SCRIPT_DIR/env/bin/dagster"
 if [[ ! -x "$DAGSTER_BIN" ]]; then

@@ -196,6 +196,19 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_sources_user_tenant ON knowledge_source
 -- Index to efficiently query sources by their processing status
 CREATE INDEX IF NOT EXISTS idx_knowledge_sources_status ON knowledge_sources (status);
 
+CREATE INDEX IF NOT EXISTS idx_knowledge_sources_fts
+    ON knowledge_sources USING GIN (
+        to_tsvector(
+            'simple'::regconfig,
+            coalesce(name, '') || ' ' ||
+            coalesce(code_name, '') || ' ' ||
+            coalesce(metadata::text, '')
+        )
+    );
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_fts
+    ON knowledge_chunks USING GIN (to_tsvector('simple', content));
+
 -- ============================================================
 -- Places (Geo-aware data)
 -- ============================================================

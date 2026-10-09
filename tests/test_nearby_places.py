@@ -178,7 +178,8 @@ def test_agent_queries_database_before_any_ai_work(count):
         agent.context.build_context_summary.assert_not_awaited()
         agent.create_geolocation_touchpoint.assert_not_awaited()
         agent._safe_generate.assert_not_awaited()
-        assert answer.count("<li>") == count
+        assert "<ol>" not in answer
+        assert answer.count("\n") == count + 1
         assert len(agent.db.save_chat_message.await_args_list) == 2
         assert all(call.kwargs["embed"] is False for call in agent.db.save_chat_message.await_args_list)
 
@@ -337,7 +338,7 @@ def route_client(monkeypatch):
 
 
 @pytest.mark.parametrize("count", [3, 10, 20])
-def test_handle_chat_returns_dynamic_html_lists(route_client, count):
+def test_handle_chat_returns_dynamic_text_lists(route_client, count):
     client, agent = route_client
     agent.db.find_nearby_places.return_value = places(count)
     response = client.post("/_leoai/ask", json={
@@ -347,7 +348,8 @@ def test_handle_chat_returns_dynamic_html_lists(route_client, count):
     assert response.status_code == 200
     data = response.json()
     assert data["error_code"] == 0
-    assert data["answer"].count("<li>") == count
+    assert "<ol>" not in data["answer"]
+    assert data["answer"].count("\n") == count + 1
     assert data["touchpoint_id"] == "cached-tp"
     assert agent.db.find_nearby_places.call_args.args[2] == count
     agent._safe_generate.assert_not_awaited()
@@ -361,7 +363,8 @@ def test_handle_chat_accepts_coordinates_and_api_count_override(route_client):
         "result_limit": 20, "latitude": 10.747904, "longitude": 106.6467328,
     })
     assert response.status_code == 200
-    assert response.json()["answer"].count("<li>") == 20
+    assert "<ol>" not in response.json()["answer"]
+    assert response.json()["answer"].count("\n") == 21
     assert agent.db.find_nearby_places.call_args.args[2] == 20
     agent.create_geolocation_touchpoint.assert_not_awaited()
 

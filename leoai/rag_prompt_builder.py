@@ -38,7 +38,8 @@ PROMPT_TEMPLATE = """
 
 {bot_persona}
 
-You must always respond **in target language: {target_language}**, following the same tone and style as the user unless instructed otherwise.
+Your responses must always be **in target language: {target_language}** including all replies, contexts, places, and examples, 
+following the same tone and style as the user unless instructed otherwise.
 
 ---
 
@@ -85,6 +86,9 @@ You must always respond **in target language: {target_language}**, following the
 
 ### User Context
 {user_context}
+
+### Selected Place Knowledge
+{selected_place_knowledge}
 
 ### Conversation Summary
 {context_summary}
@@ -164,7 +168,13 @@ Respond in {target_language or "the user's language"}.
 
         # Prepare context
         user_profile_str = json.dumps(context_model.get("user_profile", {}), ensure_ascii=False, indent=2)
-        user_context_str = json.dumps(user_context, ensure_ascii=False, indent=2)
+        selected_place_knowledge = user_context.get("selected_place_knowledge")
+        prompt_user_context = {
+            key: value
+            for key, value in user_context.items()
+            if key != "selected_place_knowledge"
+        }
+        user_context_str = json.dumps(prompt_user_context, ensure_ascii=False, indent=2)
         context_summary = context_model.get("context_summary", "")
         context_keywords = ", ".join(context_model.get("context_keywords", [])) or "None"
         
@@ -184,6 +194,10 @@ Respond in {target_language or "the user's language"}.
             selected_place=(
                 json.dumps(selected_place, ensure_ascii=False, indent=2)
                 if selected_place else "No place has been selected."
+            ),
+            selected_place_knowledge=(
+                selected_place_knowledge
+                or "No selected-place knowledge was retrieved."
             ),
             place_followup_instructions=PLACE_FOLLOWUP_INSTRUCTIONS,
             question=question.strip()

@@ -172,18 +172,23 @@ async def handle_chat(msg: Message):
     Main endpoint for user → AI chat messages.
     Handles rate-limiting, message length validation, and response generation.
     """
+    # Strip the visitor ID and validate it.
     visitor_id = msg.visitor_id.strip()
     if not visitor_id:
         return {"error": True, "error_code": 500, "answer": "visitor_id is empty"}
 
+    # Validate the question length and content.
     if len(msg.question) > 1000:
         return {"error": True, "error_code": 510, "answer": "Question too long"}
     if not msg.question.strip():
         return {"error": True, "error_code": 400, "answer": "Question is empty"}
 
+    # Determine if this is a document chat or a nearby place question.
     document_chat = is_document_chat(msg.context, msg.persona_id)
     nearby_search = not document_chat and is_nearby_place_question(msg.question)
     result_limit = msg.result_limit
+    
+    # Adjust the result limit for nearby place searches if applicable.
     if nearby_search:
         try:
             result_limit = nearby_result_limit(msg.question, result_limit)
@@ -193,14 +198,18 @@ async def handle_chat(msg: Message):
     if not document_chat and (msg.latitude is None) != (msg.longitude is None):
         raise HTTPException(status_code=400, detail="latitude and longitude must be provided together")
 
-    profile_id = REDIS_CLIENT.hget(visitor_id, "profile_id")
+    # Retrieve the profile ID from Redis, if available.
+    profile_id = REDIS_CLIENT.hget(visitor_id, "profile_id") or None
     if not is_safe_to_answer(visitor_id):
         return {"error": True, "error_code": 429, "answer": "Too many messages"}
 
+    # Determine the touchpoint ID to use for this chat message.
     touchpoint_id = (
         DOCUMENT_CHAT_TOUCHPOINT_ID if document_chat
         else msg.touchpoint_id or REDIS_CLIENT.hget(visitor_id, "touchpoint_id")
     )
+    
+    # Create a new geolocation touchpoint if necessary.
     if (
         touchpoint_id is None
         and msg.latitude is not None
@@ -213,6 +222,7 @@ async def handle_chat(msg: Message):
         )
         touchpoint_id = touchpoint["touchpoint_id"]
 
+    # Process the chat message using the RAG agent and return the answer.
     answer = await rag_agent.process_chat_message(
         user_id=visitor_id,
         user_message=msg.question,
@@ -231,6 +241,8 @@ async def handle_chat(msg: Message):
         context=msg.context,
         temperature_score=msg.temperature_score,
     )
+    
+    # Return the structured response containing the question, answer, visitor ID, and touchpoint ID.
     return {
         "question": msg.question,
         "answer": answer,

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from enum import Enum
 
 
-DEFAULT_TEMPERATURE_SCORE = 1.0
+DEFAULT_TEMPERATURE_SCORE = 0.68
 
 # Data models
 class Message(BaseModel):
@@ -41,12 +41,6 @@ class GeolocationTouchpointRequest(BaseModel):
     keywords: List[str] = Field(default_factory=list)
 
     
-# Data models
-class UpdateProfileEvent(BaseModel):
-    profile_id: str = Field("", description="the ID of CDP profile")
-    event_id: str = Field("", description="the ID of tracking event")
-    asset_group_id: str = Field("", description="the ID of Digital Asset Group")
-    asset_type: int = Field("", description="the type of Digital Asset")
     
 # Data models
 class ChatMessage(BaseModel):

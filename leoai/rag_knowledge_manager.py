@@ -366,3 +366,84 @@ class KnowledgeRetriever:
         ]
         text = "\n\n---\n\n".join(chunks)
         return text[:MAX_DOC_TEXT_LENGTH]
+
+    async def retrieve_selected_place(
+        self,
+        selected_place: dict[str, Any],
+        user_message: str,
+        *,
+        tenant_id: str = "default",
+        limit: int = 3,
+    ) -> str:
+        """Retrieve the best knowledge chunks for the active selected place."""
+        if limit <= 0:
+            raise ValueError("Selected-place retrieval limit must be positive.")
+        if not isinstance(selected_place, dict):
+            raise ValueError("Selected place must be an object.")
+
+        place_id = str(selected_place.get("id") or "").strip()
+        place_name = str(selected_place.get("name") or "").strip()
+        if not place_id and not place_name:
+            return ""
+
+        place_query_parts = [
+            place_name,
+            str(selected_place.get("address") or "").strip(),
+            str(selected_place.get("category") or "").strip(),
+            " ".join(
+                str(tag).strip()
+                for tag in selected_place.get("tags") or []
+                if str(tag).strip()
+            ),
+            str(selected_place.get("description") or "").strip(),
+        ]
+        place_query = " ".join(part for part in place_query_parts if part)
+        query = " ".join(part for part in (place_query, user_message.strip()) if part)
+        embedding = await asyncio.to_thread(
+            self.embedding_model.encode, query, normalize_embeddings=True
+        )
+        vector = to_pgvector(embedding.tolist())
+
+        async with get_async_pg_conn() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT kc.content, ks.name AS source_name, ks.uri
+                FROM knowledge_sources AS ks
+                JOIN knowledge_chunks AS kc ON kc.source_id = ks.id
+                WHERE ks.tenant_id = $1
+                  AND ks.status = 'active'
+                  AND (
+                      ($2 <> '' AND (
+                          ks.metadata->>'geo_place_id' = $2
+                          OR kc.metadata->>'geo_place_id' = $2
+                      ))
+                      OR to_tsvector(
+                          'simple',
+                          concat_ws(
+                              ' ',
+                              coalesce(ks.name, ''),
+                              coalesce(ks.code_name, ''),
+                              coalesce(ks.metadata::text, '')
+                          )
+                      ) @@ plainto_tsquery('simple', $3)
+                      OR to_tsvector('simple', kc.content)
+                          @@ plainto_tsquery('simple', $3)
+                  )
+                ORDER BY kc.embedding <=> $4::vector
+                LIMIT $5;
+                """,
+                tenant_id,
+                place_id,
+                place_query,
+                vector,
+                limit,
+            )
+
+        chunks = [
+            f"Source: {row['source_name']}\n"
+            + (f"URI: {row['uri']}\n" if row["uri"] else "")
+            + row["content"].strip()
+            for row in rows
+            if row["content"]
+        ]
+        return "\n\n---\n\n".join(chunks)[:MAX_DOC_TEXT_LENGTH]

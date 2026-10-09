@@ -16,7 +16,7 @@ LEGACY_DATA_VOLUME="pgdata_vector"
 POSTGRES_USER="postgres"
 POSTGRES_PASSWORD="password"
 DEFAULT_DB="postgres"
-TARGET_DB="leo360"
+TARGET_DB="${TARGET_DB:-leo360}"
 KEYCLOAK_DB="keycloak"
 HOST_PORT="${PGSQL_DB_PORT:-5433}"
 
