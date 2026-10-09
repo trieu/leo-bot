@@ -62,10 +62,6 @@
                 </span>
             </a>
             <div class="d-flex align-items-center gap-2">
-                <span class="leobot-secure-note d-none d-sm-inline-flex align-items-center gap-2">
-                    <i class="fa fa-shield" aria-hidden="true"></i>
-                    <span data-i18n="privateByDesign">Riêng tư theo thiết kế</span>
-                </span>
                 <label class="visually-hidden" for="leobot_language">Ngôn ngữ</label>
                 <select id="leobot_language" class="form-select form-select-sm leobot-language-select rounded-pill" aria-label="Ngôn ngữ">
                     <option value="vi">Tiếng Việt</option>
@@ -228,7 +224,7 @@
         </div>
 
         <footer id="leobot_info_box" class="d-flex flex-wrap justify-content-between align-items-center gap-2 small text-secondary mt-3 mt-lg-4 px-1" role="contentinfo">
-            <span><i class="fa fa-info-circle me-1" aria-hidden="true"></i><span data-i18n="madeBy">Phát triển bởi</span> <a href="https://www.facebook.com/dataism.one" target="_blank" rel="noopener noreferrer">Trieu Dataism</a></span>
+            <span><i class="fa fa-info-circle me-1" aria-hidden="true"></i><span data-i18n="madeBy">Phát triển bởi</span> <a href="https://www.facebook.com/dataism.one" target="_blank" rel="noopener noreferrer">Trieu Dataism</a><small class="ms-2 leobot-footer-privacy" data-i18n="privateByDesign">· Riêng tư theo thiết kế</small></span>
             <span data-i18n="locationOptional">Dịch vụ vị trí là tùy chọn.</span>
         </footer>
     </main>
@@ -282,7 +278,6 @@
     <script>
         window.LEO_UI_TEXTS = {
             vi: {
-                privateByDesign: "Riêng tư theo thiết kế",
                 help: "Trợ giúp",
                 exploreWithContext: "Khám phá theo ngữ cảnh",
                 heroTitle: "Khám phá địa điểm cùng LEO",
@@ -314,6 +309,7 @@
                 discoverPlace: "Khám phá địa điểm đáng chú ý",
                 nearbyHint: "LEO sẽ dùng vị trí của bạn khi tìm kiếm địa điểm gần đó.",
                 madeBy: "Phát triển bởi",
+                privateByDesign: "· Riêng tư theo thiết kế",
                 locationOptional: "Dịch vụ vị trí là tùy chọn.",
                 helpTitle: "Sử dụng LEO hiệu quả hơn",
                 helpDescription: "Hãy hỏi tự nhiên. Để khám phá địa điểm, hãy thêm “gần tôi” và cho phép truy cập vị trí khi được hỏi.",
@@ -332,7 +328,6 @@
                 assistantLoadError: "Không thể tải LEO. Vui lòng tải lại trang và thử lại."
             },
             en: {
-                privateByDesign: "Private by design",
                 help: "Help",
                 exploreWithContext: "Explore with context",
                 heroTitle: "Explore Places with LEO",
@@ -364,6 +359,7 @@
                 discoverPlace: "Discover a place of interest",
                 nearbyHint: "LEO will use your location when a nearby search needs it.",
                 madeBy: "Made by",
+                privateByDesign: "· Private by design",
                 locationOptional: "Location services are optional.",
                 helpTitle: "Get more from LEO",
                 helpDescription: "Ask naturally. For local discovery, include “near me” and allow location access when prompted.",

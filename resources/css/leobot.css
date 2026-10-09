@@ -145,11 +145,6 @@ body {
   margin-top: 0.3rem;
 }
 
-.leobot-secure-note {
-  color: var(--leobot-muted);
-  font-size: 0.8rem;
-}
-
 .leobot-welcome {
   color: #fff;
   background:
