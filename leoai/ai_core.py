@@ -22,6 +22,36 @@ load_dotenv(override=True)
 # Configure logging
 logger = logging.getLogger(__name__)
 
+
+def _google_response_schema(schema: Schema | dict | None) -> Schema | dict | None:
+    """Convert common JSON Schema fields to Google response-schema fields."""
+    if not isinstance(schema, dict):
+        return schema
+
+    def sanitize(value: Any) -> Any:
+        if isinstance(value, dict):
+            result = {
+                key: sanitize(item)
+                for key, item in value.items()
+                if key != "additionalProperties"
+            }
+            schema_type = result.get("type")
+            if isinstance(schema_type, list):
+                nullable = "null" in schema_type
+                non_null_types = [item for item in schema_type if item != "null"]
+                if len(non_null_types) == 1:
+                    result["type"] = str(non_null_types[0]).upper()
+                    if nullable:
+                        result["nullable"] = True
+            elif isinstance(schema_type, str):
+                result["type"] = schema_type.upper()
+            return result
+        if isinstance(value, list):
+            return [sanitize(item) for item in value]
+        return value
+
+    return sanitize(schema)
+
 # Default provider/model configuration
 AI_PROVIDER = (os.getenv("AI_PROVIDER") or "google").strip().lower()
 EMBEDDING_PROVIDER = (os.getenv("EMBEDDING_PROVIDER") or AI_PROVIDER).strip().lower()
@@ -300,7 +330,7 @@ class AIClient:
                 "temperature": temperature,
                 "max_output_tokens": max_output_tokens,
                 "response_mime_type": JSON_TYPE if json_schema is not None else None,
-                "response_schema": json_schema,
+                "response_schema": _google_response_schema(json_schema),
                 "system_instruction": system_instruction,
             })
             contents: str | list[Any] = prompt
@@ -406,7 +436,11 @@ class AIClient:
 
     # text to JSON
     def generate_json(
-        self, prompt: str, json_schema: Schema | dict[str, Any]
+        self,
+        prompt: str,
+        json_schema: Schema | dict[str, Any],
+        *,
+        system_instruction: str | None = None,
     ) -> Dict[str, Any]:
         """
         Generates a structured JSON object from a prompt based on a provided schema.
@@ -420,7 +454,9 @@ class AIClient:
         """
         try:
             response_text = self._generate_response(
-                prompt, json_schema=json_schema
+                prompt,
+                json_schema=json_schema,
+                system_instruction=system_instruction,
             )
             return json.loads(response_text)
 

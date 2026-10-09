@@ -82,6 +82,13 @@ This script:
 * Creates the `leo360` database and schema
 * Handles collation version fixes automatically
 
+The schema uses PostgreSQL 18's native `uuidv7()` default for generated
+knowledge source, chunk, `geo_places`, and `weather_data` IDs. `geo_places.id`
+and `weather_data.id` are UUIDs in a fresh database (not the previous
+`BIGSERIAL` type), so the development database must be recreated to use the
+new definitions. Python-generated model, touchpoint, and session IDs are also
+UUIDv7.
+
 To **reset the database**, run:
 
 ```bash
@@ -183,6 +190,19 @@ To initialize or refresh the 50 Ho Chi Minh City sample places:
 ```bash
 ./start_app.sh --seed-data
 ```
+
+For development-only resets, the seeding helper also supports:
+
+```bash
+./start-seeding-data.sh --clear-all yes
+./start-seeding-data.sh --drop-db-and-start-new yes
+```
+
+`--clear-all yes` truncates every non-system table and restarts owned sequences
+before seeding. `--drop-db-and-start-new yes` drops and recreates `leo360`,
+applies `sql_scripts/leo360_schema.sql`, then seeds. These options are mutually
+exclusive; both require the literal `yes` confirmation and destroy existing
+data.
 
 To replace the old PostgreSQL 16 data with a fresh PostgreSQL 18 database:
 
@@ -346,7 +366,7 @@ RUN_DOCUMENT_DB_TESTS=1 env/bin/python -m pytest -q tests/test_document_chat.py
   existing chat/context embeddings remain 768-dimensional.
 * Compatible with **pgvector** and other vector databases.
 * The browser chatbot can request HTML5 geolocation permission. Coordinates are
-  stored as PostGIS touchpoints, and nearby rows from `places` are included in
+  stored as PostGIS touchpoints, and nearby rows from `geo_places` are included in
   the conversation context. If permission is denied, normal chat continues
   without location context.
 

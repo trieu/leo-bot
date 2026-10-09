@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
+from uuid6 import uuid7
 
 import asyncpg
 import numpy as np
@@ -222,7 +223,7 @@ def test_postgres_document_retrieval_excludes_other_users_tenants_and_inactive_s
                 ("visitor", "other", "active", "Other tenant document."),
                 ("visitor", "default", "pending", "Unprocessed document."),
             ]:
-                source_id = uuid4()
+                source_id = uuid7()
                 await conn.execute(
                     "INSERT INTO knowledge_sources VALUES ($1,$2,$3,$4,$5,$6)",
                     source_id, user, tenant, status, "Test guide", "https://example.com/guide",

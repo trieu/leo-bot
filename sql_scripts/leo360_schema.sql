@@ -3,24 +3,40 @@
 -- ============================================================
 -- Enable required extensions
 -- ============================================================
+-- Vector extension for high-dimensional vector support
 CREATE EXTENSION IF NOT EXISTS vector;
+
+-- PostGIS extension for geospatial support
 CREATE EXTENSION IF NOT EXISTS postgis;
+
+-- fuzzy name search
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 -- ============================================================
 -- ENUM TYPES
 -- ============================================================
 DO $$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'chat_status') THEN
-        CREATE TYPE chat_status AS ENUM ('active', 'closed', 'escalated', 'archived');
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_type
+        WHERE typname = 'chat_status'
+    ) THEN
+        CREATE TYPE chat_status AS ENUM (
+            'active',
+            'closed',
+            'escalated',
+            'archived'
+        );
     END IF;
-END$$;
+END
+$$;
 
 -- ============================================================
 -- Chat Messages
 -- ============================================================
 CREATE TABLE IF NOT EXISTS chat_messages (
-    message_hash TEXT PRIMARY KEY,                 
+    message_hash TEXT PRIMARY KEY,
     user_id VARCHAR(50) NOT NULL,
     cdp_profile_id VARCHAR(50),
     tenant_id VARCHAR(50) NOT NULL,
@@ -33,7 +49,8 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     keywords TEXT[],
     created_at TIMESTAMPTZ DEFAULT NOW(),
     last_intent_label VARCHAR(255),
-    last_intent_confidence NUMERIC(5, 4) CHECK (last_intent_confidence >= 0 AND last_intent_confidence <= 1),
+    last_intent_confidence NUMERIC(5, 4)
+        CHECK (last_intent_confidence BETWEEN 0 AND 1),
     last_updated TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (user_id, message_hash)
 );
@@ -54,7 +71,7 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_tsv
 -- Chat Message Embeddings (Multi-tenant Aware)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS chat_message_embeddings (
-    message_hash TEXT PRIMARY KEY REFERENCES chat_messages(message_hash) ON DELETE CASCADE,
+    message_hash TEXT PRIMARY KEY REFERENCES chat_messages (message_hash) ON DELETE CASCADE,
     tenant_id VARCHAR(50) NOT NULL,
     embedding VECTOR(768),
     created_at TIMESTAMPTZ DEFAULT NOW()
@@ -64,9 +81,10 @@ CREATE TABLE IF NOT EXISTS chat_message_embeddings (
 DO $$
 BEGIN
     IF NOT EXISTS (
-        SELECT 1 FROM pg_indexes
+        SELECT 1
+        FROM pg_indexes
         WHERE tablename = 'chat_message_embeddings'
-          AND indexname = 'chat_message_embeddings_embedding_idx'
+            AND indexname = 'chat_message_embeddings_embedding_idx'
     ) THEN
         EXECUTE '
             CREATE INDEX chat_message_embeddings_embedding_idx
@@ -75,13 +93,17 @@ BEGIN
             WITH (lists = 200);
         ';
     END IF;
-END $$;
-
+END
+$$;
 
 -- Defines the type of knowledge source (e.g., book, report, dataset, etc.)
 DO $$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'knowledge_source_type') THEN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_type
+        WHERE typname = 'knowledge_source_type'
+    ) THEN
         CREATE TYPE knowledge_source_type AS ENUM (
             'book_summary',
             'report_analytics',
@@ -101,12 +123,17 @@ BEGIN
             'other'
         );
     END IF;
-END$$;
+END
+$$;
 
 -- Tracks the state of the document in the processing pipeline
 DO $$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'processing_status') THEN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_type
+        WHERE typname = 'processing_status'
+    ) THEN
         CREATE TYPE processing_status AS ENUM (
             'pending',
             'processing',
@@ -115,21 +142,24 @@ BEGIN
             'archived'
         );
     END IF;
-END$$;
+END
+$$;
 
 -- ============================================================
 -- Knowledge Sources
 -- ============================================================
+-- Defaults affect new rows only; UUIDv4 IDs and their foreign keys remain intact.
+-- Keep the UUID column type; UUIDv7 changes the generated value version.
 CREATE TABLE IF NOT EXISTS knowledge_sources (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     user_id VARCHAR(50) NOT NULL,
     tenant_id VARCHAR(50) NOT NULL,
     source_type knowledge_source_type DEFAULT 'other',
     name TEXT NOT NULL, -- e.g., 'Q3 Financial Report.pdf' or 'The Great Gatsby Summary'
     code_name VARCHAR(50) DEFAULT '',
-    uri TEXT,           -- Optional: Path to the original file in blob storage (e.g., s3://bucket/file.md)
+    uri TEXT, -- Optional: Path to the original file in blob storage (e.g., s3://bucket/file.md)
     status processing_status NOT NULL DEFAULT 'pending',
-    metadata JSONB,     -- Flexible field for extra info like author, source URL, etc.
+    metadata JSONB, -- Flexible field for extra info like author, source URL, etc.
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -138,58 +168,151 @@ CREATE TABLE IF NOT EXISTS knowledge_sources (
 -- Knowledge Chunks
 -- ============================================================
 CREATE TABLE IF NOT EXISTS knowledge_chunks (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    source_id UUID NOT NULL REFERENCES knowledge_sources(id) ON DELETE CASCADE,
-    content TEXT NOT NULL,          -- The actual text chunk
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    source_id UUID NOT NULL REFERENCES knowledge_sources (id) ON DELETE CASCADE,
+    content TEXT NOT NULL, -- The actual text chunk
     embedding VECTOR(768) NOT NULL, -- The vector embedding for the content
-    chunk_sequence INT,             -- The order of this chunk within the original document
-    metadata JSONB,                 -- Extra info like page number, section headers, etc.
+    chunk_sequence INT, -- The order of this chunk within the original document
+    metadata JSONB, -- Extra info like page number, section headers, etc.
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Index to quickly retrieve all chunks for a given source document
-CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_source
-    ON knowledge_chunks (source_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_source ON knowledge_chunks (source_id);
 
 -- This is the crucial index for fast similarity searches
 -- Using IVFFlat to be consistent with your example. HNSW is another excellent option.
-CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_embedding
-    ON knowledge_chunks USING ivfflat (embedding vector_cosine_ops)
-    WITH (lists = 100); -- The 'lists' parameter should be tuned based on your table size.
+CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_embedding ON knowledge_chunks USING ivfflat
+    (embedding vector_cosine_ops) WITH (lists = 100);
 
+-- The 'lists' parameter should be tuned based on your table size.
 -- Optional: A GIN index can be useful for filtering by metadata before a vector search
-CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_metadata
-    ON knowledge_chunks USING GIN (metadata jsonb_path_ops);
+CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_metadata ON knowledge_chunks USING GIN (metadata
+    jsonb_path_ops);
 
 -- Index for quickly finding all sources for a specific user or tenant
-CREATE INDEX IF NOT EXISTS idx_knowledge_sources_user_tenant
-    ON knowledge_sources (user_id, tenant_id);
+CREATE INDEX IF NOT EXISTS idx_knowledge_sources_user_tenant ON knowledge_sources (user_id, tenant_id);
 
 -- Index to efficiently query sources by their processing status
-CREATE INDEX IF NOT EXISTS idx_knowledge_sources_status
-    ON knowledge_sources (status);
+CREATE INDEX IF NOT EXISTS idx_knowledge_sources_status ON knowledge_sources (status);
 
 -- ============================================================
 -- Places (Geo-aware data)
 -- ============================================================
-CREATE TABLE IF NOT EXISTS places (
-    id BIGSERIAL PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
+CREATE TABLE IF NOT EXISTS geo_places (
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
+    -- identity (geo_place_id is the upsert key; name is NOT unique)
+    geo_place_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'Church',
+    tags TEXT[] NOT NULL DEFAULT '{}',
+    -- location
     address TEXT,
+    region_id TEXT, -- e.g. VN-HO-CHI-MINH
+    pluscode TEXT, -- not unique: two places can share a cell
+    latitude NUMERIC(9, 6),
+    longitude NUMERIC(9, 6),
+    geom GEOMETRY(Point, 4326),
+    geo_maps_uri TEXT,
+    -- contact
+    phone TEXT,
+    website TEXT,
+    -- google ratings
+    rating NUMERIC(2, 1),
+    rating_count INTEGER,
+    -- description
     description TEXT,
-    category TEXT,
-    tags TEXT[],
-    pluscode TEXT UNIQUE,
-    geom GEOMETRY(Point, 4326) NOT NULL,
-    region_id TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    -- image
+    image_url TEXT,
+    image_source TEXT, -- 'brave' | 'wikimedia' | 'google'
+    image_attribution TEXT, -- author | license | file page
+    geo_photo_name TEXT, -- durable ref; photoUri expires
+    geo_photo_author TEXT,
+    -- data check timestamp
+    data_checked_at TIMESTAMPTZ,
+    -- mass schedule
+    -- {"found":true,"via":"website","confidence":0.9,"source_url":"...","notes":null,
+    --  "schedule":[{"days":["mon","tue"],"times":["05:00","17:30"],"note":null}]}
+    schedule_operation JSONB,
+    schedule_source TEXT,
+    schedule_checked_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT places_geo_place_id_uq UNIQUE (geo_place_id),
+    CONSTRAINT places_geo_place_id_prefix_chk
+        CHECK (geo_place_id ~ '^[a-z][a-z0-9_]*:.+$'),
+    CONSTRAINT places_rating_chk CHECK (rating IS NULL OR rating BETWEEN 0 AND 5),
+    CONSTRAINT places_rating_count_chk CHECK (rating_count IS NULL OR rating_count >= 0),
+    CONSTRAINT places_image_source_chk
+        CHECK (image_source IS NULL OR image_source IN ('brave', 'wikimedia', 'google')),
+    CONSTRAINT places_schedule_operation_chk
+        CHECK (
+            schedule_operation IS NULL
+            OR jsonb_typeof(schedule_operation) = 'object'
+        ),
+    CONSTRAINT places_geom_vn_chk
+        CHECK (
+            ST_Y(geom) BETWEEN -90 AND 90
+            AND ST_X(geom) BETWEEN -180 AND 180
+        )
 );
 
-CREATE INDEX IF NOT EXISTS idx_places_geom ON places USING GIST (geom);
-CREATE INDEX IF NOT EXISTS idx_places_geog ON places USING GIST ((geom::geography));
-CREATE INDEX IF NOT EXISTS idx_places_pluscode ON places (pluscode);
-CREATE INDEX IF NOT EXISTS idx_places_region ON places (region_id);
+-- indexes
+CREATE INDEX IF NOT EXISTS places_geom_gix ON geo_places USING GIST (geom);
+
+CREATE INDEX IF NOT EXISTS places_region_ix ON geo_places (region_id);
+
+CREATE INDEX IF NOT EXISTS places_pluscode_ix ON geo_places (pluscode);
+
+CREATE INDEX IF NOT EXISTS places_tags_gin ON geo_places USING GIN (tags);
+
+CREATE INDEX IF NOT EXISTS places_name_trgm_gin ON geo_places USING GIN (name gin_trgm_ops);
+
+CREATE INDEX IF NOT EXISTS places_schedule_operation_gin
+    ON geo_places USING GIN (schedule_operation jsonb_path_ops);
+
+-- enrichment work queues (partial indexes keep "what's left to do" scans fast)
+CREATE INDEX IF NOT EXISTS places_data_search_todo_ix
+    ON geo_places (data_checked_at NULLS FIRST);
+
+CREATE INDEX IF NOT EXISTS places_schedule_todo_ix
+    ON geo_places (schedule_checked_at NULLS FIRST);
+
+CREATE INDEX IF NOT EXISTS places_no_image_ix
+    ON geo_places (id)
+    WHERE image_url IS NULL;
+
+-- keep updated_at honest on every UPDATE
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    NEW.updated_at := NOW();
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS places_set_updated_at ON geo_places;
+
+CREATE TRIGGER places_set_updated_at
+    BEFORE UPDATE ON geo_places
+    FOR EACH ROW
+    EXECUTE FUNCTION set_updated_at();
+
+COMMENT ON TABLE geo_places IS 'Catholic churches in Vietnam, enriched from Brave Search and parish websites';
+
+COMMENT ON COLUMN geo_places.geo_place_id IS 'Upsert key (Google Places API New id)';
+
+COMMENT ON COLUMN geo_places.schedule_operation IS 'Giờ lễ as JSON: schedule[].days (mon..sun), times (HH:MM 24h), note';
+
+CREATE INDEX IF NOT EXISTS idx_places_geom ON geo_places USING GIST (geom);
+
+CREATE INDEX IF NOT EXISTS idx_places_geog ON geo_places USING GIST ((geom::geography));
+
+CREATE INDEX IF NOT EXISTS idx_places_pluscode ON geo_places (pluscode);
+
+CREATE INDEX IF NOT EXISTS idx_places_region ON geo_places (region_id);
 
 -- ============================================================
 -- Geolocation touchpoints
@@ -198,8 +321,8 @@ CREATE TABLE IF NOT EXISTS touchpoints (
     touchpoint_id VARCHAR(64) PRIMARY KEY,
     user_id VARCHAR(255) NOT NULL,
     tenant_id VARCHAR(50) NOT NULL DEFAULT 'default',
-    latitude DECIMAL(9, 6) NOT NULL CHECK (latitude BETWEEN -90 AND 90),
-    longitude DECIMAL(9, 6) NOT NULL CHECK (longitude BETWEEN -180 AND 180),
+    latitude DECIMAL(9, 6) NOT NULL CHECK (latitude BETWEEN - 90 AND 90),
+    longitude DECIMAL(9, 6) NOT NULL CHECK (longitude BETWEEN - 180 AND 180),
     geom GEOMETRY(Point, 4326) NOT NULL,
     name TEXT,
     description TEXT,
@@ -212,53 +335,33 @@ CREATE TABLE IF NOT EXISTS touchpoints (
     last_seen_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-
-DROP INDEX IF EXISTS idx_touchpoints_embedding;
-DO $$
-DECLARE
-    embedding_type TEXT;
-BEGIN
-    SELECT format_type(a.atttypid, a.atttypmod)
-    INTO embedding_type
-    FROM pg_attribute AS a
-    JOIN pg_class AS c ON c.oid = a.attrelid
-    WHERE c.relname = 'touchpoints'
-      AND a.attname = 'embedding'
-      AND NOT a.attisdropped;
-END$$;
-
 CREATE INDEX IF NOT EXISTS idx_touchpoints_geom ON touchpoints USING GIST (geom);
-CREATE INDEX IF NOT EXISTS idx_touchpoints_geog
-    ON touchpoints USING GIST ((geom::geography));
-CREATE INDEX IF NOT EXISTS idx_touchpoints_user ON touchpoints (user_id, tenant_id);
-CREATE INDEX IF NOT EXISTS idx_touchpoints_embedding
-    ON touchpoints USING hnsw (embedding vector_cosine_ops)
-    WHERE embedding IS NOT NULL;
 
+CREATE INDEX IF NOT EXISTS idx_touchpoints_geog ON touchpoints USING GIST ((geom::geography));
+
+CREATE INDEX IF NOT EXISTS idx_touchpoints_user ON touchpoints (user_id, tenant_id);
+
+CREATE INDEX IF NOT EXISTS idx_touchpoints_embedding ON touchpoints USING hnsw (embedding vector_cosine_ops)
+WHERE embedding IS NOT NULL;
 
 -- ============================================================
 -- weather data
 -- ============================================================
 CREATE TABLE IF NOT EXISTS weather_data (
-    id BIGSERIAL PRIMARY KEY,
-
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     -- Column to store the full, original JSON data (good for auditing/future extraction)
     original_data JSONB NOT NULL,
-
     -- Normalized Location Fields (Extracted from "location" object)
-    location_name TEXT NOT NULL,    -- Name of the location (e.g., "Ho Chi Minh City")
+    location_name TEXT NOT NULL, -- Name of the location (e.g., "Ho Chi Minh City")
     city TEXT NOT NULL,
     country TEXT,
     time_zone TEXT,
-    
     -- Storing coordinates as numeric types for accuracy
     latitude DECIMAL(9, 6) NOT NULL,
     longitude DECIMAL(9, 6) NOT NULL,
-
     -- PostGIS GEOGRAPHY column for fast, precise GPS-based lookups
     -- We use GEOGRAPHY (WGS 84, SRID 4326) for global distance calculations.
     geog GEOGRAPHY(Point, 4326) NOT NULL,
-
     -- pgvector column for semantic search queries (e.g., "What's the weather like in a tropical city?")
     -- Using VECTOR(768) as a common dimension for embeddings (adjust as needed for your model)
     weather_embedding VECTOR(768)
@@ -266,6 +369,7 @@ CREATE TABLE IF NOT EXISTS weather_data (
 
 -- Standard B-tree indexes for filtering and exact text matching
 CREATE INDEX IF NOT EXISTS idx_weather_location_name ON weather_data (location_name);
+
 CREATE INDEX IF NOT EXISTS idx_weather_city ON weather_data (city);
 
 -- GiST Index for accelerated geospatial queries (e.g., "Find all locations within 10km of X, Y")
@@ -273,9 +377,8 @@ CREATE INDEX IF NOT EXISTS idx_weather_geog ON weather_data USING GIST (geog);
 
 -- IVFFlat Index for efficient Nearest Neighbor search (similarity lookup for pgvector)
 -- The number of lists (100) should be tuned based on the total number of rows.
-CREATE INDEX IF NOT EXISTS idx_weather_embedding ON weather_data USING IVFFLAT (weather_embedding) WITH (lists = 100);
-
-
+CREATE INDEX IF NOT EXISTS idx_weather_embedding ON weather_data USING IVFFLAT (weather_embedding)
+    WITH (lists = 100);
 
 -- ============================================================
 -- System Users
@@ -309,9 +412,13 @@ CREATE TABLE IF NOT EXISTS system_users (
 );
 
 CREATE INDEX IF NOT EXISTS idx_system_users_user_email ON system_users (user_email);
+
 CREATE INDEX IF NOT EXISTS idx_system_users_user_login ON system_users (user_login);
+
 CREATE INDEX IF NOT EXISTS idx_system_users_tenant_id ON system_users (tenant_id);
-CREATE INDEX IF NOT EXISTS idx_system_users_custom_data ON system_users USING GIN (custom_data jsonb_path_ops);
+
+CREATE INDEX IF NOT EXISTS idx_system_users_custom_data ON system_users USING GIN (custom_data
+    jsonb_path_ops);
 
 -- ============================================================
 -- Conversational Context
@@ -324,9 +431,7 @@ CREATE TABLE IF NOT EXISTS conversational_context (
     context_data JSONB NOT NULL,
     embedding VECTOR(768),
     intent_label VARCHAR(255),
-    intent_confidence NUMERIC(5, 4)
-        CHECK (intent_confidence >= 0 AND intent_confidence <= 1)
-        DEFAULT 0,
+    intent_confidence NUMERIC(5, 4) CHECK (intent_confidence >= 0 AND intent_confidence <= 1) DEFAULT 0,
     updated_by TEXT DEFAULT 'system',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -334,35 +439,28 @@ CREATE TABLE IF NOT EXISTS conversational_context (
 );
 
 -- For JSON queries
-CREATE INDEX IF NOT EXISTS idx_context_jsonb
-    ON conversational_context USING GIN (context_data jsonb_path_ops);
+CREATE INDEX IF NOT EXISTS idx_context_jsonb ON conversational_context USING GIN (context_data
+    jsonb_path_ops);
 
 -- Profile joins
-CREATE INDEX IF NOT EXISTS idx_context_cdp_profile
-    ON conversational_context (cdp_profile_id);
+CREATE INDEX IF NOT EXISTS idx_context_cdp_profile ON conversational_context (cdp_profile_id);
 
 -- User filter (only if common)
 -- DROP this if PK lookups dominate
-CREATE INDEX IF NOT EXISTS idx_context_user
-    ON conversational_context (user_id);
+CREATE INDEX IF NOT EXISTS idx_context_user ON conversational_context (user_id);
 
 -- Vector similarity (pgvector)
-CREATE INDEX IF NOT EXISTS idx_context_embedding
-    ON conversational_context USING ivfflat (embedding vector_cosine_ops)
-    WITH (lists = 1000)
-    WHERE embedding IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_context_embedding ON conversational_context USING ivfflat (embedding
+    vector_cosine_ops) WITH (lists = 1000)
+WHERE embedding IS NOT NULL;
 
 -- Intent lookups (filtered for high-confidence)
-CREATE INDEX IF NOT EXISTS idx_context_intent_confident
-    ON conversational_context (intent_label)
-    WHERE intent_confidence > 0.5;
-
-
+CREATE INDEX IF NOT EXISTS idx_context_intent_confident ON conversational_context (intent_label)
+WHERE intent_confidence > 0.5;
 
 -- ============================================================
 -- Schema (unchanged except function corrected)
 -- ============================================================
-
 -- customer_profile (as you supplied)
 CREATE TABLE IF NOT EXISTS customer_profile (
     cdp_profile_id VARCHAR(50) PRIMARY KEY,
@@ -380,8 +478,9 @@ CREATE TABLE IF NOT EXISTS customer_profile (
 );
 
 CREATE INDEX IF NOT EXISTS idx_customer_profile_tenant ON customer_profile (tenant_id);
-CREATE INDEX IF NOT EXISTS idx_customer_profile_embedding ON customer_profile USING ivfflat (profile_embedding) WITH (lists = 100);
 
+CREATE INDEX IF NOT EXISTS idx_customer_profile_embedding ON customer_profile USING ivfflat
+    (profile_embedding) WITH (lists = 100);
 
 -- transactional_context (as you supplied)
 CREATE TABLE IF NOT EXISTS transactional_context (
@@ -393,24 +492,29 @@ CREATE TABLE IF NOT EXISTS transactional_context (
     txn_type VARCHAR(100) NOT NULL,
     txn_status VARCHAR(50) DEFAULT 'completed',
     txn_timestamp TIMESTAMPTZ DEFAULT NOW(),
-    amount NUMERIC(18,4) DEFAULT 0,
+    amount NUMERIC(18, 4) DEFAULT 0,
     currency VARCHAR(10) DEFAULT 'USD',
     context_data JSONB NOT NULL,
     embedding VECTOR(768),
     category_label VARCHAR(255),
     intent_label VARCHAR(255),
-    intent_confidence NUMERIC(5,4) CHECK (intent_confidence >= 0 AND intent_confidence <= 1) DEFAULT 0,
+    intent_confidence NUMERIC(5, 4) CHECK (intent_confidence >= 0 AND intent_confidence <= 1) DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     updated_by TEXT DEFAULT 'system',
     PRIMARY KEY (tenant_id, user_id, txn_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_txn_user_time ON transactional_context (tenant_id, user_id, txn_timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_txn_type_status ON transactional_context (txn_type, txn_status);
-CREATE INDEX IF NOT EXISTS idx_txn_context_gin ON transactional_context USING GIN (context_data jsonb_path_ops);
-CREATE INDEX IF NOT EXISTS idx_txn_embedding_ivfflat ON transactional_context USING ivfflat (embedding) WITH (lists = 100);
+CREATE INDEX IF NOT EXISTS idx_txn_user_time ON transactional_context (tenant_id, user_id,
+    txn_timestamp DESC);
 
+CREATE INDEX IF NOT EXISTS idx_txn_type_status ON transactional_context (txn_type, txn_status);
+
+CREATE INDEX IF NOT EXISTS idx_txn_context_gin ON transactional_context USING GIN (context_data
+    jsonb_path_ops);
+
+CREATE INDEX IF NOT EXISTS idx_txn_embedding_ivfflat ON transactional_context USING ivfflat
+    (embedding) WITH (lists = 100);
 
 -- customer_metrics (as you supplied)
 CREATE TABLE IF NOT EXISTS customer_metrics (
@@ -418,37 +522,44 @@ CREATE TABLE IF NOT EXISTS customer_metrics (
     tenant_id VARCHAR(50) NOT NULL,
     last_purchase TIMESTAMPTZ,
     freq_90d INT DEFAULT 0,
-    avg_order_value NUMERIC(18,4) DEFAULT 0,
-    monetary_90d NUMERIC(18,4) DEFAULT 0,
-    clv_est NUMERIC(18,4) DEFAULT 0,
-    experience_score NUMERIC(6,2) DEFAULT 0,
+    avg_order_value NUMERIC(18, 4) DEFAULT 0,
+    monetary_90d NUMERIC(18, 4) DEFAULT 0,
+    clv_est NUMERIC(18, 4) DEFAULT 0,
+    experience_score NUMERIC(6, 2) DEFAULT 0,
     segment VARCHAR(50),
     segment_reason JSONB,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_metrics_tenant ON customer_metrics (tenant_id);
-CREATE INDEX IF NOT EXISTS idx_metrics_last_purchase ON customer_metrics (last_purchase);
-CREATE INDEX IF NOT EXISTS idx_metrics_freq_90d ON customer_metrics (freq_90d);
 
+CREATE INDEX IF NOT EXISTS idx_metrics_last_purchase ON customer_metrics (last_purchase);
+
+CREATE INDEX IF NOT EXISTS idx_metrics_freq_90d ON customer_metrics (freq_90d);
 
 -- tenant config (as you supplied)
 CREATE TABLE IF NOT EXISTS tenant_metrics_config (
     tenant_id VARCHAR(50) PRIMARY KEY,
-    expected_lifetime_years NUMERIC(5,2) DEFAULT 3.0,
-    cac NUMERIC(18,4) DEFAULT 5.0,
-    clv_happy_threshold NUMERIC(18,4) DEFAULT 500.0,
+    expected_lifetime_years NUMERIC(5, 2) DEFAULT 3.0,
+    cac NUMERIC(18, 4) DEFAULT 5.0,
+    clv_happy_threshold NUMERIC(18, 4) DEFAULT 500.0,
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Corrected refresh_customer_metrics function (uses cdp_profile_id)
 CREATE OR REPLACE FUNCTION refresh_customer_metrics(p_tenant_id VARCHAR(50))
-RETURNS VOID LANGUAGE plpgsql AS $$
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
 DECLARE
     cfg RECORD;
     rec RECORD;
 BEGIN
-    SELECT * INTO cfg FROM tenant_metrics_config WHERE tenant_id = p_tenant_id;
+    SELECT *
+    INTO cfg
+    FROM tenant_metrics_config
+    WHERE tenant_id = p_tenant_id;
+
     IF NOT FOUND THEN
         cfg.expected_lifetime_years := 3.0;
         cfg.cac := 5.0;
@@ -460,61 +571,130 @@ BEGIN
         FROM customer_profile
         WHERE tenant_id = p_tenant_id
     LOOP
-        -- aggregate transaction data per profile (use transactional_context)
+        -- Aggregate transaction data per profile.
         WITH agg AS (
             SELECT
                 MAX(txn_timestamp) AS last_purchase,
-                COUNT(*) FILTER (WHERE txn_timestamp >= now() - interval '90 days')::int AS freq_90d,
+                COUNT(*) FILTER (
+                    WHERE txn_timestamp >= NOW() - INTERVAL '90 days'
+                )::INT AS freq_90d,
                 AVG(amount) FILTER (WHERE amount > 0) AS avg_order_value,
-                COALESCE(SUM(amount) FILTER (WHERE txn_timestamp >= now() - interval '90 days' AND amount > 0), 0) AS monetary_90d
+                COALESCE(
+                    SUM(amount) FILTER (
+                        WHERE txn_timestamp >= NOW() - INTERVAL '90 days'
+                          AND amount > 0
+                    ),
+                    0
+                ) AS monetary_90d
             FROM transactional_context
             WHERE tenant_id = p_tenant_id
               AND cdp_profile_id = rec.cdp_profile_id
               AND txn_status = 'completed'
         )
         INSERT INTO customer_metrics AS cm (
-            cdp_profile_id, tenant_id, last_purchase, freq_90d, avg_order_value, monetary_90d,
-            clv_est, experience_score, segment, segment_reason, updated_at
+            cdp_profile_id,
+            tenant_id,
+            last_purchase,
+            freq_90d,
+            avg_order_value,
+            monetary_90d,
+            clv_est,
+            experience_score,
+            segment,
+            segment_reason,
+            updated_at
         )
         SELECT
             rec.cdp_profile_id,
             p_tenant_id,
             a.last_purchase,
-            COALESCE(a.freq_90d,0),
-            COALESCE(a.avg_order_value,0),
-            COALESCE(a.monetary_90d,0),
-            ROUND( (COALESCE(a.avg_order_value,0) * (COALESCE(a.freq_90d,0) * 365.0 / 90.0) * cfg.expected_lifetime_years) - cfg.cac, 2 )::numeric,
+            COALESCE(a.freq_90d, 0),
+            COALESCE(a.avg_order_value, 0),
+            COALESCE(a.monetary_90d, 0),
+            ROUND(
+                (
+                    COALESCE(a.avg_order_value, 0)
+                    * (COALESCE(a.freq_90d, 0) * 365.0 / 90.0)
+                    * cfg.expected_lifetime_years
+                ) - cfg.cac,
+                2
+            )::NUMERIC,
             ROUND(
                 (
                     CASE
                         WHEN a.last_purchase IS NULL THEN -60
-                        WHEN a.last_purchase >= now() - interval '30 days' THEN 40
-                        WHEN a.last_purchase >= now() - interval '90 days' THEN 10
+                        WHEN a.last_purchase >= NOW() - INTERVAL '30 days' THEN 40
+                        WHEN a.last_purchase >= NOW() - INTERVAL '90 days' THEN 10
                         ELSE -10
                     END
-                )
-                +
-                LEAST(30, GREATEST(-30, COALESCE(a.monetary_90d,0) / NULLIF(GREATEST(COALESCE(a.avg_order_value,0),1),0)))
-                +
-                LEAST(30, COALESCE(a.freq_90d,0) * 2)
-            ,2)::numeric,
+                    + LEAST(
+                        30,
+                        GREATEST(
+                            -30,
+                            COALESCE(a.monetary_90d, 0)
+                            / NULLIF(GREATEST(COALESCE(a.avg_order_value, 0), 1), 0)
+                        )
+                    )
+                    + LEAST(30, COALESCE(a.freq_90d, 0) * 2)
+                ),
+                2
+            )::NUMERIC,
             CASE
-                WHEN ( (COALESCE(a.avg_order_value,0) * (COALESCE(a.freq_90d,0) * 365.0 / 90.0) * cfg.expected_lifetime_years) - cfg.cac ) >= cfg.clv_happy_threshold
-                    AND ( (CASE WHEN a.last_purchase IS NULL THEN -60 WHEN a.last_purchase >= now() - interval '30 days' THEN 40 WHEN a.last_purchase >= now() - interval '90 days' THEN 10 ELSE -10 END) + LEAST(30, GREATEST(-30, COALESCE(a.monetary_90d,0) / NULLIF(GREATEST(COALESCE(a.avg_order_value,0),1),0))) + LEAST(30, COALESCE(a.freq_90d,0) * 2) ) >= 30
-                    THEN 'happy'
-                WHEN a.last_purchase IS NULL AND COALESCE(a.freq_90d,0) = 0 THEN 'prospective'
-                WHEN COALESCE(a.freq_90d,0) = 0 THEN 'inactive'
-                WHEN ( (COALESCE(a.avg_order_value,0) * (COALESCE(a.freq_90d,0) * 365.0 / 90.0) * cfg.expected_lifetime_years) - cfg.cac ) BETWEEN 100 AND (cfg.clv_happy_threshold - 1) THEN 'first_time'
+                WHEN (
+                    (
+                        COALESCE(a.avg_order_value, 0)
+                        * (COALESCE(a.freq_90d, 0) * 365.0 / 90.0)
+                        * cfg.expected_lifetime_years
+                    ) - cfg.cac
+                ) >= cfg.clv_happy_threshold
+                AND (
+                    CASE
+                        WHEN a.last_purchase IS NULL THEN -60
+                        WHEN a.last_purchase >= NOW() - INTERVAL '30 days' THEN 40
+                        WHEN a.last_purchase >= NOW() - INTERVAL '90 days' THEN 10
+                        ELSE -10
+                    END
+                    + LEAST(
+                        30,
+                        GREATEST(
+                            -30,
+                            COALESCE(a.monetary_90d, 0)
+                            / NULLIF(GREATEST(COALESCE(a.avg_order_value, 0), 1), 0)
+                        )
+                    )
+                    + LEAST(30, COALESCE(a.freq_90d, 0) * 2)
+                ) >= 30 THEN 'happy'
+                WHEN a.last_purchase IS NULL
+                 AND COALESCE(a.freq_90d, 0) = 0 THEN 'prospective'
+                WHEN COALESCE(a.freq_90d, 0) = 0 THEN 'inactive'
+                WHEN (
+                    (
+                        COALESCE(a.avg_order_value, 0)
+                        * (COALESCE(a.freq_90d, 0) * 365.0 / 90.0)
+                        * cfg.expected_lifetime_years
+                    ) - cfg.cac
+                ) BETWEEN 100 AND (cfg.clv_happy_threshold - 1) THEN 'first_time'
                 ELSE 'target'
             END,
-            jsonb_build_object(
-                'clv_calc', ROUND( (COALESCE(a.avg_order_value,0) * (COALESCE(a.freq_90d,0) * 365.0 / 90.0) * cfg.expected_lifetime_years) - cfg.cac, 2 ),
-                'freq_90d', COALESCE(a.freq_90d,0),
-                'monetary_90d', COALESCE(a.monetary_90d,0),
-                'last_purchase', a.last_purchase
+            JSONB_BUILD_OBJECT(
+                'clv_calc',
+                ROUND(
+                    (
+                        COALESCE(a.avg_order_value, 0)
+                        * (COALESCE(a.freq_90d, 0) * 365.0 / 90.0)
+                        * cfg.expected_lifetime_years
+                    ) - cfg.cac,
+                    2
+                ),
+                'freq_90d',
+                COALESCE(a.freq_90d, 0),
+                'monetary_90d',
+                COALESCE(a.monetary_90d, 0),
+                'last_purchase',
+                a.last_purchase
             ),
-            now()
-        FROM agg a
+            NOW()
+        FROM agg AS a
         ON CONFLICT (cdp_profile_id) DO UPDATE
         SET
             last_purchase = EXCLUDED.last_purchase,
@@ -525,60 +705,78 @@ BEGIN
             experience_score = EXCLUDED.experience_score,
             segment = EXCLUDED.segment,
             segment_reason = EXCLUDED.segment_reason,
-            updated_at = now();
+            updated_at = NOW();
     END LOOP;
 END;
 $$;
-
 
 -- ============================================================
 -- Triggers for automatic updated_at maintenance
 -- ============================================================
 CREATE OR REPLACE FUNCTION update_timestamp()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
 BEGIN
     NEW.updated_at := NOW();
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 -- Drop existing triggers if they exist
 DO $$
 BEGIN
-    IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_chat_messages_timestamp') THEN
+    IF EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgname = 'trg_chat_messages_timestamp'
+    ) THEN
         EXECUTE 'DROP TRIGGER trg_chat_messages_timestamp ON chat_messages';
     END IF;
 
-    IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_places_timestamp') THEN
-        EXECUTE 'DROP TRIGGER trg_places_timestamp ON places';
+    IF EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgname = 'trg_places_timestamp'
+    ) THEN
+        EXECUTE 'DROP TRIGGER trg_places_timestamp ON geo_places';
     END IF;
 
-    IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_system_users_timestamp') THEN
+    IF EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgname = 'trg_system_users_timestamp'
+    ) THEN
         EXECUTE 'DROP TRIGGER trg_system_users_timestamp ON system_users';
     END IF;
 
-    IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_conversational_context_timestamp') THEN
+    IF EXISTS (
+        SELECT 1
+        FROM pg_trigger
+        WHERE tgname = 'trg_conversational_context_timestamp'
+    ) THEN
         EXECUTE 'DROP TRIGGER trg_conversational_context_timestamp ON conversational_context';
     END IF;
-END $$;
+END
+$$;
 
 -- Recreate update triggers consistently
 CREATE TRIGGER trg_chat_messages_timestamp
-BEFORE UPDATE ON chat_messages
-FOR EACH ROW
-EXECUTE FUNCTION update_timestamp();
+    BEFORE UPDATE ON chat_messages
+    FOR EACH ROW
+    EXECUTE FUNCTION update_timestamp();
 
 CREATE TRIGGER trg_places_timestamp
-BEFORE UPDATE ON places
-FOR EACH ROW
-EXECUTE FUNCTION update_timestamp();
+    BEFORE UPDATE ON geo_places
+    FOR EACH ROW
+    EXECUTE FUNCTION update_timestamp();
 
 CREATE TRIGGER trg_system_users_timestamp
-BEFORE UPDATE ON system_users
-FOR EACH ROW
-EXECUTE FUNCTION update_timestamp();
+    BEFORE UPDATE ON system_users
+    FOR EACH ROW
+    EXECUTE FUNCTION update_timestamp();
 
 CREATE TRIGGER trg_conversational_context_timestamp
-BEFORE UPDATE ON conversational_context
-FOR EACH ROW
-EXECUTE FUNCTION update_timestamp();
+    BEFORE UPDATE ON conversational_context
+    FOR EACH ROW
+    EXECUTE FUNCTION update_timestamp();

@@ -4,8 +4,9 @@ from enum import Enum
 import re
 
 from typing import Any, Dict, List, Optional
-from uuid import UUID, uuid4
+from uuid import UUID
 from datetime import datetime, timezone
+from uuid6 import uuid7
 
 # ---------------------------------------------------------------------
 # Enum Models
@@ -48,7 +49,7 @@ class ProcessingStatus(str, Enum):
 # Pydantic Table Models
 # ---------------------------------------------------------------------
 class KnowledgeSource(BaseModel):
-    id: UUID = Field(default_factory=uuid4)
+    id: UUID = Field(default_factory=uuid7)
     user_id: constr(strip_whitespace=True, min_length=1) # type: ignore
     tenant_id: constr(strip_whitespace=True, min_length=1) # type: ignore
     source_type: KnowledgeSourceType = Field(default=KnowledgeSourceType.OTHER)
@@ -68,7 +69,7 @@ class KnowledgeSource(BaseModel):
 
 
 class KnowledgeChunk(BaseModel):
-    id: UUID = Field(default_factory=uuid4)
+    id: UUID = Field(default_factory=uuid7)
     source_id: UUID
     content: str
     embedding: List[float]

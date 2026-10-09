@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from typing import Sequence
-from uuid import uuid4
+from uuid6 import uuid7
 from leoai.ai_core import (
     TOUCHPOINT_EMBEDDING_DIMENSIONS,
     get_touchpoint_embedding_model,
@@ -64,7 +64,7 @@ class ChatDBManager:
         if any(not isinstance(keyword, str) or not keyword.strip() for keyword in keywords):
             raise ValueError("touchpoint keywords must be non-empty strings")
 
-        touchpoint_id = touchpoint_id or str(uuid4())
+        touchpoint_id = touchpoint_id or str(uuid7())
         embedding_model = get_touchpoint_embedding_model()
         embedding = await asyncio.to_thread(
             embedding_model.encode,
@@ -133,7 +133,7 @@ class ChatDBManager:
                                $2::double precision, $1::double precision
                            ), 4326)::geography
                        ) AS distance_meters
-                FROM places
+                FROM geo_places
                 WHERE ST_DWithin(
                     geom::geography,
                     ST_SetSRID(ST_MakePoint(
@@ -158,7 +158,7 @@ class ChatDBManager:
             "longitude": longitude,
             "nearby_places": [
                 {
-                    "id": row["id"],
+                    "id": str(row["id"]),
                     "name": row["name"],
                     "address": row["address"],
                     "description": row["description"],
@@ -194,7 +194,7 @@ class ChatDBManager:
                                $2::double precision, $1::double precision
                            ), 4326)::geography
                        ) AS distance_meters
-                FROM places
+                FROM geo_places
                 WHERE ST_DWithin(
                     geom::geography,
                     ST_SetSRID(ST_MakePoint(
@@ -223,7 +223,7 @@ class ChatDBManager:
             "keywords": row["keywords"] or [],
             "nearby_places": [
                 {
-                    "id": place["id"],
+                    "id": str(place["id"]),
                     "name": place["name"],
                     "address": place["address"],
                     "description": place["description"],
@@ -277,7 +277,7 @@ class ChatDBManager:
                 )
                 SELECT p.id, p.name, p.address, p.description, p.category, p.tags,
                        ST_Distance(p.geom::geography, t.point) AS distance_meters
-                FROM places AS p
+                FROM geo_places AS p
                 CROSS JOIN location AS t
                 WHERE ST_DWithin(p.geom::geography, t.point, $4)
                   AND (
@@ -306,7 +306,7 @@ class ChatDBManager:
             )
         return [
             {
-                "id": row["id"],
+                "id": str(row["id"]),
                 "name": row["name"],
                 "address": row["address"],
                 "description": row["description"],

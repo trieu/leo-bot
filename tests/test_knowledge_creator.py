@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
+from uuid6 import uuid7
 
 import asyncpg
 import httpx
@@ -333,7 +334,7 @@ def api(monkeypatch):
     from leobot_router import leobot_knowledge_router as routes
 
     creator = SimpleNamespace(upsert_url=AsyncMock(return_value=KnowledgeUpdateResult(
-        source_id=uuid4(), visitor_id="visitor", tenant_id="default",
+        source_id=uuid7(), visitor_id="visitor", tenant_id="default",
         source_type=KnowledgeSourceType.WEB_PAGE, url=URL, name="Test", status="active",
         chunk_count=2, embedding_dimensions=768,
     )))

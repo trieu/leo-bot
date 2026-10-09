@@ -25,7 +25,8 @@ import json
 import logging
 
 from typing import Any, Dict, Iterable, List, Optional, Protocol, Tuple, Union
-from uuid import UUID, uuid4
+from uuid import UUID
+from uuid6 import uuid7
 from datetime import datetime, timezone
 
 
@@ -465,7 +466,7 @@ class KnowledgeManager:
         chunk_models: List[KnowledgeChunk] = []
         for idx, (chunk_text, emb) in enumerate(zip(chunks_text, all_embeddings)):
             chunk_models.append(KnowledgeChunk(
-                id=uuid4(),
+                id=uuid7(),
                 source_id=created_source.id,
                 content=chunk_text,
                 embedding=emb,

@@ -1,8 +1,6 @@
 
 from typing import Any, Dict, Optional
 from pydantic import BaseModel, Field
-from uuid import UUID, uuid4
-
 from typing import List, Optional
 from pydantic import BaseModel, HttpUrl
 from datetime import datetime, timezone

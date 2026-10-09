@@ -1,7 +1,6 @@
 
-# These DAG tests require a separate optional Airflow environment with the
-# Airflow PostgreSQL and ArangoDB providers installed.
-python -m unittest tests/test_arango_to_postgres_leo_cdp_dag.py
+# Dagster pipeline definitions and dependency graph:
+env/bin/python -m pytest -q tests/test_dagster_pipelines.py
 
 ## Recommendation PoC
 

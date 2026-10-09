@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 from contextlib import asynccontextmanager
 from html.parser import HTMLParser
@@ -6,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
+from uuid6 import uuid7
 
 import asyncpg
 import pytest
@@ -235,6 +237,60 @@ def test_sql_receives_dynamic_limit_and_coordinates(monkeypatch, count):
     asyncio.run(scenario())
 
 
+def test_uuid_place_ids_are_json_serializable(monkeypatch):
+    async def scenario():
+        conn = mock_connection(monkeypatch)
+        place_id = uuid7()
+        conn.fetch.return_value = [{
+            "id": place_id,
+            "name": "Church",
+            "address": "Address",
+            "description": "Description",
+            "category": "church",
+            "tags": [],
+            "distance_meters": 12.0,
+        }]
+        results = await ChatDBManager(None).find_nearby_places(
+            None, user_id="visitor", latitude=10, longitude=106
+        )
+
+        assert results[0]["id"] == str(place_id)
+        assert json.loads(json.dumps(results))[0]["id"] == str(place_id)
+
+    asyncio.run(scenario())
+
+
+def test_touchpoint_context_serializes_uuid_place_ids(monkeypatch):
+    async def scenario():
+        conn = mock_connection(monkeypatch)
+        place_id = uuid7()
+        conn.fetchrow.return_value = {
+            "latitude": 10,
+            "longitude": 106,
+            "name": "Visitor",
+            "description": "",
+            "type": "web",
+            "keywords": [],
+        }
+        conn.fetch.return_value = [{
+            "id": place_id,
+            "name": "Church",
+            "address": "Address",
+            "description": "Description",
+            "category": "church",
+            "tags": [],
+            "distance_meters": 12.0,
+        }]
+
+        context = await ChatDBManager(None).get_touchpoint_context("tp")
+
+        assert context is not None
+        assert context["nearby_places"][0]["id"] == str(place_id)
+        json.dumps(context)
+
+    asyncio.run(scenario())
+
+
 def test_sql_resolves_only_visitor_owned_touchpoint(monkeypatch):
     async def scenario():
         conn = mock_connection(monkeypatch)
@@ -342,8 +398,8 @@ def test_real_postgis_filters_orders_and_returns_requested_counts(monkeypatch):
                 CREATE TABLE touchpoints (
                     touchpoint_id text, user_id text, latitude numeric, longitude numeric
                 );
-                CREATE TABLE places (
-                    id bigserial PRIMARY KEY, name text, address text, description text,
+                CREATE TABLE geo_places (
+                    id uuid PRIMARY KEY DEFAULT uuidv7(), name text, address text, description text,
                     category text, tags text[], geom geometry(Point, 4326)
                 );
             """)
@@ -352,13 +408,13 @@ def test_real_postgis_filters_orders_and_returns_requested_counts(monkeypatch):
             )
             for index in range(25):
                 await conn.execute(
-                    "INSERT INTO places (name, category, tags, geom) "
+                    "INSERT INTO geo_places (name, category, tags, geom) "
                     "VALUES ($1, $2, $3, ST_SetSRID(ST_MakePoint($4, $5), 4326))",
                     f"Church {index}", "church", ["Catholic"],
                     106.6467328 + index * 0.001, 10.747904,
                 )
             await conn.execute(
-                "INSERT INTO places (name, category, geom) VALUES "
+                "INSERT INTO geo_places (name, category, geom) VALUES "
                 "('Nearby market', 'market', ST_SetSRID(ST_MakePoint(106.6467328, 10.747904), 4326)),"
                 "('Far church', 'church', ST_SetSRID(ST_MakePoint(105, 21), 4326))"
             )

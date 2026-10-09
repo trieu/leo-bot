@@ -52,6 +52,7 @@ class WebDocument:
     title: str
     text: str
     fetched_url: str
+    links: tuple[str, ...] = ()
 
 
 class KnowledgeEmbeddingModel(Protocol):
@@ -88,6 +89,7 @@ class _WebPageParser(HTMLParser):
         self.title: list[str] = []
         self.content: list[str] = []
         self.article: list[str] = []
+        self.links: list[str] = []
 
     def _append(self, text: str) -> None:
         if any(hidden for _, hidden, _ in self.stack):
@@ -98,6 +100,8 @@ class _WebPageParser(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs) -> None:
         attributes = dict(attrs)
+        if tag == "a" and isinstance(attributes.get("href"), str):
+            self.links.append(attributes["href"])
         classes = (attributes.get("class") or "").split()
         hidden = tag in self.HIDDEN or "hidden" in attributes or attributes.get("aria-hidden") == "true"
         article = tag in {"article", "main"} or bool(
@@ -129,6 +133,7 @@ class _WebPageParser(HTMLParser):
             title=" ".join("".join(self.title).split()) or url,
             text="\n\n".join(part for part in paragraphs if part),
             fetched_url=url,
+            links=tuple(self.links),
         )
 
 
