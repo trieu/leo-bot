@@ -193,3 +193,7 @@ data_windy/**
 .dagster-pids
 .dagster-pids/**
 .tmp_dagster_**
+
+# Graphify output files
+graphify-out/
+graphify-out/**

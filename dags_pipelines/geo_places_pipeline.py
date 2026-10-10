@@ -150,7 +150,8 @@ class BravePlace:
             or not math.isfinite(rating)
             or not 0 <= rating <= 5
         ):
-            raise ValueError(f"Brave place {name!r} has an invalid rating")
+            LOGGER.warning("Ignoring invalid rating for Brave place %r", name)
+            rating = None
 
         rating_count = result.get(
             "rating_count", result.get("ratingCount", result.get("review_count"))
@@ -160,7 +161,8 @@ class BravePlace:
             or not isinstance(rating_count, int)
             or rating_count < 0
         ):
-            raise ValueError(f"Brave place {name!r} has an invalid rating count")
+            LOGGER.warning("Ignoring invalid rating count for Brave place %r", name)
+            rating_count = None
 
         pluscode = result.get("plus_code", result.get("pluscode"))
         if isinstance(pluscode, dict):

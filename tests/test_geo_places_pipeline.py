@@ -118,6 +118,41 @@ def test_search_service_passes_caller_filters_and_deduplicates_results():
     assert skipped == 2
 
 
+def test_search_service_keeps_ramen_places_for_vietnamese_noodle_query():
+    client = Mock()
+    client.search.return_value = {
+        "results": [
+            {
+                "id": "kohaku-ramen",
+                "title": "KOHAKU RAMEN & UDON - PHAN XÍCH LONG",
+                "coordinates": [10.79, 106.68],
+            },
+            {
+                "id": "kohaku-udon-ramen",
+                "title": "Kohaku Udon & Ramen",
+                "coordinates": [10.79, 106.68],
+                "rating": "4.5",
+            },
+        ]
+    }
+    service = GeoPlaceSearchService(client)
+
+    places, skipped = service.search(
+        name="mỳ ramen",
+        latitude=10.79,
+        longitude=106.68,
+        radius=6000,
+        count=20,
+    )
+
+    assert [place.name for place in places] == [
+        "KOHAKU RAMEN & UDON - PHAN XÍCH LONG",
+        "Kohaku Udon & Ramen",
+    ]
+    assert places[1].rating is None
+    assert skipped == 0
+
+
 def test_place_repository_upserts_on_brave_identity(monkeypatch):
     place = BravePlace.from_search_result(
         {

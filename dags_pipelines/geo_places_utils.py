@@ -82,6 +82,8 @@ def place_matches_search(
             or "ca phe" in searchable_text
         )
     query_tokens = meaningful_search_tokens(search_name)
+    if "ramen" in query_tokens:
+        query_tokens.difference_update({"mi", "my", "noodle", "noodles"})
     if query_tokens:
         return query_tokens.issubset(set(searchable_text.split()))
     return has_place_context(searchable_text)
