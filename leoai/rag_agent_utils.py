@@ -330,11 +330,7 @@ def trigger_geo_places_enrichment(
     run_config = build_geo_places_pipeline_run_config(
         name, latitude, longitude, radius, count,
     )
-    client = DagsterGraphQLClient(
-        host or os.getenv("DAGSTER_HOST", "localhost"),
-        port_number=port if port is not None else int(os.getenv("DAGSTER_WEB_PORT", "3000")),
-        timeout=15,
-    )
+    client = _dagster_graphql_client(host=host, port=port)
     run_id = client.submit_job_execution(
         GEO_PLACES_PIPELINE_JOB,
         repository_location_name=(
@@ -346,6 +342,29 @@ def trigger_geo_places_enrichment(
     )
     logger.info("Submitted %s run %s for %s", GEO_PLACES_PIPELINE_JOB, run_id, name)
     return run_id
+
+
+def get_geo_places_enrichment_status(
+    run_id: str,
+    *,
+    host: str | None = None,
+    port: int | None = None,
+) -> str:
+    """Return the Dagster status for a previously submitted enrichment run."""
+    return _dagster_graphql_client(host=host, port=port).get_run_status(run_id).name
+
+
+def _dagster_graphql_client(
+    *,
+    host: str | None = None,
+    port: int | None = None,
+) -> DagsterGraphQLClient:
+    """Create a client using the same Dagster endpoint as job submission."""
+    return DagsterGraphQLClient(
+        host or os.getenv("DAGSTER_HOST", "localhost"),
+        port_number=port if port is not None else int(os.getenv("DAGSTER_WEB_PORT", "3000")),
+        timeout=15,
+    )
 
 
 def format_nearby_places_answer(

@@ -459,6 +459,21 @@ def test_trigger_submits_bounded_job_without_polling(monkeypatch):
     client.get_run_status.assert_not_called()
 
 
+def test_enrichment_status_uses_configured_dagster_client(monkeypatch):
+    client = Mock()
+    client.get_run_status.return_value = SimpleNamespace(name="STARTED")
+    factory = Mock(return_value=client)
+    monkeypatch.setattr(rag_agent_utils, "DagsterGraphQLClient", factory)
+    monkeypatch.setenv("DAGSTER_HOST", "dagster")
+    monkeypatch.setenv("DAGSTER_WEB_PORT", "3001")
+
+    status = rag_agent_utils.get_geo_places_enrichment_status("run-id")
+
+    assert status == "STARTED"
+    factory.assert_called_once_with("dagster", port_number=3001, timeout=15)
+    client.get_run_status.assert_called_once_with("run-id")
+
+
 @pytest.mark.parametrize("invalid", [
     {"count": 0}, {"count": True}, {"latitude": 91},
     {"longitude": -181}, {"radius": float("inf")}, {"name": " "},
@@ -544,6 +559,7 @@ def test_empty_search_queues_enrichment_and_returns_notice(
             1000 if "1 km" in question
             else rag_db_manager.NEARBY_PLACES_RADIUS_METERS
         ),
+        tenant_id="default",
     )
     agent._safe_generate.assert_not_awaited()
     assert agent.db.save_chat_message.await_args_list[1].args[2] == response
@@ -614,6 +630,7 @@ def test_enrichment_resolves_cached_touchpoint_when_coordinates_are_not_in_reque
     assert "queued" in response
     agent.db.resolve_nearby_location.assert_awaited_once_with(
         "cached-tp", user_id="visitor", latitude=None, longitude=None,
+        tenant_id="default",
     )
     trigger.assert_called_once_with(
         name="coffee", latitude=10.75, longitude=106.62, radius=1000,
@@ -634,6 +651,20 @@ def test_rejected_submission_never_claims_search_was_queued(monkeypatch, caplog)
     agent.db.save_chat_message.assert_not_awaited()
 
 
+def test_enrichment_run_id_survives_chat_persistence_error(monkeypatch):
+    trigger = Mock(return_value="run-id")
+    monkeypatch.setattr(rag_agent, "trigger_geo_places_enrichment", trigger)
+    agent = make_agent([])
+    agent.db.save_chat_message.side_effect = RuntimeError("chat persistence failed")
+
+    result = asyncio.run(agent.process_chat_message_with_metadata(
+        "visitor", "coffee near me", target_language="English",
+    ))
+
+    assert result["enrichment_run_id"] == "run-id"
+    assert "something went wrong" in result["response"]
+
+
 def test_enrichment_uses_owned_touchpoint_and_requested_sql_radius(monkeypatch):
     conn = SimpleNamespace(
         fetchrow=AsyncMock(return_value={"latitude": 10.75, "longitude": 106.62}),
@@ -648,9 +679,11 @@ def test_enrichment_uses_owned_touchpoint_and_requested_sql_radius(monkeypatch):
     asyncio.run(ChatDBManager(None).find_nearby_places(
         "tp", ["coffee"], 3, user_id="visitor", radius_meters=1000,
     ))
-    assert "user_id = $2" in conn.fetchrow.call_args.args[0]
-    assert conn.fetchrow.call_args.args[1:] == ("tp", "visitor")
-    assert conn.fetch.call_args.args[-2:] == (1000, 3)
+    assert "tenant_id = $1 AND touchpoint_id = $2 AND user_id = $3" in (
+        conn.fetchrow.call_args.args[0]
+    )
+    assert conn.fetchrow.call_args.args[1:] == ("default", "tp", "visitor")
+    assert conn.fetch.call_args.args[-3:] == (1000, 3, "default")
     conn.fetchrow.return_value = None
     with pytest.raises(NearbyLocationUnavailable):
         asyncio.run(ChatDBManager(None).resolve_nearby_location(

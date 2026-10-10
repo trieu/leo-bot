@@ -1,5 +1,5 @@
 
-from pydantic import BaseModel, Field, HttpUrl, constr
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, constr
 from enum import Enum
 import re
 
@@ -63,9 +63,7 @@ class KnowledgeSource(BaseModel):
     updated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc))
 
-    class Config:
-        from_attributes = True
-        use_enum_values = True
+    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
 
 
 class KnowledgeChunk(BaseModel):
@@ -79,9 +77,8 @@ class KnowledgeChunk(BaseModel):
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc))
 
-    class Config:
-        from_attributes = True
-        
+    model_config = ConfigDict(from_attributes=True)
+
 
 # ---------------------------------------------------------------------
 # Utilities

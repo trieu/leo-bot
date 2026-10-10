@@ -1,4 +1,16 @@
 
+## Live weather AI task
+
+Run the manual weather task from any working directory:
+
+```bash
+/path/to/leo-bot/env/bin/python /path/to/leo-bot/tests/test_leo_ai_functions.py 10.7769 106.7009
+```
+
+Use `--help` for usage. This task requires Playwright and the configured AI
+provider at runtime; importing the module during pytest collection does not
+start the task or load its browser dependencies.
+
 # Dagster pipeline definitions and dependency graph:
 env/bin/python -m pytest -q tests/test_dagster_pipelines.py
 

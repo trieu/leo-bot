@@ -12,3 +12,4 @@ def test_knowledge_models_generate_uuidv7_ids():
 
     assert source.id.version == 7
     assert chunk.id.version == 7
+    assert source.source_type == "other"

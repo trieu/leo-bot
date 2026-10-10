@@ -14,12 +14,32 @@ function setupChat() {
   const answers = [];
   const errors = [];
   const removedLoaders = [];
+  const statusMessages = [];
+  const eventSources = [];
   const cache = new Map();
   let promptCount = 0;
+
+  class FakeEventSource {
+    constructor(url) {
+      this.url = url;
+      this.listeners = {};
+      this.closed = false;
+      eventSources.push(this);
+    }
+
+    addEventListener(name, callback) {
+      this.listeners[name] = callback;
+    }
+
+    close() {
+      this.closed = true;
+    }
+  }
 
   function jquery() {
     return {
       find() { return this; },
+      on() { return this; },
       slice() { return this; },
       map() { return this; },
       get() { return ["Previous conversation"]; },
@@ -40,7 +60,9 @@ function setupChat() {
     window: { addEventListener() {} },
     console: { log() {}, info() {}, warn() {}, error() {} },
     $: jquery,
-    BASE_URL_LEOBOT: "/_leoai/ask",
+    BASE_URL_LEOBOT: "https://leobot.test/_leoai/ask",
+    EventSource: FakeEventSource,
+    URL,
     CDP_TRACKING: false,
     lscache: { set(key, value) { cache.set(key, value); } },
   });
@@ -51,7 +73,10 @@ function setupChat() {
   context.currentUserProfile.longitude = 106.6467328;
   context.showChatBotLoader = () => Promise.resolve(7);
   context.getBotUI = () => ({
-    message: { remove(index) { removedLoaders.push(index); } },
+    message: {
+      remove(index) { removedLoaders.push(index); },
+      add(message) { statusMessages.push(message); },
+    },
   });
   context.leoBotShowAnswer = answer => answers.push(answer);
   context.leoBotPromptQuestion = () => { promptCount += 1; };
@@ -60,7 +85,8 @@ function setupChat() {
     nextAction();
   };
   return {
-    context, requests, answers, errors, removedLoaders, cache,
+    context, requests, answers, errors, removedLoaders, statusMessages,
+    eventSources, cache,
     promptCount: () => promptCount,
   };
 }
@@ -73,7 +99,7 @@ for (const choice of ["1", "2", "3", "4", "5", " 4 "]) {
 
     assert.equal(chat.requests.length, 1);
     const request = chat.requests[0];
-    assert.equal(request.options.url, "/_leoai/ask");
+    assert.equal(request.options.url, "https://leobot.test/_leoai/ask");
     const payload = JSON.parse(request.options.data);
     assert.equal(payload.question, choice.trim());
     assert.equal(payload.visitor_id, "visitor");
@@ -123,4 +149,54 @@ test("failed selection request clears its loader and restores the prompt", async
   assert.deepEqual(chat.removedLoaders, [7]);
   assert.equal(chat.errors.length, 1);
   assert.equal(chat.promptCount(), 1);
+});
+
+test("refreshes the latest user question after enrichment succeeds", async () => {
+  const chat = setupChat();
+  chat.context.window.LEO_UI_LANGUAGE = "en";
+  chat.context.sendQuestionToLeoAI("ask", "coffee near me");
+  await Promise.resolve();
+
+  chat.requests[0].success({
+    error_code: 0,
+    answer: "I queued a place search.",
+    enrichment_status_url: "/_leoai/geo-places/enrichment/run-id/events",
+  });
+
+  assert.equal(chat.eventSources.length, 1);
+  const source = chat.eventSources[0];
+  assert.equal(
+    source.url,
+    "https://leobot.test/_leoai/geo-places/enrichment/run-id/events"
+  );
+
+  source.onmessage({ data: JSON.stringify({ run_id: "run-id", status: "STARTED" }) });
+  assert.match(chat.statusMessages[0].content, /place search is running/i);
+  assert.equal(source.closed, false);
+
+  chat.context.sendQuestionToLeoAI("ask", "latest user question");
+  await Promise.resolve();
+  chat.requests[1].success({ error_code: 0, answer: "latest response" });
+
+  source.onmessage({ data: JSON.stringify({ run_id: "run-id", status: "SUCCESS" }) });
+  await Promise.resolve();
+  assert.match(chat.statusMessages[1].content, /checking updated results/i);
+  assert.equal(source.closed, true);
+  assert.equal(chat.requests.length, 3);
+  assert.equal(
+    JSON.parse(chat.requests[2].options.data).question,
+    "latest user question"
+  );
+
+  chat.requests[2].success({
+    error_code: 0,
+    answer: "The refreshed request queued another search.",
+    enrichment_status_url: "/_leoai/geo-places/enrichment/second-run/events",
+  });
+  const secondSource = chat.eventSources[1];
+  secondSource.onmessage({
+    data: JSON.stringify({ run_id: "second-run", status: "SUCCESS" }),
+  });
+  assert.equal(secondSource.closed, true);
+  assert.equal(chat.requests.length, 3);
 });

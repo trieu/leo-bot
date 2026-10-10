@@ -82,6 +82,7 @@ class ChatMessageState(TypedDict, total=False):
     radius_meters: float
     search_name: str
     enrichment_run_id: str
+    enrichment_run_id_sink: list[str]
     context: str
     terms: list[str]
     matching_places: list[dict]
@@ -151,11 +152,55 @@ class RAGAgent:
         context: str = "chatbot",
         tenant_id: str = "default",
     ) -> str:
+        """Process a chat message and return its response text."""
+        result = await self.process_chat_message_with_metadata(
+            user_id=user_id,
+            user_message=user_message,
+            cdp_profile_id=cdp_profile_id,
+            persona_id=persona_id,
+            touchpoint_id=touchpoint_id,
+            target_language=target_language,
+            answer_in_format=answer_in_format,
+            temperature_score=temperature_score,
+            keywords=keywords,
+            latitude=latitude,
+            longitude=longitude,
+            touchpoint_name=touchpoint_name,
+            touchpoint_description=touchpoint_description,
+            touchpoint_type=touchpoint_type,
+            touchpoint_keywords=touchpoint_keywords,
+            result_limit=result_limit,
+            context=context,
+            tenant_id=tenant_id,
+        )
+        return result["response"]
+
+    async def process_chat_message_with_metadata(
+        self,
+        user_id: str,
+        user_message: str,
+        cdp_profile_id: Optional[str] = None,
+        persona_id: Optional[str] = 'personal_assistant',
+        touchpoint_id: Optional[str] = None,
+        target_language: str = "Vietnamese",
+        answer_in_format: str = "text",
+        temperature_score: float = 0.85,
+        keywords: Optional[List[str]] = None,
+        latitude: Optional[float] = None,
+        longitude: Optional[float] = None,
+        touchpoint_name: str = "Web visitor",
+        touchpoint_description: str = "",
+        touchpoint_type: str = "web",
+        touchpoint_keywords: Optional[List[str]] = None,
+        result_limit: int | None = None,
+        context: str = "chatbot",
+        tenant_id: str = "default",
+    ) -> dict[str, str | None]:
         """Process one chat message through the compiled RAG workflow.
 
         The workflow routes document chat, nearby-place search, place selection,
-        context building, prompt generation, and response persistence.
-
+        context building, prompt generation, and response persistence. The
+        returned run ID is present only when nearby-place enrichment was queued.
 
         Args:
             user_id: Identifier for the visitor sending the message.
@@ -178,7 +223,7 @@ class RAGAgent:
             context: Chat context used for routing. Defaults to ``chatbot``.
 
         Returns:
-            Plain-text response, or a user-facing error message on pipeline failure.
+            Response text and an optional Dagster enrichment run ID.
         """
         initial_state: ChatMessageState = {
             "user_id": user_id,
@@ -200,6 +245,8 @@ class RAGAgent:
             "result_limit": result_limit,
             "context": context,
         }
+        enrichment_run_id_sink: list[str] = []
+        initial_state["enrichment_run_id_sink"] = enrichment_run_id_sink
         try:
             if is_document_chat(context, persona_id):
                 nearby_intent = {
@@ -228,10 +275,18 @@ class RAGAgent:
                     }
                 )
             result = await self._get_chat_graph().ainvoke(initial_state)
-            return result["response"]
+            return {
+                "response": result["response"],
+                "enrichment_run_id": result.get("enrichment_run_id"),
+            }
         except Exception as e:
             logger.exception("❌ RAG pipeline error")
-            return f"I'm sorry, but something went wrong: {e}"
+            return {
+                "response": f"I'm sorry, but something went wrong: {e}",
+                "enrichment_run_id": (
+                    enrichment_run_id_sink[0] if enrichment_run_id_sink else None
+                ),
+            }
 
     def _get_chat_graph(self):
         """Build and cache the LangGraph workflow used for standard chat."""
@@ -405,6 +460,9 @@ class RAGAgent:
             radius=state["radius_meters"],
             count=count,
         )
+        run_id_sink = state.get("enrichment_run_id_sink")
+        if run_id_sink is not None:
+            run_id_sink.append(run_id)
         notice = _build_geo_places_enrichment_notice(
             state["target_language"], has_places=bool(places)
         )

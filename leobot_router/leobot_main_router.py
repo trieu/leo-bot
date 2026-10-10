@@ -1,14 +1,22 @@
+import asyncio
+import json
 import time
 import logging
 from fastapi import APIRouter, HTTPException, Request, Query
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import (
+    HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse,
+)
+from dagster_graphql import DagsterGraphQLClientError
 from leoai.leo_datamodel import GeolocationTouchpointRequest, Message
 from leoai.leo_personalization import _build_recommended_actions
 from leoai.rag_agent import (
     DOCUMENT_CHAT_TOUCHPOINT_ID, RAGAgent, is_document_chat,
     nearby_result_limit, nearby_radius_meters,
 )
-from leoai.rag_agent_utils import has_nearby_location_phrase
+from leoai.rag_agent_utils import (
+    get_geo_places_enrichment_status,
+    has_nearby_location_phrase,
+)
 from leoai.ai_core import is_ai_model_ready
 
 from main_config import (
@@ -24,6 +32,8 @@ from main_config import (
 logger = logging.getLogger("leobot-router")
 router = APIRouter()
 rag_agent = RAGAgent()
+ENRICHMENT_STATUS_POLL_SECONDS = 2
+TERMINAL_DAGSTER_STATUSES = {"SUCCESS", "FAILURE", "CANCELED"}
 
 
 # === Rate Limiting ===
@@ -208,6 +218,8 @@ async def handle_chat(msg: Message):
 
     # Retrieve the profile ID from Redis, if available.
     profile_id = REDIS_CLIENT.hget(visitor_id, "profile_id") or None
+    if isinstance(profile_id, bytes):
+        profile_id = profile_id.decode("utf-8")
     if not is_safe_to_answer(visitor_id):
         return {"error": True, "error_code": 429, "answer": "Too many messages"}
 
@@ -216,6 +228,8 @@ async def handle_chat(msg: Message):
         DOCUMENT_CHAT_TOUCHPOINT_ID if document_chat
         else msg.touchpoint_id or REDIS_CLIENT.hget(visitor_id, "touchpoint_id")
     )
+    if isinstance(touchpoint_id, bytes):
+        touchpoint_id = touchpoint_id.decode("utf-8")
     
     # Create a new geolocation touchpoint if necessary.
     if (
@@ -231,13 +245,13 @@ async def handle_chat(msg: Message):
         touchpoint_id = touchpoint["touchpoint_id"]
 
     # Process the chat message using the RAG agent and return the answer.
-    answer = await rag_agent.process_chat_message(
+    chat_result = await rag_agent.process_chat_message_with_metadata(
         user_id=visitor_id,
         user_message=msg.question,
         persona_id=msg.persona_id,
         cdp_profile_id=profile_id,
         touchpoint_id=touchpoint_id,
-        target_language=msg.answer_in_language,
+        target_language=msg.answer_in_language or "English",
         answer_in_format=msg.answer_in_format,
         latitude=None if document_chat else msg.latitude,
         longitude=None if document_chat else msg.longitude,
@@ -249,12 +263,64 @@ async def handle_chat(msg: Message):
         context=msg.context,
         temperature_score=msg.temperature_score,
     )
-    
-    # Return the structured response containing the question, answer, visitor ID, and touchpoint ID.
-    return {
+    response = {
         "question": msg.question,
-        "answer": answer,
+        "answer": chat_result["response"],
         "visitor_id": visitor_id,
         "touchpoint_id": touchpoint_id,
         "error_code": 0,
     }
+    run_id = chat_result["enrichment_run_id"]
+    if run_id:
+        response["enrichment_run_id"] = run_id
+        response["enrichment_status_url"] = str(
+            router.url_path_for("geo_places_enrichment_events", run_id=run_id)
+        )
+    return response
+
+
+@router.get(
+    "/_leoai/geo-places/enrichment/{run_id}/events",
+    name="geo_places_enrichment_events",
+)
+async def geo_places_enrichment_events(run_id: str):
+    """Stream Dagster run status changes until geo-place enrichment finishes."""
+
+    async def status_events():
+        last_status = None
+        yield "retry: 5000\n\n"
+        while True:
+            try:
+                status = await asyncio.to_thread(
+                    get_geo_places_enrichment_status, run_id
+                )
+            except DagsterGraphQLClientError:
+                logger.exception(
+                    "Unable to stream Dagster status for enrichment run %s",
+                    run_id,
+                )
+                yield "event: status_error\ndata: {}\n\n"
+                return
+
+            if status != last_status:
+                event = json.dumps(
+                    {"run_id": run_id, "status": status},
+                    separators=(",", ":"),
+                )
+                yield f"data: {event}\n\n"
+                last_status = status
+
+            if status in TERMINAL_DAGSTER_STATUSES:
+                return
+
+            await asyncio.sleep(ENRICHMENT_STATUS_POLL_SECONDS)
+            yield ": keep-alive\n\n"
+
+    return StreamingResponse(
+        status_events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )

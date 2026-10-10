@@ -1,11 +1,60 @@
-var currentUserProfile = {
-  visitorId: "",
-  displayName: "friend",
-  touchpointId: "",
-  latitude: null,
-  longitude: null,
-};
+// Keep profile and enrichment-refresh state together for each chat page.
+class ChatbotState {
+  constructor() {
+    this.profile = {
+      visitorId: "",
+      displayName: "friend",
+      touchpointId: "",
+      latitude: null,
+      longitude: null,
+    };
+    this.latestUserQuestion = "";
+    this.latestUserQuestionVersion = 0;
+    this.lastEnrichmentRefreshVersion = 0;
+  }
 
+  rememberQuestion(question, isRefresh) {
+    if (isRefresh) return;
+    this.latestUserQuestion = question;
+    this.latestUserQuestionVersion += 1;
+  }
+
+  getQuestionToRefresh() {
+    if (
+      !this.latestUserQuestion ||
+      this.lastEnrichmentRefreshVersion === this.latestUserQuestionVersion
+    ) {
+      return null;
+    }
+    return this.latestUserQuestion;
+  }
+
+  markQuestionRefreshed() {
+    this.lastEnrichmentRefreshVersion = this.latestUserQuestionVersion;
+  }
+}
+
+var chatbotState = new ChatbotState();
+var currentUserProfile = chatbotState.profile;
+
+// Retain one BotUI instance while keeping initialization behind a small facade.
+class ChatbotUI {
+  get() {
+    if (window.leoBotUI === false) {
+      window.leoBotUI = new BotUI("LEO_ChatBot_Container");
+    }
+    return window.leoBotUI;
+  }
+
+  initialize() {
+    window.leoBotUI = new BotUI("LEO_ChatBot_Container");
+    return window.leoBotUI;
+  }
+}
+
+var chatbotUI = new ChatbotUI();
+
+// --- Localization and host-page events ---
 function getLeoUiText(key, fallback) {
   if (typeof window.leoUiText === "function") {
     return window.leoUiText(key);
@@ -34,28 +83,31 @@ function loadChatSessionWithProfile() {
   // if (userProfile.name) greetUser(userProfile.name);
 }
 
-// Call when location.hash changes (e.g., updated by parent page)
-window.addEventListener("hashchange", loadChatSessionWithProfile);
+// Refresh optional chat profile data when the host page changes its hash.
+$(window).on("hashchange", loadChatSessionWithProfile);
 
 window.leoBotUI = false;
 window.leoBotContext = false;
+
+// Return the lazily initialized BotUI view.
 function getBotUI() {
-  if (window.leoBotUI === false) {
-    window.leoBotUI = new BotUI("LEO_ChatBot_Container");
-  }
-  return window.leoBotUI;
+  return chatbotUI.get();
 }
 
+// --- Visitor location and touchpoint ---
+// Build the browser-cache key for one visitor's touchpoint.
 function touchpointCacheKey(visitorId) {
   return "touchpoint_id_" + visitorId;
 }
 
+// Publish geolocation transitions to other UI components.
 function emitLocationState(state, data) {
   $(document).trigger("leo:location", [
     { state: state, data: data || null },
   ]);
 }
 
+// Resolve browser location and persist it as a chat touchpoint.
 function requestUserGeolocation(visitorId, forceRefresh) {
   if (!navigator.geolocation || typeof BASE_URL_TOUCHPOINT === "undefined") {
     emitLocationState("unavailable");
@@ -126,14 +178,15 @@ function requestUserGeolocation(visitorId, forceRefresh) {
   });
 }
 
+// Initialize visitor state, resolve location, and load the greeting profile.
 function initLeoChatBot(context, visitorId, okCallback) {
   window.leoBotContext = context;
   window.currentUserProfile.visitorId = visitorId;
   currentUserProfile.touchpointId =
     lscache.get(touchpointCacheKey(visitorId)) || "";
-  window.leoBotUI = new BotUI("LEO_ChatBot_Container");
+  chatbotUI.initialize();
 
-  loadChatSessionWithProfile()
+  loadChatSessionWithProfile();
   Promise.all([
     requestUserGeolocation(visitorId),
     $.getJSON(BASE_URL_GET_VISITOR_INFO, {
@@ -144,20 +197,15 @@ function initLeoChatBot(context, visitorId, okCallback) {
     }),
   ]).then(function (results) {
     var data = results[1];
-    var error_code = data.error_code;
-    var name = data.name;
     console.log(data);
 
-    if (error_code === 0 && typeof name === "string") {      
-      currentUserProfile.displayName = name;
+    if (data.error_code === 0 && typeof data.name === "string") {
+      currentUserProfile.displayName = data.name;
       showLeoChatBot(currentUserProfile.displayName);
-    } 
-    else if (error_code === 404) {
-      // askTheContactOfUser();
-      currentUserProfile.displayName = '';
+    } else if (data.error_code === 404) {
+      currentUserProfile.displayName = "";
       showLeoChatBot(currentUserProfile.displayName);
-    } 
-    else {
+    } else {
       leoBotShowError(data, leoBotPromptQuestion);
     }
   });
@@ -167,27 +215,18 @@ function initLeoChatBot(context, visitorId, okCallback) {
   }
 }
 
-/**
- * Returns a greeting message in either English or Vietnamese.
- *
- * @param {string} displayName The name of the user to greet.
- * @param {string} language The language code ('en' for English, 'vi' for Vietnamese).
- * @returns {string} The formatted greeting message.
- */
+// Build the localized greeting shown when a chat session starts.
 function getGreetingMessage(displayName, language) {
-  let msg;
   switch (language) {
-    case 'vi':
-      msg = "Chào " + displayName + ", bạn có thể hỏi tôi bất cứ điều gì";
-      break;
-    case 'en':
-    default: // Default to English if the language is not recognized
-      msg = "Hi " + displayName + ", you may ask me for anything";
-      break;
+    case "vi":
+      return "Chào " + displayName + ", bạn có thể hỏi tôi bất cứ điều gì";
+    case "en":
+    default:
+      return "Hi " + displayName + ", you may ask me for anything";
   }
-  return msg;
 }
 
+// Show the greeting and then prompt the visitor for their first question.
 var showLeoChatBot = function (displayName) {
   var msg = getGreetingMessage(displayName, getLeoUiLanguage());
   var msgObj = { content: msg, cssClass: "leobot-answer" };
@@ -195,6 +234,8 @@ var showLeoChatBot = function (displayName) {
   getBotUI().message.bot(msgObj).then(leoBotPromptQuestion);
 };
 
+// --- Message rendering ---
+// Add the next text prompt and route its answer to the chat API.
 var leoBotPromptQuestion = function (delay) {
   getBotUI()
     .action.text({
@@ -210,20 +251,23 @@ var leoBotPromptQuestion = function (delay) {
     });
 };
 
+// Turn nearby-place list items into safe, searchable Google links.
 function linkNearbyPlaceNames(container, rawAnswer) {
-  var chatContainer = document.getElementById("LEO_ChatBot_Container");
+  var $chatContainer = $("#LEO_ChatBot_Container");
   if (
-    !chatContainer ||
-    chatContainer.dataset.placeSearchLinks !== "true" ||
+    !$chatContainer.length ||
+    $chatContainer.attr("data-place-search-links") !== "true" ||
     !/^(?:Nearby\b.+:|Các\s+.+\s+gần bạn:)/i.test(rawAnswer.trim())
   ) {
     return;
   }
 
-  container.querySelectorAll("ol > li").forEach(function (item) {
-    if (item.querySelector("a")) return;
+  $(container).find("ol > li").each(function () {
+    var item = this;
+    var $item = $(item);
+    if ($item.find("a").length) return;
 
-    var text = item.textContent.replace(/\s+/g, " ").trim();
+    var text = $item.text().replace(/\s+/g, " ").trim();
     var match = text.match(
       /^(.+?)\s+\((?:\d+(?:\.\d+)?\s*m|distance unavailable)\)(?:\s+-\s+(.+))?$/i
     );
@@ -234,13 +278,14 @@ function linkNearbyPlaceNames(container, rawAnswer) {
       ? match[2].split(/\s+-\s+/)[0].trim()
       : "";
     var query = address ? placeName + " " + address : placeName;
-    var link = document.createElement("a");
-    link.className = "leobot-place-search-link";
-    link.href =
-      "https://www.google.com/search?q=" + encodeURIComponent(query);
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.textContent = placeName;
+    var $link = $("<a>")
+      .addClass("leobot-place-search-link")
+      .attr({
+        href: "https://www.google.com/search?q=" + encodeURIComponent(query),
+        target: "_blank",
+        rel: "noopener noreferrer",
+      })
+      .text(placeName);
 
     var walker = document.createTreeWalker(item, NodeFilter.SHOW_TEXT);
     var textNode;
@@ -252,7 +297,7 @@ function linkNearbyPlaceNames(container, rawAnswer) {
       replacement.appendChild(
         document.createTextNode(textNode.textContent.slice(0, nameStart))
       );
-      replacement.appendChild(link);
+      replacement.appendChild($link[0]);
       replacement.appendChild(
         document.createTextNode(
           textNode.textContent.slice(nameStart + placeName.length)
@@ -264,39 +309,41 @@ function linkNearbyPlaceNames(container, rawAnswer) {
   });
 }
 
-var processMessageNode = function(rawAnswer) {
-  var node_id = 'm_' + getRandomStrWithTime()
-  if(rawAnswer.indexOf("<html>") >= 0){
-    var iframe = document.createElement('iframe');
-    iframe.setAttribute('id',node_id)
-    iframe.style.width = "100%";
-    iframe.style.height = "400px";
-    iframe.style.border = "1px solid #ddd";
-    iframe.style.borderRadius = "6px";
+// Render an API response as a BotUI-ready node.
+var processMessageNode = function (rawAnswer) {
+  var nodeId = "m_" + getRandomStrWithTime();
+  if (rawAnswer.indexOf("<html>") >= 0) {
+    var $iframe = $("<iframe>")
+      .attr("id", nodeId)
+      .css({
+        width: "100%",
+        height: "400px",
+        border: "1px solid #ddd",
+        borderRadius: "6px",
+      });
 
-    return {'html':iframe.outerHTML,'type':'iframe','id': node_id};
-  } 
-  else {
-    var container = document.createElement('div');
-    container.setAttribute('id',node_id)
-    container.innerHTML = marked.parse(rawAnswer)
-    linkNearbyPlaceNames(container, rawAnswer)
-    return {'html':container.outerHTML,'type':'div','id': node_id};
+    return { html: $iframe.prop("outerHTML"), type: "iframe", id: nodeId };
   }
-}
 
+  var $container = $("<div>")
+    .attr("id", nodeId)
+    .html(marked.parse(rawAnswer));
+  linkNearbyPlaceNames($container[0], rawAnswer);
+  return { html: $container.prop("outerHTML"), type: "div", id: nodeId };
+};
+
+// Generate a unique DOM id for each rendered answer.
 function getRandomStrWithTime(length = 10) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let randomPart = '';
-  for (let i = 0; i < length; i++) {
-    randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  const timestamp = Date.now().toString(36); // base36 makes it shorter & still sortable
-  return `${randomPart}_${timestamp}`;
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const randomPart = Array.from({ length }, function () {
+    return chars.charAt(Math.floor(Math.random() * chars.length));
+  }).join("");
+  const timestamp = Date.now().toString(36);
+  return randomPart + "_" + timestamp;
 }
 
+// Render the answer and schedule the next chat prompt.
 var leoBotShowAnswer = function (rawAnswer, providedDelay) {
-  
   var node = processMessageNode(rawAnswer);
   getBotUI()
     .message.add({
@@ -306,17 +353,21 @@ var leoBotShowAnswer = function (rawAnswer, providedDelay) {
       type: "html",
     })
     .then(function () {
-      if(node.type === 'iframe') {
-          var iframe = document.getElementById(node.id)
-          const doc = iframe.contentDocument || iframe.contentWindow.document;
-          doc.open();
-          doc.write(rawAnswer);
-          doc.close();
+      if (node.type === "iframe") {
+        var iframe = document.getElementById(node.id);
+        var iframeDocument =
+          iframe.contentDocument || iframe.contentWindow.document;
+        iframeDocument.open();
+        iframeDocument.write(rawAnswer);
+        iframeDocument.close();
 
-          $(iframe).parent().parent().removeClass('botui-message-content').addClass('botui-message-report')
+        $(iframe)
+          .parent()
+          .parent()
+          .removeClass("botui-message-content")
+          .addClass("botui-message-report");
       }
 
-      // format all href nodes in answer
       $("div.botui-message")
         .find("a")
         .each(function () {
@@ -343,6 +394,7 @@ var leoBotShowAnswer = function (rawAnswer, providedDelay) {
     });
 };
 
+// Render an error and resume the prompt flow when requested.
 var leoBotShowError = function (error, nextAction) {
   getBotUI()
     .message.add({
@@ -354,6 +406,8 @@ var leoBotShowError = function (error, nextAction) {
     .then(nextAction || function () {});
 };
 
+// --- Optional profile collection ---
+// Validate an email address before starting profile registration.
 function isEmailValid(email) {
   const regex =
     /^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
@@ -380,7 +434,7 @@ var askTheEmailOfUser = function (name) {
           firstName: name,
           email: email,
         };
-        if(window.CDP_TRACKING === true) {
+        if (window.CDP_TRACKING === true) {
           LeoObserverProxy.updateProfileBySession(profileData);
         }
 
@@ -388,8 +442,9 @@ var askTheEmailOfUser = function (name) {
           location.reload(true);
         }, 3000);
 
-        var s = "Chào " +  name + ", hệ thống đang đăng ký thông tin cho bạn ...";
-        leoBotShowAnswer(s, 6000);// delay 10 seconds to make chatbot do not show input box
+        var message =
+          "Chào " + name + ", hệ thống đang đăng ký thông tin cho bạn ...";
+        leoBotShowAnswer(message, 6000);
       } else {
         leoBotShowError(email + " không là email hợp lệ", function () {
           askTheEmailOfUser(name);
@@ -426,42 +481,49 @@ var askTheContactOfUser = function () {
     .then(askTheNameOfUser);
 };
 
-var sendQuestionToLeoAI = function (context, question) {
-  question = typeof question === "string" ? question.trim() : "";
-  if (!question) {
-    leoBotShowError(
-      getLeoUiText(
-        "emptyQuestion",
-        "Please enter a question or a place number."
-      ),
-      leoBotPromptQuestion
-    );
-    return;
+// --- Chat requests and enrichment status ---
+// Coordinate question state, API requests, and enrichment subscriptions.
+class ChatbotController {
+  constructor(state) {
+    this.state = state;
   }
-  if (question !== "exit") {
 
-    //
+  sendQuestion(context, question, isEnrichmentRefresh) {
+    question = typeof question === "string" ? question.trim() : "";
+    if (!question) {
+      leoBotShowError(
+        getLeoUiText(
+          "emptyQuestion",
+          "Please enter a question or a place number."
+        ),
+        leoBotPromptQuestion
+      );
+      return;
+    }
+    if (question === "exit") return;
+
+    this.state.rememberQuestion(question, isEnrichmentRefresh);
+
     var processAnswer = function (answer) {
-      if ("ask" === context) {
+      if (context === "ask") {
         leoBotShowAnswer(answer);
       }
-      // save event into CDP
       if (typeof LeoObserver === "object" && CDP_TRACKING === true) {
-        var sAnswer = answer.slice(0, 1000);
-        var eventData = { question: question, answer: sAnswer };
+        var eventData = { question: question, answer: answer.slice(0, 1000) };
         LeoObserver.recordEventAskQuestion(eventData);
       } else {
-        console.log("SKIP LeoObserver.recordEventAskQuestion")
+        console.log("SKIP LeoObserver.recordEventAskQuestion");
       }
     };
 
     var callServer = function (index) {
       var serverCallback = function (data) {
         getBotUI().message.remove(index);
-        var error_code = data.error_code;
+        var errorCode = data.error_code;
         var answer = data.answer;
-        if (error_code === 0) {
-          currentUserProfile.displayName = data.name || currentUserProfile.displayName;
+        if (errorCode === 0) {
+          currentUserProfile.displayName =
+            data.name || currentUserProfile.displayName;
           if (data.touchpoint_id) {
             currentUserProfile.touchpointId = data.touchpoint_id;
             lscache.set(
@@ -470,8 +532,10 @@ var sendQuestionToLeoAI = function (context, question) {
             );
           }
           processAnswer(answer);
-        } else if (error_code === 404) {
-          // askTheContactOfUser();
+          if (data.enrichment_status_url) {
+            watchGeoPlacesEnrichment(data.enrichment_status_url);
+          }
+        } else if (errorCode === 404) {
           currentUserProfile.displayName = "";
           processAnswer(answer);
         } else {
@@ -479,7 +543,9 @@ var sendQuestionToLeoAI = function (context, question) {
         }
       };
 
-      var conversationContext = $("#LEO_ChatBot_Container .botui-message-content")
+      var conversationContext = $(
+        "#LEO_ChatBot_Container .botui-message-content"
+      )
         .slice(-3)
         .map(function (index, message) {
           return message.textContent;
@@ -498,7 +564,7 @@ var sendQuestionToLeoAI = function (context, question) {
           getLeoUiLanguage() === "en" ? "English" : "Vietnamese",
         answer_in_format: "html",
       };
-      
+
       callPostApi(BASE_URL_LEOBOT, payload, serverCallback, function () {
         getBotUI().message.remove(index);
         leoBotShowError(
@@ -510,14 +576,166 @@ var sendQuestionToLeoAI = function (context, question) {
         );
       });
     };
+
     showChatBotLoader().then(callServer);
   }
+}
+
+var chatbotController = new ChatbotController(chatbotState);
+
+// Keep the global function used by BotUI prompts and external page scripts.
+var sendQuestionToLeoAI = function (context, question, isEnrichmentRefresh) {
+  chatbotController.sendQuestion(context, question, isEnrichmentRefresh);
 };
 
 var showChatBotLoader = function () {
   return getBotUI().message.add({ loading: true, content: "" });
 };
 
+// Own the SSE lifecycle and translate Dagster states into chat messages.
+class GeoPlacesEnrichmentWatcher {
+  constructor(state, uiProvider, questionSender) {
+    this.state = state;
+    this.uiProvider = uiProvider;
+    this.questionSender = questionSender;
+    this.terminalStatuses = ["SUCCESS", "FAILURE", "CANCELED"];
+    this.messages = {
+      QUEUED: [
+        "The place search is queued.",
+        "Yêu cầu tìm kiếm địa điểm đang chờ xử lý.",
+      ],
+      NOT_STARTED: [
+        "The place search has not started yet.",
+        "Quá trình tìm kiếm địa điểm chưa bắt đầu.",
+      ],
+      MANAGED: [
+        "The place search is waiting for a worker.",
+        "Quá trình tìm kiếm địa điểm đang chờ worker xử lý.",
+      ],
+      STARTING: [
+        "The place search is starting.",
+        "Quá trình tìm kiếm địa điểm đang khởi chạy.",
+      ],
+      STARTED: [
+        "The place search is running. I will update you when it finishes.",
+        "Đang tìm kiếm địa điểm. Mình sẽ báo bạn khi hoàn tất.",
+      ],
+      CANCELING: [
+        "The place search is being canceled.",
+        "Quá trình tìm kiếm địa điểm đang được hủy.",
+      ],
+      SUCCESS: [
+        "The place search is complete. Ask again to see the updated results.",
+        "Quá trình tìm kiếm địa điểm đã hoàn tất. Hãy hỏi lại để xem kết quả mới.",
+      ],
+      FAILURE: [
+        "The place search could not be completed. You can try again later.",
+        "Quá trình tìm kiếm địa điểm không hoàn tất. Bạn có thể thử lại sau.",
+      ],
+      CANCELED: [
+        "The place search was canceled. You can try again later.",
+        "Quá trình tìm kiếm địa điểm đã bị hủy. Bạn có thể thử lại sau.",
+      ],
+      STATUS_UNAVAILABLE: [
+        "I could not check the place search status. Please try again later.",
+        "Mình chưa thể kiểm tra trạng thái tìm kiếm địa điểm. Bạn hãy thử lại sau.",
+      ],
+    };
+    this.refreshSuccessMessages = [
+      "The place search is complete. I’m checking updated results for your latest question.",
+      "Quá trình tìm kiếm địa điểm đã hoàn tất. Mình đang cập nhật kết quả cho câu hỏi gần nhất.",
+    ];
+  }
+
+  // Add a localized chat message for one Dagster status.
+  showStatus(status, willRefreshResults) {
+    var localizedMessages =
+      status === "SUCCESS" && willRefreshResults
+        ? this.refreshSuccessMessages
+        : this.messages[status];
+    if (!localizedMessages) {
+      console.warn("Unknown geo-place enrichment status:", status);
+      localizedMessages = this.messages.STATUS_UNAVAILABLE;
+    }
+
+    this.uiProvider().message.add({
+      human: false,
+      cssClass: "leobot-answer",
+      content: localizedMessages[getLeoUiLanguage() === "en" ? 0 : 1],
+      type: "text",
+    });
+  }
+
+  // Subscribe to status updates for one enrichment run.
+  watch(statusUrl) {
+    if (!statusUrl) return;
+    if (typeof EventSource !== "function") {
+      this.showStatus("STATUS_UNAVAILABLE");
+      return;
+    }
+
+    var eventSource = new EventSource(
+      new URL(statusUrl, BASE_URL_LEOBOT).toString()
+    );
+    eventSource.onmessage = (event) => this.handleMessage(eventSource, event);
+    eventSource.addEventListener("status_error", () => {
+      eventSource.close();
+      this.showStatus("STATUS_UNAVAILABLE");
+    });
+  }
+
+  // Handle a status event and refresh the latest question once on success.
+  handleMessage(eventSource, event) {
+    var update;
+    try {
+      update = JSON.parse(event.data);
+    } catch (error) {
+      console.error("Invalid geo-place enrichment status event", error);
+      eventSource.close();
+      this.showStatus("STATUS_UNAVAILABLE");
+      return;
+    }
+
+    if (!update || typeof update.status !== "string") {
+      eventSource.close();
+      this.showStatus("STATUS_UNAVAILABLE");
+      return;
+    }
+
+    var refreshQuestion =
+      update.status === "SUCCESS" ? this.state.getQuestionToRefresh() : null;
+    this.showStatus(update.status, Boolean(refreshQuestion));
+    if (this.terminalStatuses.indexOf(update.status) >= 0) {
+      eventSource.close();
+    }
+    if (refreshQuestion) {
+      this.state.markQuestionRefreshed();
+      this.questionSender("ask", refreshQuestion, true);
+    }
+  }
+}
+
+// Share the state and UI adapters with the enrichment monitor.
+var enrichmentWatcher = new GeoPlacesEnrichmentWatcher(
+  chatbotState,
+  function () {
+    return getBotUI();
+  },
+  function (context, question, isRefresh) {
+    sendQuestionToLeoAI(context, question, isRefresh);
+  }
+);
+
+// Preserve the existing global helpers used by pages and tests.
+function showGeoEnrichmentStatus(status, willRefreshResults) {
+  enrichmentWatcher.showStatus(status, willRefreshResults);
+}
+
+function watchGeoPlacesEnrichment(statusUrl) {
+  enrichmentWatcher.watch(statusUrl);
+}
+
+// Send a JSON request and dispatch its success or failure callback.
 var callPostApi = function (urlStr, data, okCallback, errorCallback) {
   $.ajax({
     url: urlStr,
@@ -538,25 +756,24 @@ var callPostApi = function (urlStr, data, okCallback, errorCallback) {
   });
 };
 
-
-// Generate RFC4122 v4 UUID (36 chars, standard)
+// Generate an RFC 4122 version 4 visitor identifier.
 function generateUUID() {
   return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
     (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
   );
 }
 
-// Retrieve or create visitor ID with expiration
+// Reuse a visitor ID from local storage, creating one when needed.
 async function getVisitorId(ttlDays = 365) {
-  let id = lscache.get('visitor_id');
+  let id = lscache.get("visitor_id");
 
   if (!id) {
     id = generateUUID();
 
     // Store with TTL (days)
-    lscache.set('visitor_id', id);
+    lscache.set("visitor_id", id);
 
-    // Fallback cookie (optional)
+    // Keep a cookie fallback for hosts without local-storage persistence.
     document.cookie = `visitor_id=${id}; path=/; max-age=${ttlDays * 24 * 60 * 60}`;
   }
 
@@ -564,15 +781,14 @@ async function getVisitorId(ttlDays = 365) {
 }
 
 
+// Reveal the chatbot, create its visitor session, and initialize its UI.
 var startLeoChatBot = function (visitorId) {
-  if (window.leoBotStarted === true) {
-    return;
-  }
+  if (window.leoBotStarted === true) return;
   window.leoBotStarted = true;
-  lscache.setBucket('leobot');
-  
-  var setupChatBot = function (vid) {
-    currentUserProfile.visitorId = vid;
+  lscache.setBucket("leobot");
+
+  var setupChatBot = function (id) {
+    currentUserProfile.visitorId = id;
     $("#LEO_ChatBot_Container_Loader")
       .stop(true, true)
       .removeClass("d-flex")
@@ -582,18 +798,17 @@ var startLeoChatBot = function (visitorId) {
       .stop(true, true)
       .show()
       .css("opacity", "1");
-    initLeoChatBot("leobot_website", vid);
-  }
+    initLeoChatBot("leobot_website", id);
+  };
 
-  if( visitorId === undefined) {
-    getVisitorId().then(id => {
+  if (visitorId === undefined) {
+    getVisitorId().then(function (id) {
       console.log("startLeoChatBot with Visitor ID:", id);
       setupChatBot(id);
     });
-  }
-  else {
-    console.log("startLeoChatBot with Visitor ID:", visitorId);
-    setupChatBot(visitorId);
+    return;
   }
 
+  console.log("startLeoChatBot with Visitor ID:", visitorId);
+  setupChatBot(visitorId);
 };

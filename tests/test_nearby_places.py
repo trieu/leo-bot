@@ -507,11 +507,39 @@ def test_handle_chat_returns_queued_enrichment_notice_for_no_data(route_client, 
     assert data["error_code"] == 0
     assert "no matching place data" in data["answer"]
     assert "queued a search" in data["answer"]
+    assert data["enrichment_run_id"] == "run-id"
+    assert data["enrichment_status_url"] == (
+        "/_leoai/geo-places/enrichment/run-id/events"
+    )
     assert data["touchpoint_id"] == "cached-tp"
     trigger.assert_called_once_with(
         name="coffee", latitude=10.75, longitude=106.62, radius=1000,
         count=3,
     )
+
+
+def test_geo_places_enrichment_sse_streams_until_terminal_status(
+    route_client, monkeypatch,
+):
+    from leobot_router import leobot_main_router as routes
+
+    client, _ = route_client
+    statuses = iter(["QUEUED", "STARTED", "SUCCESS"])
+    monkeypatch.setattr(
+        routes, "get_geo_places_enrichment_status", lambda run_id: next(statuses)
+    )
+    monkeypatch.setattr(routes, "ENRICHMENT_STATUS_POLL_SECONDS", 0)
+
+    with client.stream(
+        "GET", "/_leoai/geo-places/enrichment/run-id/events"
+    ) as response:
+        body = "".join(response.iter_text())
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert "data: {\"run_id\":\"run-id\",\"status\":\"QUEUED\"}" in body
+    assert "data: {\"run_id\":\"run-id\",\"status\":\"STARTED\"}" in body
+    assert "data: {\"run_id\":\"run-id\",\"status\":\"SUCCESS\"}" in body
 
 
 def test_unaccented_noodle_question_queues_dagster_enrichment(route_client, monkeypatch):
