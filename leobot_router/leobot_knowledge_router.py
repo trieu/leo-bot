@@ -10,7 +10,7 @@ from leoai.ai_knowledge_models import KnowledgeSourceType
 from leoai.rag_knowledge_manager import (
     KnowledgeCreator, KnowledgeFetchError, KnowledgeInputError, KnowledgeUpdateResult,
 )
-from main_config import get_current_user
+from main_config import require_data_enrichment_key
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -26,7 +26,7 @@ async def update_knowledge(
     ],
     source_type: Annotated[KnowledgeSourceType, Query()] = KnowledgeSourceType.WEB_PAGE,
     name: Annotated[str | None, Query(min_length=1, max_length=200)] = None,
-    user: str = Depends(get_current_user),
+    _: None = Depends(require_data_enrichment_key),
 ):
     try:
         return await creator.upsert_url(

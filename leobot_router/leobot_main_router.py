@@ -5,8 +5,9 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from leoai.leo_datamodel import GeolocationTouchpointRequest, Message
 from leoai.rag_agent import (
     DOCUMENT_CHAT_TOUCHPOINT_ID, RAGAgent, is_document_chat,
-    is_nearby_place_question, nearby_result_limit,
+    nearby_result_limit, nearby_radius_meters,
 )
+from leoai.rag_agent_utils import has_nearby_location_phrase
 from leoai.ai_core import is_ai_model_ready
 
 from main_config import (
@@ -22,6 +23,66 @@ from main_config import (
 logger = logging.getLogger("leobot-router")
 router = APIRouter()
 rag_agent = RAGAgent()
+
+
+def _build_recommended_actions(places: list[dict]) -> list[dict[str, object]]:
+    """Build nearby-search quick actions from categories found near the visitor."""
+    actions: list[dict[str, object]] = [
+        {
+            "icon": "fa-compass",
+            "label": {
+                "vi": "Top 5 địa điểm gần tôi",
+                "en": "Top 5 places near me",
+            },
+            "question": {
+                "vi": "Cho tôi xem top 5 địa điểm gần tôi.",
+                "en": "Show me the top 5 places near me.",
+            },
+        }
+    ]
+    categories: list[str] = []
+    for place in places:
+        category = place.get("category")
+        if isinstance(category, str):
+            category = " ".join(category.split())
+            if category and category.casefold() not in {
+                existing.casefold() for existing in categories
+            }:
+                categories.append(category)
+
+    if not categories:
+        categories = ["coffee shop", "church"]
+
+    for category in categories:
+        normalized = category.casefold()
+        if "coffee" in normalized or "cafe" in normalized or "café" in normalized:
+            category_vi, category_en, icon = "quán cà phê", "cafes", "fa-coffee"
+        elif "church" in normalized or "nhà thờ" in normalized:
+            category_vi, category_en, icon = "nhà thờ", "churches", "fa-map-marker"
+        elif "restaurant" in normalized or "nhà hàng" in normalized:
+            category_vi, category_en, icon = "nhà hàng", "restaurants", "fa-cutlery"
+        elif "park" in normalized or "công viên" in normalized:
+            category_vi, category_en, icon = "công viên", "parks", "fa-tree"
+        else:
+            category_vi = category_en = category
+            icon = "fa-map-marker"
+
+        actions.append(
+            {
+                "icon": icon,
+                "label": {
+                    "vi": f"Top 5 {category_vi} gần tôi",
+                    "en": f"Top 5 {category_en} near me",
+                },
+                "question": {
+                    "vi": f"Cho tôi xem top 5 {category_vi} gần tôi.",
+                    "en": f"Show me the top 5 {category_en} near me.",
+                },
+            }
+        )
+        if len(actions) == 5:
+            break
+    return actions
 
 
 # === Rate Limiting ===
@@ -161,6 +222,9 @@ async def create_geolocation_touchpoint(
         payload.visitor_id.strip(),
         mapping={"touchpoint_id": result["touchpoint_id"]},
     )
+    result["recommended_actions"] = _build_recommended_actions(
+        result.get("nearby_places", [])
+    )
     return result
 
 
@@ -185,15 +249,18 @@ async def handle_chat(msg: Message):
 
     # Determine if this is a document chat or a nearby place question.
     document_chat = is_document_chat(msg.context, msg.persona_id)
-    nearby_search = not document_chat and is_nearby_place_question(msg.question)
+    nearby_search = (
+        not document_chat and has_nearby_location_phrase(msg.question)
+    )
     result_limit = msg.result_limit
     
     # Adjust the result limit for nearby place searches if applicable.
     if nearby_search:
         try:
             result_limit = nearby_result_limit(msg.question, result_limit)
+            nearby_radius_meters(msg.question)
         except ValueError as exc:
-            logger.warning("Invalid nearby-place count: %s", exc)
+            logger.warning("Invalid nearby-place parameters: %s", exc)
             raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not document_chat and (msg.latitude is None) != (msg.longitude is None):
         raise HTTPException(status_code=400, detail="latitude and longitude must be provided together")

@@ -46,11 +46,6 @@ function getBotUI() {
   return window.leoBotUI;
 }
 
-function buildUserProfileUrl(visitorId) {
-  var url = BASE_URL_GET_VISITOR_INFO +"?visitor_id=" + visitorId + "&_=" + new Date().getTime();
-  return url;
-}
-
 function touchpointCacheKey(visitorId) {
   return "touchpoint_id_" + visitorId;
 }
@@ -141,10 +136,11 @@ function initLeoChatBot(context, visitorId, okCallback) {
   loadChatSessionWithProfile()
   Promise.all([
     requestUserGeolocation(visitorId),
-    new Promise(function (resolve) {
-      $.getJSON(buildUserProfileUrl(visitorId), resolve).fail(function () {
-        resolve({ error_code: 500 });
-      });
+    $.getJSON(BASE_URL_GET_VISITOR_INFO, {
+      visitor_id: visitorId,
+      _: Date.now(),
+    }).then(null, function () {
+      return { error_code: 500 };
     }),
   ]).then(function (results) {
     var data = results[1];
@@ -214,8 +210,62 @@ var leoBotPromptQuestion = function (delay) {
     });
 };
 
-var processMessageNode  = function(rawAnswer) {
-  var node_id = 'm_'  + getRandomStrWithTime()
+function linkNearbyPlaceNames(container, rawAnswer) {
+  var chatContainer = document.getElementById("LEO_ChatBot_Container");
+  if (
+    !chatContainer ||
+    chatContainer.dataset.placeSearchLinks !== "true" ||
+    !/^(?:Nearby\b.+:|Các\s+.+\s+gần bạn:)/i.test(rawAnswer.trim())
+  ) {
+    return;
+  }
+
+  container.querySelectorAll("ol > li").forEach(function (item) {
+    if (item.querySelector("a")) return;
+
+    var text = item.textContent.replace(/\s+/g, " ").trim();
+    var match = text.match(
+      /^(.+?)\s+\((?:\d+(?:\.\d+)?\s*m|distance unavailable)\)(?:\s+-\s+(.+))?$/i
+    );
+    if (!match) return;
+
+    var placeName = match[1].trim();
+    var address = match[2]
+      ? match[2].split(/\s+-\s+/)[0].trim()
+      : "";
+    var query = address ? placeName + " " + address : placeName;
+    var link = document.createElement("a");
+    link.className = "leobot-place-search-link";
+    link.href =
+      "https://www.google.com/search?q=" + encodeURIComponent(query);
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = placeName;
+
+    var walker = document.createTreeWalker(item, NodeFilter.SHOW_TEXT);
+    var textNode;
+    while ((textNode = walker.nextNode())) {
+      var nameStart = textNode.textContent.indexOf(placeName);
+      if (nameStart < 0) continue;
+
+      var replacement = document.createDocumentFragment();
+      replacement.appendChild(
+        document.createTextNode(textNode.textContent.slice(0, nameStart))
+      );
+      replacement.appendChild(link);
+      replacement.appendChild(
+        document.createTextNode(
+          textNode.textContent.slice(nameStart + placeName.length)
+        )
+      );
+      textNode.parentNode.replaceChild(replacement, textNode);
+      break;
+    }
+  });
+}
+
+var processMessageNode = function(rawAnswer) {
+  var node_id = 'm_' + getRandomStrWithTime()
   if(rawAnswer.indexOf("<html>") >= 0){
     var iframe = document.createElement('iframe');
     iframe.setAttribute('id',node_id)
@@ -230,6 +280,7 @@ var processMessageNode  = function(rawAnswer) {
     var container = document.createElement('div');
     container.setAttribute('id',node_id)
     container.innerHTML = marked.parse(rawAnswer)
+    linkNearbyPlaceNames(container, rawAnswer)
     return {'html':container.outerHTML,'type':'div','id': node_id};
   }
 }
@@ -428,21 +479,25 @@ var sendQuestionToLeoAI = function (context, question) {
         }
       };
 
-      var context = $('#LEO_ChatBot_Container').find('.botui-message-content').slice(-3)
-              .map(function () {
-                return $(this).text();
-              }).get().join(' ; ');
+      var conversationContext = $("#LEO_ChatBot_Container .botui-message-content")
+        .slice(-3)
+        .map(function (index, message) {
+          return message.textContent;
+        })
+        .get()
+        .join(" ; ");
 
-      var payload = {};
-      payload["context"] = context;
-      payload["question"] = question;
-      payload["visitor_id"] = currentUserProfile.visitorId;
-      payload["touchpoint_id"] = currentUserProfile.touchpointId || null;
-      payload["latitude"] = currentUserProfile.latitude;
-      payload["longitude"] = currentUserProfile.longitude;
-      payload["answer_in_language"] =
-        getLeoUiLanguage() === "en" ? "English" : "Vietnamese";
-      payload["answer_in_format"] = "html";
+      var payload = {
+        context: conversationContext,
+        question: question,
+        visitor_id: currentUserProfile.visitorId,
+        touchpoint_id: currentUserProfile.touchpointId || null,
+        latitude: currentUserProfile.latitude,
+        longitude: currentUserProfile.longitude,
+        answer_in_language:
+          getLeoUiLanguage() === "en" ? "English" : "Vietnamese",
+        answer_in_format: "html",
+      };
       
       callPostApi(BASE_URL_LEOBOT, payload, serverCallback, function () {
         getBotUI().message.remove(index);

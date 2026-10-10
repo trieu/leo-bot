@@ -22,10 +22,12 @@ from leoai.rag_knowledge_manager import (
     KnowledgeRetriever, KnowledgeUpdateResult, PublicWebPageFetcher, WebDocument,
     _WebPageParser,
 )
-from main_config import get_current_user
+import main_config
 
 
 URL = "https://www.bigdatavietnam.org/2026/04/rag-vs-cag-giai-quyet-iem-mu-cua-ai-voi.html"
+ENRICHMENT_KEY = "test-data-enrichment-key"
+ENRICHMENT_HEADERS = {"Authorization": f"Bearer {ENRICHMENT_KEY}"}
 
 
 class FakeEmbeddingModel:
@@ -333,6 +335,7 @@ def test_write_failure_rolls_back_and_propagates(monkeypatch):
 def api(monkeypatch):
     from leobot_router import leobot_knowledge_router as routes
 
+    monkeypatch.setattr(main_config, "LEO_DATA_ENRICHMENT_KEY", ENRICHMENT_KEY)
     creator = SimpleNamespace(upsert_url=AsyncMock(return_value=KnowledgeUpdateResult(
         source_id=uuid7(), visitor_id="visitor", tenant_id="default",
         source_type=KnowledgeSourceType.WEB_PAGE, url=URL, name="Test", status="active",
@@ -348,9 +351,18 @@ def test_update_api_requires_auth_and_valid_query(api):
     client, app, creator = api
     params = {"url": URL, "source_type": "web_page", "visitor_id": "visitor"}
     assert client.post("/_leoai/update-knowledge", params=params).status_code == 401
+    assert client.post(
+        "/_leoai/update-knowledge",
+        params=params,
+        headers={"Authorization": "Bearer incorrect-token"},
+    ).status_code == 401
+    assert client.post(
+        "/_leoai/update-knowledge", params=params, auth=("admin", "password"),
+    ).status_code == 401
     creator.upsert_url.assert_not_awaited()
-    app.dependency_overrides[get_current_user] = lambda: "admin"
-    response = client.post("/_leoai/update-knowledge", params=params)
+    response = client.post(
+        "/_leoai/update-knowledge", params=params, headers=ENRICHMENT_HEADERS,
+    )
     assert response.status_code == 200
     assert response.json()["chunk_count"] == 2
     assert response.json()["embedding_dimensions"] == 768
@@ -360,8 +372,30 @@ def test_update_api_requires_auth_and_valid_query(api):
     assert client.get("/_leoai/update-knowledge", params=params).status_code == 405
     for overrides in [{"visitor_id": ""}, {"visitor_id": " "}, {"visitor_id": "a" * 51},
                       {"url": "not a URL"}, {"source_type": "unknown"}]:
-        assert client.post("/_leoai/update-knowledge", params={**params, **overrides}).status_code == 422
-    assert client.post("/update-knowledge", params=params).status_code == 200
+        assert client.post(
+            "/_leoai/update-knowledge",
+            params={**params, **overrides},
+            headers=ENRICHMENT_HEADERS,
+        ).status_code == 422
+    assert client.post(
+        "/update-knowledge", params=params, headers=ENRICHMENT_HEADERS,
+    ).status_code == 200
+
+
+def test_update_api_fails_closed_when_enrichment_key_is_not_configured(
+    api, monkeypatch,
+):
+    client, _, creator = api
+    monkeypatch.setattr(main_config, "LEO_DATA_ENRICHMENT_KEY", "")
+
+    response = client.post(
+        "/_leoai/update-knowledge",
+        params={"url": URL, "visitor_id": "visitor"},
+        headers=ENRICHMENT_HEADERS,
+    )
+
+    assert response.status_code == 503
+    creator.upsert_url.assert_not_awaited()
 
 
 @pytest.mark.parametrize("error,status", [
@@ -370,10 +404,13 @@ def test_update_api_requires_auth_and_valid_query(api):
     (RuntimeError("sensitive connection error"), 500),
 ])
 def test_update_api_surfaces_errors_without_exposing_internal_details(api, error, status):
-    client, app, creator = api
-    app.dependency_overrides[get_current_user] = lambda: "admin"
+    client, _, creator = api
     creator.upsert_url.side_effect = error
-    response = client.post("/_leoai/update-knowledge", params={"url": URL, "visitor_id": "visitor"})
+    response = client.post(
+        "/_leoai/update-knowledge",
+        params={"url": URL, "visitor_id": "visitor"},
+        headers=ENRICHMENT_HEADERS,
+    )
     assert response.status_code == status
     assert "sensitive" not in response.text
 
@@ -384,7 +421,7 @@ def test_application_mounts_the_knowledge_endpoint():
     schema = create_app().openapi()
     assert "/_leoai/update-knowledge" in schema["paths"]
     operation = schema["paths"]["/_leoai/update-knowledge"]["post"]
-    assert operation["security"]
+    assert operation["security"] == [{"HTTPBearer": []}]
     assert {"visitor_id", "url", "source_type"}.issubset(
         parameter["name"] for parameter in operation["parameters"]
     )

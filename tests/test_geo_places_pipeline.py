@@ -138,8 +138,9 @@ def test_place_repository_upserts_on_brave_identity(monkeypatch):
     sql, rows = execute_values.call_args.args[1:3]
     assert "ON CONFLICT (geo_place_id)" in sql
     assert rows[0][0] == "brave_api:brave-place-1"
-    assert rows[0][4] == "7P28QJ2C+22"
-    assert rows[0][5:7] == (10.75, 106.62)
+    assert rows[0][3] == "Place"
+    assert rows[0][5] == "7P28QJ2C+22"
+    assert rows[0][6:8] == (10.75, 106.62)
     assert rows[0][-1] == "brave"
     assert execute_values.call_args.kwargs["template"].count("%s") == len(rows[0])
 
@@ -512,7 +513,7 @@ def test_search_asset_config_requires_name_center_and_radius(monkeypatch):
         job,
         {
             "ops": {
-                "church_places": {
+                "process_places": {
                     "config": {
                         "name": "church",
                         "latitude": 10.75,
@@ -526,7 +527,7 @@ def test_search_asset_config_requires_name_center_and_radius(monkeypatch):
     with pytest.raises(DagsterInvalidConfigError):
         validate_run_config(
             job,
-            {"ops": {"church_places": {"config": {"name": "church"}}}},
+            {"ops": {"process_places": {"config": {"name": "church"}}}},
         )
 
 

@@ -1,4 +1,4 @@
-"""Dagster assets for discovering and enriching church place records."""
+"""Discover, enrich, and persist geo-place records for multiple place categories."""
 
 import asyncio
 import hashlib
@@ -29,6 +29,7 @@ from dagster import (
 )
 from google.genai.errors import ClientError as GenAIClientError
 from psycopg2.extras import Json, RealDictCursor, execute_values
+from pydantic import Field
 
 from dags_pipelines.agent_search_client import BraveAgentSearch, BravePlaceSearchClient
 from dags_pipelines.geo_places_sql_code import (
@@ -37,9 +38,12 @@ from dags_pipelines.geo_places_sql_code import (
     INSERT_KNOWLEDGE_CHUNKS,
     INSERT_KNOWLEDGE_SOURCE,
     SELECT_SEARCH_PLACES,
+    SELECT_TARGETED_SEARCH_PLACES,
     UPDATE_PLACE_COORDINATES,
     SELECT_KNOWLEDGE_PLACES,
+    SELECT_TARGETED_KNOWLEDGE_PLACES,
     SELECT_MASS_SCHEDULE_PLACES,
+    SELECT_TARGETED_MASS_SCHEDULE_PLACES,
     UPDATE_SEARCH_CHECK,
     UPDATE_GEO_PLACE_ENRICHMENT,
     UPDATE_MASS_SCHEDULE_CHECK,
@@ -79,7 +83,7 @@ def build_place_search_query(place: dict[str, Any]) -> str:
     """Build the canonical grounded-search query for a geo place."""
     name = str(place.get("name") or "").strip()
     address = str(place.get("address") or "unknown address").strip()
-    category = str(place.get("category") or "Church").strip()
+    category = str(place.get("category") or "Place").strip()
     if not name:
         raise ValueError("geo place name must be non-empty")
     return f"{name} at {address} in {category}"
@@ -236,20 +240,90 @@ class DiscoveryConfig(Config):
     count: int = 20
 
 
-class BraveSearchConfig(Config):
+class PlaceRunScopeConfig(Config):
+    """Optional center and category to bound a pipeline run to one chat search."""
+
+    search_name: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    radius: float | None = None
+    max_places: int = Field(default=5, ge=1, le=5, strict=True)
+
+    def is_scoped(self) -> bool:
+        return self.search_name is not None
+
+    def _require_scope(self) -> tuple[str, float, float, float]:
+        if (
+            self.search_name is None
+            or self.latitude is None
+            or self.longitude is None
+            or self.radius is None
+        ):
+            raise ValueError("A scoped place run requires name, center, and radius.")
+        return self.search_name, self.latitude, self.longitude, self.radius
+
+    def search_scope_params(self, refresh_days: int) -> tuple[Any, ...]:
+        name, latitude, longitude, radius = self._require_scope()
+        return (
+            longitude,
+            latitude,
+            radius,
+            name,
+            name,
+            name,
+            name,
+            name,
+            refresh_days,
+            longitude,
+            latitude,
+            self.max_places,
+        )
+
+    def schedule_scope_params(self, refresh_days: int) -> tuple[Any, ...]:
+        name, latitude, longitude, radius = self._require_scope()
+        return (
+            longitude,
+            latitude,
+            radius,
+            name,
+            name,
+            name,
+            name,
+            refresh_days,
+            longitude,
+            latitude,
+            self.max_places,
+        )
+
+    def knowledge_scope_params(self) -> tuple[Any, ...]:
+        name, latitude, longitude, radius = self._require_scope()
+        return (
+            longitude,
+            latitude,
+            radius,
+            name,
+            name,
+            name,
+            name,
+            name,
+            self.max_places,
+        )
+
+
+class BraveSearchConfig(PlaceRunScopeConfig):
     refresh_days: int = 90
     count: int = 10
     search_lang: str = "vi"
 
 
-class MassScheduleConfig(Config):
+class MassScheduleConfig(PlaceRunScopeConfig):
     refresh_days: int = 60
     min_confidence: float = 0.6
     max_subpages: int = 3
     max_chars: int = 20000
 
 
-class KnowledgeEnrichmentConfig(Config):
+class KnowledgeEnrichmentConfig(PlaceRunScopeConfig):
     max_tokens: int = DEFAULT_MAX_TOKENS
     overlap_tokens: int = DEFAULT_OVERLAP_TOKENS
 
@@ -257,7 +331,9 @@ class KnowledgeEnrichmentConfig(Config):
 class GeoPlaceRepository:
     """Persist Brave search results and provide enrichment work queues."""
 
-    def upsert(self, cursor: Any, places: list[BravePlace]) -> None:
+    def upsert(
+        self, cursor: Any, places: list[BravePlace], *, category: str | None = "Place"
+    ) -> None:
         if not places:
             return
         rows = [
@@ -265,6 +341,7 @@ class GeoPlaceRepository:
                 place.geo_place_id,
                 place.name,
                 place.address,
+                category or (place.categories[0] if place.categories else "Place"),
                 list(place.categories),
                 place.pluscode,
                 place.latitude,
@@ -317,7 +394,7 @@ class GeoPlaceSearchService:
                 LOGGER.warning("Skipping invalid Brave result %d: %s", index, exc)
                 skipped += 1
                 continue
-            if not place_matches_search(
+            if name not in {"places", "place", "địa điểm"} and not place_matches_search(
                 place.name,
                 place.search_text,
                 place.categories,
@@ -340,7 +417,7 @@ class GeoPlaceSearchService:
         "filters unrelated results, and upserts valid places into geo_places."
     )
 )
-def church_places(
+def process_places(
     context: AssetExecutionContext,
     config: DiscoveryConfig,
     brave: BraveSearchResource,
@@ -356,7 +433,12 @@ def church_places(
         count=config.count,
     )
     with pg.connect() as connection, connection.cursor() as cursor:
-        GeoPlaceRepository().upsert(cursor, places)
+        category = (
+            None
+            if config.name.strip().casefold() in {"places", "place", "địa điểm"}
+            else config.name.strip().title()
+        )
+        GeoPlaceRepository().upsert(cursor, places, category=category)
     context.log.info("Brave returned %d unique valid places", len(places))
     return MaterializeResult(
         metadata={"upserted": len(places), "skipped_invalid": skipped}
@@ -494,15 +576,15 @@ class BraveSearchRepository:
 
 
 @asset(
-    deps=[church_places],
+    deps=[process_places],
     description=(
         "Searches grounded web results for each eligible place, keeps only "
-        "place-relevant church sources, embeds snippets, and commits each "
+        "place-relevant sources, embeds snippets, and commits each "
         "place directly to PostgreSQL. Rate-limited places remain eligible "
         "for a later retry."
     ),
 )
-def church_brave_search(
+def process_brave_search(
     context: AssetExecutionContext,
     config: BraveSearchConfig,
     brave: BraveSearchResource,
@@ -519,10 +601,13 @@ def church_brave_search(
     with pg.connect() as connection, connection.cursor(
         cursor_factory=RealDictCursor
     ) as cursor:
-        cursor.execute(
-            SELECT_SEARCH_PLACES,
-            (config.refresh_days,),
-        )
+        if config.is_scoped():
+            cursor.execute(
+                SELECT_TARGETED_SEARCH_PLACES,
+                config.search_scope_params(config.refresh_days),
+            )
+        else:
+            cursor.execute(SELECT_SEARCH_PLACES, (config.refresh_days,))
         places = cursor.fetchall()
 
     client = brave.build_context_client()
@@ -886,25 +971,40 @@ class MassScheduleEnricher:
 
 
 @asset(
-    deps=[church_places],
+    deps=[process_places],
     description=(
         "Fetches same-origin parish pages, extracts source-backed Mass schedules, "
         "and commits each place independently to geo_places."
     ),
 )
-def church_mass_schedule(
+def process_mass_schedule(
     context: AssetExecutionContext,
     config: MassScheduleConfig,
     ai: AIResource,
     pg: PostgresResource,
 ) -> MaterializeResult:
+    if config.is_scoped() and (config.search_name or "").casefold() not in {
+        "church", "churches", "cathedral", "chapel", "parish", "nhà thờ",
+    }:
+        context.log.info(
+            "Skipping church Mass schedules for non-church search %r",
+            config.search_name,
+        )
+        return MaterializeResult(metadata={"processed": 0, "schedules_found": 0})
+
     with pg.connect() as connection, connection.cursor(
         cursor_factory=RealDictCursor
     ) as cursor:
-        cursor.execute(
-            SELECT_MASS_SCHEDULE_PLACES,
-            (config.refresh_days,),
-        )
+        if config.is_scoped():
+            cursor.execute(
+                SELECT_TARGETED_MASS_SCHEDULE_PLACES,
+                config.schedule_scope_params(config.refresh_days),
+            )
+        else:
+            cursor.execute(
+                SELECT_MASS_SCHEDULE_PLACES,
+                (config.refresh_days,),
+            )
         places = cursor.fetchall()
 
     enricher = MassScheduleEnricher(ai.build_client(), config)
@@ -1020,7 +1120,7 @@ class PlaceEnricher:
         values = [
             ("Name", place.get("name")),
             ("Address", place.get("address")),
-            ("Category", place.get("category") or "Church"),
+            ("Category", place.get("category") or "Place"),
             ("Phone", place.get("phone")),
             ("Website", place.get("website")),
             ("Place description", description),
@@ -1050,13 +1150,14 @@ class PlaceEnricher:
             "address": place.get("address"),
             "place_description": place.get("description"),
             "categories": place.get("tags") or [],
+            "category": place.get("category"),
             "schedule_operation": place.get("schedule_operation"),
             "website": place.get("website"),
             "phone": place.get("phone"),
         }
         prompt = (
             "Create a concise, factual description and short keyword tags for this "
-            "Vietnamese Catholic church. Use only the supplied data. Do not infer "
+            "place. Respect its supplied category. Use only the supplied data. Do not infer "
             "history, services, schedules, or features that are not explicitly "
             "supported. Return an empty tags list when the data does not support "
             "useful tags.\n\n"
@@ -1195,14 +1296,14 @@ class KnowledgeRepository:
 
 
 @asset(
-    deps=[church_brave_search, church_mass_schedule],
+    deps=[process_brave_search, process_mass_schedule],
     description=(
         "Generates factual place descriptions and tags, creates embeddings, "
         "and upserts each enriched place with its knowledge source and chunks "
         "directly into PostgreSQL."
     ),
 )
-def church_knowledge(
+def process_knowledge(
     context: AssetExecutionContext,
     config: KnowledgeEnrichmentConfig,
     ai: AIResource,
@@ -1211,7 +1312,13 @@ def church_knowledge(
     with pg.connect() as connection, connection.cursor(
         cursor_factory=RealDictCursor
     ) as cursor:
-        cursor.execute(SELECT_KNOWLEDGE_PLACES)
+        if config.is_scoped():
+            cursor.execute(
+                SELECT_TARGETED_KNOWLEDGE_PLACES,
+                config.knowledge_scope_params(),
+            )
+        else:
+            cursor.execute(SELECT_KNOWLEDGE_PLACES)
         places = cursor.fetchall()
 
     enricher = PlaceEnricher(ai.build_client())
@@ -1261,15 +1368,15 @@ full_refresh = define_asset_job(
 weekly = ScheduleDefinition(
     job=full_refresh,
     cron_schedule="0 2 * * 0",
-    name="church_full_refresh_weekly",
+    name="geo_places_full_refresh_weekly",
 )
 
 defs = Definitions(
     assets=[
-        church_places,
-        church_brave_search,
-        church_mass_schedule,
-        church_knowledge,
+        process_places,
+        process_brave_search,
+        process_mass_schedule,
+        process_knowledge,
     ],
     jobs=[full_refresh],
     schedules=[weekly],

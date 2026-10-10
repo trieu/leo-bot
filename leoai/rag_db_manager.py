@@ -235,6 +235,39 @@ class ChatDBManager:
             ],
         }
 
+    async def resolve_nearby_location(
+        self,
+        touchpoint_id: str | None,
+        *,
+        user_id: str,
+        latitude: float | None = None,
+        longitude: float | None = None,
+    ) -> tuple[float, float]:
+        """Resolve validated coordinates directly or from a visitor-owned touchpoint."""
+        if (latitude is None) != (longitude is None):
+            raise ValueError("latitude and longitude must be provided together")
+        if latitude is None or longitude is None:
+            async with get_async_pg_conn() as conn:
+                location = await conn.fetchrow(
+                    """
+                    SELECT latitude, longitude FROM touchpoints
+                    WHERE touchpoint_id = $1 AND user_id = $2;
+                    """,
+                    touchpoint_id,
+                    user_id,
+                )
+            if (
+                location is None
+                or location["latitude"] is None
+                or location["longitude"] is None
+            ):
+                raise NearbyLocationUnavailable("A visitor location is required.")
+            latitude = float(location["latitude"])
+            longitude = float(location["longitude"])
+        if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
+            raise ValueError("latitude or longitude is out of range")
+        return latitude, longitude
+
     async def find_nearby_places(
         self,
         touchpoint_id: str | None,
@@ -244,30 +277,18 @@ class ChatDBManager:
         user_id: str,
         latitude: float | None = None,
         longitude: float | None = None,
+        radius_meters: float = NEARBY_PLACES_RADIUS_METERS,
     ) -> list[dict]:
         """Find the requested number of matching places using coordinates or an owned touchpoint."""
         if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
             raise ValueError("limit must be positive")
-        if (latitude is None) != (longitude is None):
-            raise ValueError("latitude and longitude must be provided together")
-
+        if not 0 < radius_meters < float("inf"):
+            raise ValueError("radius_meters must be positive and finite")
+        latitude, longitude = await self.resolve_nearby_location(
+            touchpoint_id, user_id=user_id, latitude=latitude, longitude=longitude,
+        )
         terms = [term.strip().lower() for term in search_terms if term.strip()]
         async with get_async_pg_conn() as conn:
-            if latitude is None or longitude is None:
-                location = await conn.fetchrow(
-                    """
-                    SELECT latitude, longitude FROM touchpoints
-                    WHERE touchpoint_id = $1 AND user_id = $2;
-                    """,
-                    touchpoint_id,
-                    user_id,
-                )
-                if location is None:
-                    raise NearbyLocationUnavailable("A visitor location is required.")
-                latitude = float(location["latitude"])
-                longitude = float(location["longitude"])
-            if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
-                raise ValueError("latitude or longitude is out of range")
             rows = await conn.fetch(
                 """
                 WITH location AS (
@@ -301,7 +322,7 @@ class ChatDBManager:
                 longitude,
                 latitude,
                 terms,
-                NEARBY_PLACES_RADIUS_METERS,
+                radius_meters,
                 limit,
             )
         return [

@@ -12,25 +12,46 @@ It integrates seamlessly with **LEO CDP (Customer Data Platform)** to serve both
 Try the chatbot in action:
 👉 [https://leobot.leocdp.com](https://leobot.leocdp.com)
 
-LeoBot uses the **Google Gemini API** for natural, context-aware responses.
+LeoBot uses the configured AI provider for natural, context-aware responses.
 
 ---
 
 ## 🚀 Features
 
-* **Multi-channel support:** Works with Facebook Messenger and Zalo OA.
-* **Gemini-powered intelligence:** Uses Google Gemini API for high-quality understanding and generation.
-* **RAG-based reasoning:** Combines knowledge retrieval with semantic memory.
-* **FastAPI backend:** Lightweight, async, and production-ready.
-* **Redis rate limiting:** Prevents spam and message floods.
-* **Custom personas:** Supports user profiles, roles, and chat touchpoints.
-* **Prebuilt frontend demos:** Jinja2 templates for quick UI testing and embedding.
+* **Multi-channel support:** Website chat, Facebook Messenger, and Zalo OA.
+* **Provider-configurable AI:** Google Gemini, OpenAI, or OpenRouter, with
+  configurable chat, reasoning, and embedding models.
+* **RAG and document chat:** Visitor-scoped knowledge retrieval, persistent
+  conversation context, and authenticated web-page ingestion.
+* **Nearby place discovery:** Optional browser geolocation, bilingual
+  recommendations based on nearby place categories, and radius-aware PostGIS
+  search.
+* **Background place enrichment:** Dagster searches for missing nearby results
+  and enriches discovered places with grounded web context and place knowledge.
+* **FastAPI backend and Redis rate limiting:** Async API routes and per-visitor
+  request throttling.
+* **Custom personas and touchpoints:** Context-aware conversations across
+  profiles, roles, and channels.
+* **Prebuilt frontend demos:** Localized Jinja2 interfaces and embeddable chat
+  examples.
 
 ---
 
 ## 🧠 Architecture Overview
 
-*(Coming soon — overview diagram and explanation of key modules.)*
+The FastAPI routers expose the web, webhook, and knowledge-ingestion APIs.
+[`leoai/rag_agent.py`](leoai/rag_agent.py) coordinates document chat,
+nearby-place search, place selection, and standard conversation workflows;
+[`leoai/ai_core.py`](leoai/ai_core.py) selects the configured AI and embedding
+providers. PostgreSQL/PostGIS stores touchpoints, places, and visitor knowledge,
+while Redis stores visitor state and enforces message rate limits.
+
+Nearby searches first query local place data. When the requested list is
+incomplete, the agent can submit the existing Dagster geo-places pipeline to
+discover and enrich more places without blocking the chat response. The web UI
+is split between [`leocdp.chatbot.js`](resources/js/leocdp.chatbot.js) for chat
+transport and [`leocdp.agents.js`](resources/js/leocdp.agents.js) for localized
+page behavior and location-aware recommendations.
 
 ---
 
@@ -38,7 +59,8 @@ LeoBot uses the **Google Gemini API** for natural, context-aware responses.
 
 ### RAGAgent
 
-Handles message understanding, context retrieval, and Gemini-based response generation.
+Routes document chat, nearby-place lookup and enrichment, place selection, and
+standard conversation generation.
 
 ### Webhooks
 
@@ -107,21 +129,43 @@ psql -h localhost -p 5433 -U postgres -d leo360
 
 ### 3. Configure Environment
 
-Create a `.env` file or edit `main_config.py`:
+Copy the repository's environment template, then edit `.env`:
+
+```bash
+cp .env.example.txt .env
+```
+
+The [`.env.example.txt`](.env.example.txt) file is the canonical full
+configuration. The AI section below matches its Google defaults; configure
+model IDs and credentials together when selecting a different provider.
 
 ```bash
 # Core LEO BOT
 LEOBOT_DEV_MODE=true
 HOSTNAME=leobot.example.com
+LEO_DATA_ENRICHMENT_KEY=
 AI_PROVIDER=google
-# For OpenAI: set AI_PROVIDER=openai and OPENAI_API_KEY.
-# For OpenRouter: set AI_PROVIDER=openrouter and OPENROUTER_API_KEY.
-# Optional embedding overrides: EMBEDDING_PROVIDER, EMBEDDING_MODEL,
-# EMBEDDING_DIMENSIONS (defaults to 768 to match the database vector columns).
-# EMBEDDING_API_KEY can override the provider-specific embedding key.
+AI_CHAT_MODEL=gemini-3.5-flash-lite
+AI_CHAT_TEMPERATURE=0.7
+AI_REASONING_MODEL=gemini-3.8-flash
+GEMINI_TEXT_MODEL_ID=gemini-3.5-flash-lite
+GEMINI_API_KEY=
+OPENAI_API_KEY=
+OPENROUTER_API_KEY=
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+
+# Embeddings default to the same provider as AI_PROVIDER unless explicitly set.
+EMBEDDING_PROVIDER=google
+EMBEDDING_MODEL=gemini-embedding-001
+EMBEDDING_API_KEY=
+EMBEDDING_DIMENSIONS=768
+TOUCHPOINT_EMBEDDING_PROVIDER=google
+TOUCHPOINT_EMBEDDING_MODEL=gemini-embedding-001
+TOUCHPOINT_EMBEDDING_DIMENSIONS=768
 PGSQL_DB_URL=postgresql://postgres:password@localhost:5433/leo360
 
-# Google API
+# Gemini API key; Google Cloud credentials below are optional and separate
+# GOOGLE_APPLICATION_CREDENTIALS is only for Google Cloud APIs such as translation
 GOOGLE_APPLICATION_CREDENTIALS= 
 GEMINI_API_KEY=
 
@@ -153,10 +197,46 @@ FB_VERIFY_TOKEN=""
 FB_PAGE_ACCESS_TOKEN=""
 ```
 
-**Gemini API setup:**
+**AI provider setup:**
 
-* Get your API key at [Google AI Studio](https://aistudio.google.com/app/library)
-* For translation and related APIs, set up credentials in the [Google Cloud Console](https://console.cloud.google.com/apis/api/translate.googleapis.com/credentials)
+| `AI_PROVIDER` | Default chat model | Default reasoning model | API key |
+| --- | --- | --- | --- |
+| `google` | `gemini-3.5-flash-lite` | `gemini-3.8-flash` | `GEMINI_API_KEY` |
+| `openai` | `gpt-4.1-mini` | `gpt-5.6-luna` | `OPENAI_API_KEY` |
+| `openrouter` | `openai/gpt-4.1-mini` | `openai/gpt-5.6-luna` | `OPENROUTER_API_KEY` |
+
+The model defaults above apply when `AI_CHAT_MODEL` and `AI_REASONING_MODEL`
+are empty. The checked-in template explicitly sets Google model IDs, so changing
+only `AI_PROVIDER` and its API key is not enough: update both model IDs to
+models supported by the selected provider, or clear them to use that provider's
+defaults. `GEMINI_TEXT_MODEL_ID` is a Google-only fallback and can override both
+Google model defaults if the general `AI_*_MODEL` values are empty.
+
+Embeddings are configured separately from chat. The template explicitly sets
+both `EMBEDDING_PROVIDER` and `TOUCHPOINT_EMBEDDING_PROVIDER` to `google`. When
+moving all AI traffic to OpenAI or OpenRouter, change both settings and their
+model IDs too; otherwise the embedding paths still need `GEMINI_API_KEY`.
+`EMBEDDING_API_KEY`, when set, overrides the selected provider key for
+embeddings. Keep both embedding dimensions at `768` to match the current
+PostgreSQL vector columns.
+
+| Embedding provider | Default model |
+| --- | --- |
+| `google` | `gemini-embedding-001` |
+| `openai` | `text-embedding-3-small` |
+| `openrouter` | `openai/text-embedding-3-small` |
+
+For example, to switch the template to OpenAI, set `AI_PROVIDER=openai`,
+`AI_CHAT_MODEL=gpt-4.1-mini`, `AI_REASONING_MODEL=gpt-5.6-luna`,
+`EMBEDDING_PROVIDER=openai`, `EMBEDDING_MODEL=text-embedding-3-small`,
+`TOUCHPOINT_EMBEDDING_PROVIDER=openai`, and
+`TOUCHPOINT_EMBEDDING_MODEL=text-embedding-3-small`; provide `OPENAI_API_KEY`.
+
+Get `GEMINI_API_KEY` at [Google AI Studio](https://aistudio.google.com/app/library).
+`GOOGLE_APPLICATION_CREDENTIALS` is only for Google Cloud services such as
+translation; it is not the Gemini API key. Google Cloud translation requires
+service-account credentials from the
+[Google Cloud Console](https://console.cloud.google.com/apis/api/translate.googleapis.com/credentials).
 
 ---
 
@@ -235,29 +315,38 @@ Open your browser and visit your configured `HOSTNAME` to test.
 | ------------------- | -------- | -------------------------------- |
 | `/_leoai/ask`              | POST     | Main chatbot endpoint            |
 | `/_leoai/is-ready`         | GET/POST | Configured AI provider readiness check |
-| `/_leoai/touchpoint/geolocation` | POST | Create/update a geolocation touchpoint and return nearby places |
+| `/_leoai/touchpoint/geolocation` | POST | Create/update a geolocation touchpoint, return nearby places and localized recommendations |
 | `/_leoai/fb-webhook`       | GET/POST | Facebook Messenger webhook       |
 | `/_leoai/zalo-webhook`     | POST     | Zalo OA webhook                  |
 | `/_leoai/ping`             | GET      | Basic health check               |
 | `/_leoai/visitor-info` | GET      | Retrieve visitor info from Redis |
-| `/_leoai/update-knowledge` | POST | Authenticated URL ingestion into visitor-owned knowledge sources/chunks |
+| `/_leoai/update-knowledge` | POST | Bearer-token-protected URL ingestion into visitor-owned knowledge sources/chunks |
+
+The geolocation response includes `recommended_actions`, a JSON array of
+bilingual quick actions based on nearby place categories. The browser renders
+these actions from the API response; when nearby category data is unavailable,
+the API provides general discovery suggestions.
 
 ### Import a web page into document chat
+
+Configure `LEO_DATA_ENRICHMENT_KEY` in the server's `.env` with a long,
+random secret (for example, generate one with `openssl rand -hex 32`). Store
+the same value in the external agent's secret manager; do not commit it.
+`/_leoai/update-knowledge` requires this value in the
+`Authorization: Bearer <token>` header. If the key is unset on the server, the
+endpoint fails closed with `503`; a missing or incorrect token receives `401`.
 
 Send an authenticated **POST**, not a GET, to the query-parameter endpoint:
 
 ```bash
-curl --user "$LEO_ADMIN_USER:$LEO_ADMIN_PASSWORD" \
+curl \
+  --header "Authorization: Bearer $LEO_DATA_ENRICHMENT_KEY" \
   --request POST --get \
   --data-urlencode 'source_type=web_page' \
   --data-urlencode 'visitor_id=7e7c56b6b2a74869a1b79659711f44d5' \
   --data-urlencode 'url=https://www.bigdatavietnam.org/2026/04/rag-vs-cag-giai-quyet-iem-mu-cua-ai-voi.html' \
   'https://leobot.leocdp.com/_leoai/update-knowledge'
 ```
-
-The route uses the same HTTP Basic authentication dependency as the email
-endpoint. The shell variables above are the credentials accepted by that
-dependency; they do not configure server authentication themselves.
 
 Required: `url` and `visitor_id`. `source_type` defaults to `web_page` (the only
 URL ingestion type currently supported); `name` optionally overrides the page
@@ -316,8 +405,17 @@ filtering. Results are nearest-first; there may be fewer than requested within
 `NEARBY_PLACES_RADIUS_METERS`. Missing location prompts the visitor to share it.
 HTML answers contain an escaped ordered list (`<ol>` / `<li>`); `text` answers
 remain numbered plain text. Each bold place name in an HTML answer links to a
-Google Maps search using its name and address. Nearby searches query PostgreSQL directly without
-AI generation, summarization, or embedding requests.
+Google Search for its name and address. Nearby searches query PostgreSQL
+directly without AI generation, summarization, or embedding requests.
+
+If the local search returns fewer places than requested, the RAG agent submits
+the existing Dagster `geo_places_pipeline` to discover more. The run requests
+only the missing count, capped at five additional places. Any places already
+found remain in the answer alongside a notice that more are being searched for.
+The API does not wait for the run; a later question checks the database again.
+Dagster submission failures are surfaced instead of returning a success-shaped
+queued notice. Start Dagster with `./start_dagster.sh` and configure its worker
+environment as described in [`dags_pipelines/README.md`](dags_pipelines/README.md).
 
 When a greeting presents the five-place picker, the backend saves the exact
 numbered choices. Choosing `4` saves that place as `selected_place` for the
@@ -330,7 +428,10 @@ information; selection alone does not provide verified historical dates/hours.
 Offline tests:
 
 ```bash
-env/bin/python -m pytest -q tests/test_nearby_places.py tests/test_place_selection.py
+env/bin/python -m pytest -q \
+  tests/test_nearby_places.py \
+  tests/test_place_selection.py \
+  tests/test_geo_places_enrichment.py
 env/bin/python -m pytest -q tests/test_conversation_context.py tests/test_ai_core.py
 env/bin/python -m pytest -q tests/test_document_chat.py
 node --test tests/leocdp.chatbot.test.cjs

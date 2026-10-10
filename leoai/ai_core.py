@@ -79,6 +79,7 @@ TOUCHPOINT_EMBEDDING_DIMENSIONS = int(
 SUPPORTED_PROVIDERS = {"google", "openai", "openrouter"}
 JSON_TYPE = "application/json"
 
+AI_CHAT_TEMPERATURE = float(os.getenv("AI_CHAT_TEMPERATURE", "0.7"))
 
 def _default_chat_model(provider: str) -> str:
     provider_default = {
@@ -88,6 +89,13 @@ def _default_chat_model(provider: str) -> str:
     }[provider]
     return os.getenv("AI_CHAT_MODEL") or provider_default
 
+def _default_reasoning_model(provider: str) -> str:
+    provider_default = {
+        "google": os.getenv("GEMINI_TEXT_MODEL_ID") or "gemini-3.8-flash",
+        "openai": "gpt-5.6-luna",
+        "openrouter": "openai/gpt-5.6-luna",
+    }[provider]
+    return os.getenv("AI_REASONING_MODEL") or provider_default
 
 @lru_cache(maxsize=1)
 def get_embedding_model():
@@ -303,6 +311,7 @@ class AIClient:
     def __init__(
         self,
         model_name: str | None = None,
+        reasoning_model_name: str | None = None,
         api_key: str | None = None,
         provider: str | None = None,
     ):
@@ -312,6 +321,7 @@ class AIClient:
                 f"Unsupported AI provider '{self.provider}'. Choose google, openai, or openrouter."
             )
         self.model_name = model_name or _default_chat_model(self.provider)
+        self.reasoning_model_name = reasoning_model_name or _default_reasoning_model(self.provider)
         self.api_key = api_key or _provider_api_key(self.provider)
         self.client: Any = _get_api_client(self.provider, self.api_key)
         logger.info("%s AI client initialized with model '%s'", self.provider, self.model_name)
@@ -319,7 +329,7 @@ class AIClient:
     def _generate_response(
         self,
         prompt: str,
-        temperature: float = 0.6,
+        temperature: float = AI_CHAT_TEMPERATURE,
         json_schema: Schema | dict | None = None,
         image_bytes: bytes | None = None,
         max_output_tokens: int | None = None,
@@ -397,7 +407,7 @@ class AIClient:
     def generate_content(
         self,
         prompt: str,
-        temperature: float = 0.6,
+        temperature: float = AI_CHAT_TEMPERATURE,
         on_error: str = '',
         max_output_tokens: int | None = None,
         *,

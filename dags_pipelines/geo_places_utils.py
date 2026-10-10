@@ -76,6 +76,11 @@ def place_matches_search(
     searchable_text = fold(
         " ".join((place_name, search_text or "", " ".join(categories)))
     )
+    if fold(search_name) == "coffee":
+        return (
+            bool({"coffee", "cafe"}.intersection(searchable_text.split()))
+            or "ca phe" in searchable_text
+        )
     query_tokens = meaningful_search_tokens(search_name)
     if query_tokens:
         return query_tokens.issubset(set(searchable_text.split()))
@@ -89,9 +94,14 @@ def grounding_result_matches_place(
     place_tokens = meaningful_search_tokens(place.get("name"))
     if not place_tokens:
         place_tokens = meaningful_search_tokens(place.get("address"))
-    return bool(place_tokens) and place_tokens.issubset(
-        set(searchable_text.split())
-    ) and has_place_context(searchable_text)
+    if not place_tokens or not place_tokens.issubset(set(searchable_text.split())):
+        return False
+    category = fold(str(place.get("category") or ""))
+    is_church = any(
+        term in category
+        for term in ("church", "cathedral", "chapel", "parish", "nha tho")
+    )
+    return not is_church or has_place_context(searchable_text)
 
 
 def text_value(value: Any) -> str | None:
@@ -175,4 +185,3 @@ def postal_address_text(value: Any) -> str | None:
             return display.strip()
         return text_value({key: item for key, item in value.items() if key != "type"})
     return text_value(value)
-

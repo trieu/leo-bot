@@ -21,15 +21,15 @@ def test_pipeline_jobs_are_registered():
 
 def test_geo_places_pipeline_persists_to_postgres_without_csv_export():
     assert set(defs.resolve_job_def("geo_places_pipeline").graph.node_names()) == {
-        "church_places",
-        "church_brave_search",
-        "church_mass_schedule",
-        "church_knowledge",
+        "process_places",
+        "process_brave_search",
+        "process_mass_schedule",
+        "process_knowledge",
     }
 
 
 def test_geo_places_pipeline_runs_weekly():
-    assert weekly.name == "church_full_refresh_weekly"
+    assert weekly.name == "geo_places_full_refresh_weekly"
     assert weekly.cron_schedule == "0 2 * * 0"
 
 

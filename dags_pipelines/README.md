@@ -74,37 +74,40 @@ materializing these assets; the pipeline does not run schema migrations.
 Asset dependencies are:
 
 ```text
-church_places
-├── church_brave_search ───┐
-└── church_mass_schedule ──┴── church_knowledge
+process_places
+├── process_brave_search ───┐
+└── process_mass_schedule ──┴── process_knowledge
 ```
 
-The assets do the following:
+The general-purpose assets do the following:
 
-1. **`church_places`** searches with `BravePlaceSearchClient` and upserts by
+1. **`process_places`** searches with `BravePlaceSearchClient` and upserts by
    `geo_place_id`. The database primary key is `geo_places.id`, used as the
    internal `geo_place_id` when related knowledge records are stored. The search
    name, center latitude/longitude, and radius are
    required inputs supplied through the Dagster run config. Brave's radius is
-   a location bias, not a strict distance cutoff.
+   a location bias, not a strict distance cutoff. Its category is the requested
+   place type; general `places` searches preserve the category supplied by Brave.
    Every `geo_place_id` uses a source prefix such as `brave_api:`, `sample:`,
    `google_api:`, or `leo_crawler:`; the database rejects unprefixed IDs.
    A discovery result without coordinates is still stored with a NULL `geom`;
-   `church_brave_search` performs a follow-up place search to recover
+   `process_brave_search` performs a follow-up place search to recover
    coordinates before continuing enrichment.
-2. **`church_brave_search`** searches Brave's grounded web context for one
+2. **`process_brave_search`** searches Brave's grounded web context for one
    place at a time. Each place is committed to PostgreSQL before the next place
    is searched, so a later failure does not roll back earlier results. Each
    `grounding.generic` result is stored as a `knowledge_sources` row, and each
    result snippet is embedded and stored as a `knowledge_chunks` row only when
-   the result contains the place-name tokens and church/parish/mass context.
+   the result contains the place-name tokens. Church-specific results must also
+   contain church/parish/Mass context.
    Unrelated tourism results are skipped. Places are revisited after 90 days by
    default.
-3. **`church_mass_schedule`** fetches parish pages using the shared public-web
-   fetcher, which validates public IPs and redirects. It follows only safe
-   same-origin subpages and asks `AIClient` to extract schedules with page-text
-   evidence. It processes and commits one place at a time.
-4. **`church_knowledge`** uses `AIClient` to create a factual place description
+3. **`process_mass_schedule`** is intentionally church-specific. It fetches
+   parish pages using the shared public-web fetcher, which validates public IPs
+   and redirects. It follows only safe same-origin subpages and asks `AIClient`
+   to extract schedules with page-text evidence. Non-church categories are
+   skipped. It processes and commits one church at a time.
+4. **`process_knowledge`** uses `AIClient` to create a factual place description
    and tags, then writes the enriched place and its vectorized knowledge directly
    to PostgreSQL. It upserts one `knowledge_sources` record and its
    768-dimensional `knowledge_chunks` per place. It processes and commits one
@@ -115,7 +118,7 @@ The required search config and optional result count look like:
 
 ```yaml
 ops:
-  church_places:
+  process_places:
     config:
       name: "church"
       latitude: 10.7536097
@@ -132,9 +135,89 @@ Other config defaults:
 | `MassScheduleConfig` | 60-day refresh; sequential processing; 0.6 minimum confidence; up to 3 subpages |
 | `KnowledgeEnrichmentConfig` | Sequential processing; 200-token chunks; 40-token overlap |
 
-The `church_full_refresh_weekly` schedule runs at `0 2 * * 0` (02:00 every
+The `geo_places_full_refresh_weekly` schedule runs at `0 2 * * 0` (02:00 every
 Sunday, in the Dagster deployment's timezone). Enable the
 schedule in Dagster if it should run automatically.
+
+## On-demand geo places enrichment
+
+When nearby chat has no matching local places or fewer results than requested,
+the RAG agent submits the existing `geo_places_pipeline` asset job and returns
+a search-queued notice after Dagster accepts the run. For partial results, the
+response keeps the places already found. It does not wait for completion; a
+later question checks the database again.
+
+```text
+process_places
+├── process_brave_search ───┐
+└── process_mass_schedule ──┴── process_knowledge
+```
+
+The trigger explicitly selects and runs all four existing assets. Every run
+config carries the requested category, center, radius, and at most five
+additional places (only the number missing from the request when fewer) through
+discovery and the downstream database selectors. `process_places` stores
+the requested category (for example `Ramen`) instead of forcing `Church`.
+`process_brave_search` and `process_knowledge` handle the requested place type;
+`process_mass_schedule` runs as part of the job but skips non-church categories.
+`process_knowledge` creates place-owned `knowledge_sources` records and embedded
+`knowledge_chunks` for matching places that lack a place knowledge source.
+Provider and database failures are visible in Dagster.
+
+The regular scheduled/manual run also supports categories other than churches;
+the chat trigger builds scoped config for all four assets:
+
+```yaml
+ops:
+  process_places:
+    config:
+      name: "ramen"
+      latitude: 10.7536097
+      longitude: 106.6284595
+      radius: 50000
+      count: 5
+  process_brave_search:
+    config:
+      search_name: "ramen"
+      latitude: 10.7536097
+      longitude: 106.6284595
+      radius: 50000
+      max_places: 5
+      refresh_days: 0
+  process_mass_schedule:
+    config:
+      search_name: "ramen"
+      latitude: 10.7536097
+      longitude: 106.6284595
+      radius: 50000
+      max_places: 5
+  process_knowledge:
+    config:
+      search_name: "ramen"
+      latitude: 10.7536097
+      longitude: 106.6284595
+      radius: 50000
+      max_places: 5
+```
+
+The radius is in meters. The shared chat trigger caps discovery and processing
+at five places. Restart/reload the Dagster code location after deploying changes.
+
+The chatbot uses `DAGSTER_HOST` (default `localhost`), `DAGSTER_WEB_PORT`
+(default `3000`), `DAGSTER_REPOSITORY_LOCATION` (default `dags_pipelines`), and
+`DAGSTER_REPOSITORY` (default `__repository__`) to submit runs. The Dagster
+process requires the database, Brave, and AI settings listed below.
+
+Manual validation and execution:
+
+```bash
+env/bin/python -m test_poc.test_trigger_geo_places_tasks --dry-run
+env/bin/python -m test_poc.test_trigger_geo_places_tasks
+```
+
+The proof-of-concept CLI runs this same four-asset pipeline for up to five
+places (its example search term is church) and polls for completion; chat
+requests do not poll.
 
 ## Greeting job
 
@@ -163,7 +246,7 @@ the shared embedding adapter reads its provider settings from the environment.
 | `ARANGO_DATABASE` | ArangoDB ETL | Optional; `leo_cdp` |
 | `ARANGO_PROFILE_COLLECTION` | ArangoDB ETL | Optional; `cdp_profile` |
 | `ARANGO_TRANSACTION_COLLECTION` | ArangoDB ETL | Optional; `cdp_profile2conversion` |
-| `BRAVE_API_KEY` | Church place discovery and grounded web search | Required |
+| `BRAVE_API_KEY` | Place discovery and grounded web search | Required |
 | `AI_PROVIDER`, `AI_CHAT_MODEL` | `AIClient` description and schedule generation | Provider defaults apply |
 | `GEMINI_API_KEY`, `OPENAI_API_KEY`, or `OPENROUTER_API_KEY` | `AIClient` generation and embedding | Required for the selected provider |
 The embedding settings and provider credentials described above are also

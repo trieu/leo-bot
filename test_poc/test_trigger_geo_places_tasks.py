@@ -1,8 +1,8 @@
-"""Trigger the church_places pipeline assets on a running Dagster webserver.
+"""Trigger bounded church-place discovery and knowledge enrichment on Dagster.
 
 Start the cluster first (``./start_dagster.sh --cluster``), then run:
 
-    env/bin/python test_poc/test_trigger_geo_places_tasks.py
+    env/bin/python -m test_poc.test_trigger_geo_places_tasks
 
 Use ``--dry-run`` to validate the run config locally without contacting the
 webserver. A real run calls Brave Place Search, so it may consume API quota.
@@ -25,23 +25,21 @@ from dagster import DagsterRunStatus, validate_run_config
 from dagster_graphql import DagsterGraphQLClient
 
 from dags_pipelines import defs
+from leoai.rag_agent_utils import (
+    GEO_PLACES_PIPELINE_JOB,
+    build_geo_places_pipeline_run_config,
+    trigger_geo_places_enrichment,
+)
 
-JOB_NAME = "geo_places_pipeline"
-ASSET_NAMES = [
-    "church_places",
-    "church_brave_search",
-    "church_mass_schedule",
-    "church_knowledge",
-]
-CHURCH_PLACES_CONFIG: dict[str, Any] = {
+JOB_NAME = GEO_PLACES_PIPELINE_JOB
+PLACE_DISCOVERY_CONFIG: dict[str, Any] = {
     "name": "church",
     "latitude": 10.7536097,
     "longitude": 106.6284595,
     "radius": 6000,
     "count": 5,
 }
-# The other assets define defaults for every field, so only church_places needs config.
-RUN_CONFIG: dict[str, Any] = {"ops": {"church_places": {"config": CHURCH_PLACES_CONFIG}}}
+RUN_CONFIG = build_geo_places_pipeline_run_config(**PLACE_DISCOVERY_CONFIG)
 TERMINAL_STATUSES = {
     DagsterRunStatus.SUCCESS,
     DagsterRunStatus.FAILURE,
@@ -49,12 +47,12 @@ TERMINAL_STATUSES = {
 }
 
 
-def validate_church_places_config() -> None:
+def validate_geo_places_pipeline_config() -> None:
     """Check the run config against the job definition without any network call."""
     validate_run_config(defs.resolve_job_def(JOB_NAME), RUN_CONFIG)
 
 
-def trigger_church_places(
+def trigger_geo_places_pipeline(
     host: str,
     port: int,
     repository_location: str,
@@ -62,16 +60,16 @@ def trigger_church_places(
     timeout_seconds: int,
     poll_seconds: int = 5,
 ) -> DagsterRunStatus:
-    """Launch a run that materializes all church assets and wait for it to finish."""
-    client = DagsterGraphQLClient(host, port_number=port)
-    run_id = client.submit_job_execution(
-        JOB_NAME,
-        repository_location_name=repository_location,
-        repository_name=repository,
-        run_config=RUN_CONFIG,
-        asset_selection=ASSET_NAMES,
+    """Use the shared full-pipeline trigger and wait for completion in this CLI."""
+    run_id = trigger_geo_places_enrichment(
+        **PLACE_DISCOVERY_CONFIG,
+        host=host,
+        port=port,
+        repository_location=repository_location,
+        repository=repository,
     )
-    print(f"Submitted {JOB_NAME} run {run_id} for {', '.join(ASSET_NAMES)}.")
+    client = DagsterGraphQLClient(host, port_number=port, timeout=15)
+    print(f"Submitted {JOB_NAME} run {run_id}.")
 
     deadline = time.monotonic() + timeout_seconds
     while True:
@@ -88,7 +86,7 @@ def trigger_church_places(
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Trigger all church assets on Dagster.")
+    parser = argparse.ArgumentParser(description="Trigger the geo places pipeline on Dagster.")
     parser.add_argument("--dry-run", action="store_true", help="validate config only")
     parser.add_argument(
         "--host", default=os.getenv("DAGSTER_HOST", "localhost"),
@@ -114,12 +112,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    validate_church_places_config()
-    print(f"Run config is valid for {JOB_NAME}; selecting {', '.join(ASSET_NAMES)}.")
+    validate_geo_places_pipeline_config()
+    print(f"Run config is valid for {JOB_NAME}; discovering up to five places.")
     if args.dry_run:
         return 0
 
-    status = trigger_church_places(
+    status = trigger_geo_places_pipeline(
         host=args.host,
         port=args.port,
         repository_location=args.repository_location,

@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from leoai import rag_db_manager
+from leoai import rag_agent as rag_agent_module
 from leoai.db_utils import DATABASE_URL
 from leoai.leo_datamodel import Message
 from leoai.rag_agent import (
@@ -26,6 +27,39 @@ from leoai.rag_agent import (
     nearby_result_limit,
 )
 from leoai.rag_db_manager import ChatDBManager, NearbyLocationUnavailable
+
+
+@pytest.fixture(autouse=True)
+def stub_chat_nearby_intent(monkeypatch):
+    def classify(message):
+        normalized = message.casefold()
+        if "mỳ" in normalized or "mì" in normalized or "my" in normalized:
+            return {
+                "is_nearby_place_question": True,
+                "terms": ["noodles", "mỳ", "mì"],
+                "search_name": "noodle",
+            }
+        if "church" in normalized:
+            return {
+                "is_nearby_place_question": True,
+                "terms": ["church", "cathedral", "nhà thờ"],
+                "search_name": "church",
+            }
+        if "coffee" in normalized:
+            return {
+                "is_nearby_place_question": True,
+                "terms": ["coffee"],
+                "search_name": "coffee",
+            }
+        return {
+            "is_nearby_place_question": False,
+            "terms": [],
+            "search_name": "",
+        }
+
+    monkeypatch.setattr(
+        rag_agent_module, "classify_nearby_place_intent", classify
+    )
 
 
 class ListParser(HTMLParser):
@@ -63,7 +97,12 @@ def places(count):
     ("top 20 places near me", 20),
 ])
 def test_count_and_nearby_intent(question, count):
-    assert is_nearby_place_question(question)
+    ai_client = SimpleNamespace(generate_json=Mock(return_value={
+        "is_nearby_place_question": True,
+        "terms": ["church", "cathedral", "nhà thờ"],
+        "search_name": "church",
+    }))
+    assert is_nearby_place_question(question, ai_client)
     assert nearby_result_limit(question) == count
 
 
@@ -104,7 +143,7 @@ def test_html_response_has_requested_list_shape(count):
     ('Church & "Chapel" <test>', "Street #1? & district"),
     ("Church without address", None),
 ])
-def test_each_strong_place_name_links_to_google_maps(name, address):
+def test_each_strong_place_name_links_to_google_search(name, address):
     answer = format_nearby_places_answer(
         [{"name": name, "address": address}], "English", ["church"], "html"
     )
@@ -115,10 +154,9 @@ def test_each_strong_place_name_links_to_google_maps(name, address):
     url = urlparse(link["href"])
     assert url.scheme == "https"
     assert url.netloc == "www.google.com"
-    assert url.path == "/maps/search/"
+    assert url.path == "/search"
     assert parse_qs(url.query) == {
-        "api": ["1"],
-        "query": [f"{name}, {address}" if address else name],
+        "q": [f"{name} {address}" if address else name],
     }
     assert link["target"] == "_blank"
     assert link["rel"] == "noopener noreferrer"
@@ -172,14 +210,20 @@ def test_agent_queries_database_before_any_ai_work(count):
             target_language="English", answer_in_format="html",
         )
         agent.db.find_nearby_places.assert_awaited_once_with(
-            "tp", nearby_place_terms("churches"), count,
+            "tp", ["church", "cathedral", "nhà thờ"], count,
             user_id="visitor", latitude=10.747904, longitude=106.6467328,
+            radius_meters=rag_db_manager.NEARBY_PLACES_RADIUS_METERS,
         )
         agent.context.build_context_summary.assert_not_awaited()
         agent.create_geolocation_touchpoint.assert_not_awaited()
         agent._safe_generate.assert_not_awaited()
-        assert "<ol>" not in answer
-        assert answer.count("\n") == count + 1
+        parser = ListParser()
+        parser.feed(answer)
+        assert parser.tags.count("ol") == 1
+        assert parser.tags.count("li") == count
+        assert len(parser.links) == count
+        assert all(link["href"].startswith("https://www.google.com/search?") for link in parser.links)
+        assert all(link["target"] == "_blank" for link in parser.links)
         assert len(agent.db.save_chat_message.await_args_list) == 2
         assert all(call.kwargs["embed"] is False for call in agent.db.save_chat_message.await_args_list)
 
@@ -329,7 +373,8 @@ def route_client(monkeypatch):
     agent = make_agent()
     monkeypatch.setattr(routes, "rag_agent", agent)
     monkeypatch.setattr(routes, "REDIS_CLIENT", SimpleNamespace(
-        hget=lambda visitor, key: "cached-tp" if key == "touchpoint_id" else None
+        hget=lambda visitor, key: "cached-tp" if key == "touchpoint_id" else None,
+        hset=Mock(),
     ))
     monkeypatch.setattr(routes, "is_safe_to_answer", lambda visitor: True)
     app = FastAPI()
@@ -337,8 +382,69 @@ def route_client(monkeypatch):
     return TestClient(app), agent
 
 
+def test_geolocation_endpoint_returns_recommended_action_array(route_client):
+    from leobot_router import leobot_main_router as routes
+
+    client, agent = route_client
+    agent.create_geolocation_touchpoint = AsyncMock(return_value={
+        "touchpoint_id": "new-tp",
+        "latitude": 10.75,
+        "longitude": 106.62,
+        "nearby_places": [
+            {"category": "Coffee Shop"},
+            {"category": "Restaurant"},
+            {"category": "Coffee Shop"},
+        ],
+    })
+
+    response = client.post("/_leoai/touchpoint/geolocation", json={
+        "visitor_id": "visitor",
+        "latitude": 10.75,
+        "longitude": 106.62,
+    })
+
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data["recommended_actions"], list)
+    assert [action["label"]["en"] for action in data["recommended_actions"]] == [
+        "Top 5 places near me",
+        "Top 5 cafes near me",
+        "Top 5 restaurants near me",
+    ]
+    assert data["recommended_actions"][1]["question"]["vi"] == (
+        "Cho tôi xem top 5 quán cà phê gần tôi."
+    )
+    routes.REDIS_CLIENT.hset.assert_called_once_with(
+        "visitor", mapping={"touchpoint_id": "new-tp"},
+    )
+
+
+def test_geolocation_endpoint_returns_default_actions_when_no_categories(route_client):
+    client, agent = route_client
+    agent.create_geolocation_touchpoint = AsyncMock(return_value={
+        "touchpoint_id": "new-tp",
+        "latitude": 10.75,
+        "longitude": 106.62,
+        "nearby_places": [],
+    })
+
+    response = client.post("/touchpoint/geolocation", json={
+        "visitor_id": "visitor",
+        "latitude": 10.75,
+        "longitude": 106.62,
+    })
+
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data["recommended_actions"], list)
+    assert len(data["recommended_actions"]) == 3
+    assert data["recommended_actions"][2]["label"]["vi"] == (
+        "Top 5 nhà thờ gần tôi"
+    )
+
+
 @pytest.mark.parametrize("count", [3, 10, 20])
-def test_handle_chat_returns_dynamic_text_lists(route_client, count):
+def test_handle_chat_returns_dynamic_linked_place_lists(route_client, count):
     client, agent = route_client
     agent.db.find_nearby_places.return_value = places(count)
     response = client.post("/_leoai/ask", json={
@@ -348,8 +454,12 @@ def test_handle_chat_returns_dynamic_text_lists(route_client, count):
     assert response.status_code == 200
     data = response.json()
     assert data["error_code"] == 0
-    assert "<ol>" not in data["answer"]
-    assert data["answer"].count("\n") == count + 1
+    parser = ListParser()
+    parser.feed(data["answer"])
+    assert parser.tags.count("li") == count
+    assert len(parser.links) == count
+    assert all(link["href"].startswith("https://www.google.com/search?") for link in parser.links)
+    assert all(link["target"] == "_blank" for link in parser.links)
     assert data["touchpoint_id"] == "cached-tp"
     assert agent.db.find_nearby_places.call_args.args[2] == count
     agent._safe_generate.assert_not_awaited()
@@ -363,10 +473,80 @@ def test_handle_chat_accepts_coordinates_and_api_count_override(route_client):
         "result_limit": 20, "latitude": 10.747904, "longitude": 106.6467328,
     })
     assert response.status_code == 200
-    assert "<ol>" not in response.json()["answer"]
-    assert response.json()["answer"].count("\n") == 21
+    parser = ListParser()
+    parser.feed(response.json()["answer"])
+    assert parser.tags.count("li") == 20
+    assert len(parser.links) == 20
     assert agent.db.find_nearby_places.call_args.args[2] == 20
     agent.create_geolocation_touchpoint.assert_not_awaited()
+
+
+def test_handle_chat_returns_queued_enrichment_notice_for_no_data(route_client, monkeypatch):
+    from leoai import rag_agent
+
+    client, agent = route_client
+    agent.db.find_nearby_places.return_value = []
+    agent.db.resolve_nearby_location = AsyncMock(return_value=(10.75, 106.62))
+    trigger = Mock(return_value="run-id")
+    monkeypatch.setattr(rag_agent, "trigger_geo_places_enrichment", trigger)
+    response = client.post("/_leoai/ask", json={
+        "visitor_id": "visitor", "question": "top 3 coffee shop near me in 1 km",
+        "answer_in_language": "en",
+    })
+    assert response.status_code == 200
+    data = response.json()
+    assert data["error_code"] == 0
+    assert "no matching place data" in data["answer"]
+    assert "queued a search" in data["answer"]
+    assert data["touchpoint_id"] == "cached-tp"
+    trigger.assert_called_once_with(
+        name="coffee", latitude=10.75, longitude=106.62, radius=1000,
+        count=3,
+    )
+
+
+def test_unaccented_noodle_question_queues_dagster_enrichment(route_client, monkeypatch):
+    from leoai import rag_agent
+
+    client, agent = route_client
+    agent.db.find_nearby_places.return_value = []
+    agent.db.resolve_nearby_location = AsyncMock(return_value=(10.75, 106.62))
+    trigger = Mock(return_value="run-id")
+    monkeypatch.setattr(rag_agent, "trigger_geo_places_enrichment", trigger)
+    response = client.post("/_leoai/ask", json={
+        "visitor_id": "visitor",
+        "question": "5 quán mỳ gần toi",
+        "answer_in_language": "vi",
+    })
+    assert response.status_code == 200
+    data = response.json()
+    assert "chưa có dữ liệu phù hợp" in data["answer"]
+    assert "đã gửi yêu cầu" in data["answer"]
+    agent.db.find_nearby_places.assert_awaited_once_with(
+        "cached-tp",
+        ["noodles", "mỳ", "mì"],
+        5,
+        user_id="visitor",
+        latitude=None,
+        longitude=None,
+        radius_meters=rag_db_manager.NEARBY_PLACES_RADIUS_METERS,
+    )
+    trigger.assert_called_once_with(
+        name="noodle",
+        latitude=10.75,
+        longitude=106.62,
+        radius=rag_db_manager.NEARBY_PLACES_RADIUS_METERS,
+        count=5,
+    )
+
+
+def test_handle_chat_rejects_invalid_radius_before_search(route_client):
+    client, agent = route_client
+    response = client.post("/_leoai/ask", json={
+        "visitor_id": "visitor", "question": "coffee near me in -1 km",
+    })
+    assert response.status_code == 400
+    agent.db.find_nearby_places.assert_not_awaited()
 
 
 def test_handle_chat_rejects_invalid_count_and_partial_coordinates(route_client):

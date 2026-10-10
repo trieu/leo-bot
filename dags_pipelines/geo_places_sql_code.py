@@ -46,7 +46,7 @@ ON CONFLICT (geo_place_id) DO UPDATE SET
 """
 
 UPSERT_TEMPLATE = (
-    "(%s,%s,%s,'Church',%s,%s,%s,%s,"
+    "(%s,%s,%s,%s,%s,%s,%s,%s,"
     "CASE WHEN %s IS NULL OR %s IS NULL THEN NULL::geometry "
     "ELSE ST_SetSRID(ST_MakePoint(%s,%s),4326) END,"
     "%s,%s,%s,%s,%s,%s,%s)"
@@ -88,6 +88,39 @@ WHERE data_checked_at IS NULL
 ORDER BY data_checked_at NULLS FIRST
 """
 
+SELECT_TARGETED_SEARCH_PLACES = """
+SELECT gp.id, gp.name, gp.address, gp.category, gp.latitude, gp.longitude
+FROM geo_places AS gp
+WHERE gp.geom IS NOT NULL
+  AND ST_DWithin(
+      gp.geom::geography,
+      ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography,
+      %s
+  )
+  AND (
+      %s = 'places'
+      OR lower(coalesce(gp.name, '')) LIKE '%%' || lower(%s) || '%%'
+      OR lower(coalesce(gp.description, '')) LIKE '%%' || lower(%s) || '%%'
+      OR lower(coalesce(gp.category, '')) LIKE '%%' || lower(%s) || '%%'
+      OR EXISTS (
+          SELECT 1
+          FROM unnest(coalesce(gp.tags, ARRAY[]::text[])) AS tag
+          WHERE lower(tag) LIKE '%%' || lower(%s) || '%%'
+      )
+  )
+  AND (
+      gp.data_checked_at IS NULL
+      OR gp.data_checked_at < NOW() - make_interval(days => %s)
+  )
+ORDER BY gp.data_checked_at NULLS FIRST,
+         ST_Distance(
+             gp.geom::geography,
+             ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography
+         ),
+         gp.id
+LIMIT %s
+"""
+
 UPDATE_SEARCH_CHECK = """
 UPDATE geo_places
 SET data_checked_at=NOW(), updated_at=NOW()
@@ -106,9 +139,46 @@ WHERE id=%s
 
 SELECT_MASS_SCHEDULE_PLACES = """
 SELECT id, name, address, website FROM geo_places
-WHERE schedule_checked_at IS NULL
-   OR schedule_checked_at < NOW() - make_interval(days => %s)
+WHERE lower(coalesce(category, '')) ~ '(church|cathedral|chapel|parish|nhà thờ)'
+  AND (
+      schedule_checked_at IS NULL
+      OR schedule_checked_at < NOW() - make_interval(days => %s)
+  )
 ORDER BY schedule_checked_at NULLS FIRST, rating_count DESC NULLS LAST
+"""
+
+SELECT_TARGETED_MASS_SCHEDULE_PLACES = """
+SELECT gp.id, gp.name, gp.address, gp.website
+FROM geo_places AS gp
+WHERE lower(coalesce(gp.category, '')) ~ '(church|cathedral|chapel|parish|nhà thờ)'
+  AND gp.geom IS NOT NULL
+  AND ST_DWithin(
+      gp.geom::geography,
+      ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography,
+      %s
+  )
+  AND (
+      %s = 'places'
+      OR lower(coalesce(gp.name, '')) LIKE '%%' || lower(%s) || '%%'
+      OR lower(coalesce(gp.category, '')) LIKE '%%' || lower(%s) || '%%'
+      OR EXISTS (
+          SELECT 1
+          FROM unnest(coalesce(gp.tags, ARRAY[]::text[])) AS tag
+          WHERE lower(tag) LIKE '%%' || lower(%s) || '%%'
+      )
+  )
+  AND (
+      gp.schedule_checked_at IS NULL
+      OR gp.schedule_checked_at < NOW() - make_interval(days => %s)
+  )
+ORDER BY gp.schedule_checked_at NULLS FIRST,
+         ST_Distance(
+             gp.geom::geography,
+             ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography
+         ),
+         gp.rating_count DESC NULLS LAST,
+         gp.id
+LIMIT %s
 """
 
 UPDATE_MASS_SCHEDULE_FOUND = """
@@ -148,4 +218,35 @@ WHERE NOT EXISTS (
       AND ks.metadata->>'source' = 'geo_places'
 )
 ORDER BY gp.created_at, gp.id
+"""
+
+SELECT_TARGETED_KNOWLEDGE_PLACES = """
+SELECT gp.id, gp.geo_place_id, gp.name, gp.address, gp.category,
+       gp.phone, gp.website, gp.description, gp.schedule_operation
+FROM geo_places AS gp
+WHERE gp.geom IS NOT NULL
+  AND ST_DWithin(
+      gp.geom::geography,
+      ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography,
+      %s
+  )
+  AND (
+      %s = 'places'
+      OR lower(coalesce(gp.name, '')) LIKE '%%' || lower(%s) || '%%'
+      OR lower(coalesce(gp.description, '')) LIKE '%%' || lower(%s) || '%%'
+      OR lower(coalesce(gp.category, '')) LIKE '%%' || lower(%s) || '%%'
+      OR EXISTS (
+          SELECT 1
+          FROM unnest(coalesce(gp.tags, ARRAY[]::text[])) AS tag
+          WHERE lower(tag) LIKE '%%' || lower(%s) || '%%'
+      )
+  )
+  AND NOT EXISTS (
+      SELECT 1
+      FROM knowledge_sources AS ks
+      WHERE ks.metadata->>'geo_place_id' = gp.id::text
+        AND ks.metadata->>'source' = 'geo_places'
+  )
+ORDER BY gp.created_at, gp.id
+LIMIT %s
 """

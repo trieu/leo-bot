@@ -83,7 +83,7 @@
                         <i class="fa fa-compass me-1" aria-hidden="true"></i>
                         <span data-i18n="exploreWithContext">Khám phá theo ngữ cảnh</span>
                     </span>
-                    <h1 class="display-6 fw-bold mb-2" data-i18n="heroTitle">Tìm địa điểm tiếp theo cùng LEO.</h1>
+                    <h1 class="display-3 fw-bold mb-2" data-i18n="heroTitle">Tìm địa điểm tiếp theo cùng LEO.</h1>
                     <p class="lead mb-0">
                         <span class="d-none d-sm-inline" data-i18n="heroDescription">
                             Hỏi về các địa điểm gần bạn, nhận gợi ý địa phương hoặc tiếp tục
@@ -144,7 +144,8 @@
                             <span class="visually-hidden">Loading LEO chatbot</span>
                         </div>
 
-                        <div class="botui-app-container" id="LEO_ChatBot_Container" style="display:none;">
+                        <div class="botui-app-container" id="LEO_ChatBot_Container"
+                            data-place-search-links="true" style="display:none;">
                             <bot-ui></bot-ui>
                         </div>
                     </div>
@@ -153,69 +154,55 @@
 
             <div class="col-lg-4">
                 <aside class="d-flex flex-column gap-3" aria-label="Location and discovery tools">
-                    <section class="card leobot-location-card border-0 rounded-4" aria-labelledby="leobot_location_title">
+                    
+                    <section id="leobot_discover_section" class="card border-0 rounded-4 leobot-discover-card" aria-labelledby="leobot_discover_title">
                         <div class="card-body p-3 p-md-4">
-                            <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                            <div class="text-uppercase leobot-card-kicker" data-i18n="startExploring">Bắt đầu khám phá</div>
+                            <h2 id="leobot_discover_title" class="h5 mt-1 mb-3" data-i18n="whatLookingFor">Bạn đang tìm gì?</h2>
+                            <div id="leobot_quick_actions" class="d-grid gap-2" aria-live="polite">
+                                <p class="small text-secondary mb-0" data-i18n="loadingRecommendations">
+                                    Đang tải gợi ý gần bạn…
+                                </p>
+                            </div>
+                            <p class="small text-secondary mb-0 mt-3" data-i18n="nearbyHint">
+                                LEO sẽ dùng vị trí của bạn khi tìm kiếm địa điểm gần đó.
+                            </p>
+                        </div>
+                    </section>
+
+                    <section id="leobot_location_section" class="card leobot-location-card border-0 rounded-4" aria-labelledby="leobot_location_title">
+                        <div class="card-body p-3">
+                            <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
                                 <div>
                                     <div class="text-uppercase leobot-card-kicker" data-i18n="yourContext">Ngữ cảnh của bạn</div>
-                                    <h2 id="leobot_location_title" class="h5 mb-0 mt-1" data-i18n="currentLocation">Vị trí hiện tại</h2>
+                                    <h2 id="leobot_location_title" class="h6 mb-0 mt-1" data-i18n="currentLocation">Vị trí hiện tại</h2>
                                 </div>
                                 <span id="leobot_location_icon" class="leobot-location-icon is-pending" aria-hidden="true">
                                     <i class="fa fa-location-arrow"></i>
                                 </span>
                             </div>
 
-                            <div id="leobot_location_status" class="alert alert-secondary small mb-3" role="status" aria-live="polite">
+                            <div id="leobot_location_status" class="alert alert-secondary small mb-2" role="status" aria-live="polite">
                                 <i class="fa fa-circle-o-notch fa-spin me-2" aria-hidden="true"></i>
                                 <span data-i18n="checkingLocation">Đang kiểm tra khả năng truy cập vị trí…</span>
                             </div>
-                            <div class="leobot-location-data rounded-3 p-3 mb-3">
-                                <div class="d-flex justify-content-between gap-3 mb-2">
+                            <div class="leobot-location-data rounded-3 p-2 mb-2">
+                                <div>
                                     <span class="text-secondary small" data-i18n="coordinates">Tọa độ</span>
-                                    <strong id="leobot_location_coordinates" class="small text-end" data-i18n="notAvailable">Chưa có dữ liệu</strong>
+                                    <strong id="leobot_location_coordinates" class="small" data-i18n="notAvailable">Chưa có dữ liệu</strong>
                                 </div>
-                                <div class="d-flex justify-content-between gap-3">
+                                <div>
                                     <span class="text-secondary small" data-i18n="accuracy">Độ chính xác</span>
-                                    <strong id="leobot_location_accuracy" class="small text-end">—</strong>
+                                    <strong id="leobot_location_accuracy" class="small">—</strong>
                                 </div>
                             </div>
-                            <button id="leobot_location_button" type="button" class="btn btn-primary w-100 rounded-3">
+                            <button id="leobot_location_button" type="button" class="btn btn-sm btn-primary w-100 rounded-3">
                                 <i class="fa fa-crosshairs me-2" aria-hidden="true"></i>
                                 <span data-i18n="useMyLocation">Dùng vị trí của tôi</span>
                             </button>
-                            <p class="text-secondary text-center small mb-0 mt-2">
+                            <p class="leobot-location-hint text-secondary text-center small mb-0 mt-2">
                                 <i class="fa fa-lock me-1" aria-hidden="true"></i>
                                 <span data-i18n="permissionHint">Bạn có thể thay đổi quyền này trong cài đặt trình duyệt.</span>
-                            </p>
-                        </div>
-                    </section>
-
-                    <section class="card border-0 rounded-4 leobot-discover-card" aria-labelledby="leobot_discover_title">
-                        <div class="card-body p-3 p-md-4">
-                            <div class="text-uppercase leobot-card-kicker" data-i18n="startExploring">Bắt đầu khám phá</div>
-                            <h2 id="leobot_discover_title" class="h5 mt-1 mb-3" data-i18n="whatLookingFor">Bạn đang tìm gì?</h2>
-                            <div id="leobot_quick_actions" class="d-grid gap-2">
-                                <button type="button" class="btn btn-light text-start rounded-3 leobot-quick-action"
-                                    data-question-vi="Có những địa điểm nào gần tôi?"
-                                    data-question-en="What places are near me?">
-                                    <i class="fa fa-compass text-primary me-2" aria-hidden="true"></i>
-                                    <span data-i18n="placesNearMe">Địa điểm gần tôi</span>
-                                </button>
-                                <button type="button" class="btn btn-light text-start rounded-3 leobot-quick-action"
-                                    data-question-vi="Hãy cho tôi xem các quán cà phê gần tôi."
-                                    data-question-en="Show me cafes near me.">
-                                    <i class="fa fa-coffee text-primary me-2" aria-hidden="true"></i>
-                                    <span data-i18n="findCafe">Tìm quán cà phê</span>
-                                </button>
-                                <button type="button" class="btn btn-light text-start rounded-3 leobot-quick-action"
-                                    data-question-vi="Hãy cho tôi xem các nhà thờ gần tôi."
-                                    data-question-en="Show me churches near me.">
-                                    <i class="fa fa-map-marker text-primary me-2" aria-hidden="true"></i>
-                                    <span data-i18n="discoverPlace">Khám phá địa điểm đáng chú ý</span>
-                                </button>
-                            </div>
-                            <p class="small text-secondary mb-0 mt-3" data-i18n="nearbyHint">
-                                LEO sẽ dùng vị trí của bạn khi tìm kiếm địa điểm gần đó.
                             </p>
                         </div>
                     </section>
@@ -275,263 +262,6 @@
 
      <!-- LEO CHATBOT CODE -->
     <script src="https://{{ HOSTNAME }}/resources/js/leocdp.chatbot.js?_={{ timestamp }}" ></script>
-    <script>
-        window.LEO_UI_TEXTS = {
-            vi: {
-                help: "Trợ giúp",
-                exploreWithContext: "Khám phá theo ngữ cảnh",
-                heroTitle: "Khám phá địa điểm cùng LEO",
-                heroDescription: "Hỏi về các địa điểm gần bạn, nhận gợi ý địa phương hoặc tiếp tục trò chuyện về địa điểm bạn đã chọn.",
-                heroDescriptionMobile: "Khám phá địa điểm gần bạn cùng LEO.",
-                locationHelps: "Vị trí giúp LEO hữu ích hơn",
-                locationPrivacy: "Trình duyệt sẽ hỏi quyền truy cập. Chúng tôi chỉ dùng vị trí để tìm địa điểm gần bạn, không dùng để theo dõi.",
-                chatWithLeo: "Trò chuyện với LEO",
-                online: "Đang trực tuyến",
-                chatHint: "Thử “quán cà phê gần tôi” hoặc chọn một gợi ý.",
-                locationOff: "Đã tắt vị trí",
-                preparingAssistant: "Đang chuẩn bị trợ lý địa phương…",
-                yourContext: "Ngữ cảnh của bạn",
-                currentLocation: "Vị trí hiện tại",
-                checkingLocation: "Đang kiểm tra khả năng truy cập vị trí…",
-                coordinates: "Tọa độ",
-                notAvailable: "Chưa có dữ liệu",
-                accuracy: "Độ chính xác",
-                available: "Có dữ liệu",
-                language: "Ngôn ngữ",
-                useMyLocation: "Dùng vị trí của tôi",
-                refreshLocation: "Làm mới vị trí",
-                gettingLocation: "Đang lấy vị trí…",
-                permissionHint: "Bạn có thể thay đổi quyền này trong cài đặt trình duyệt.",
-                startExploring: "Bắt đầu khám phá",
-                whatLookingFor: "Bạn đang tìm gì?",
-                placesNearMe: "Địa điểm gần tôi",
-                findCafe: "Tìm quán cà phê",
-                discoverPlace: "Khám phá địa điểm đáng chú ý",
-                nearbyHint: "LEO sẽ dùng vị trí của bạn khi tìm kiếm địa điểm gần đó.",
-                madeBy: "Phát triển bởi",
-                privateByDesign: "· Riêng tư theo thiết kế",
-                locationOptional: "Dịch vụ vị trí là tùy chọn.",
-                helpTitle: "Sử dụng LEO hiệu quả hơn",
-                helpDescription: "Hãy hỏi tự nhiên. Để khám phá địa điểm, hãy thêm “gần tôi” và cho phép truy cập vị trí khi được hỏi.",
-                helpExampleOne: "“Tìm nhà thờ gần nhất”",
-                helpExampleTwo: "“Gần đây có gì thú vị?”",
-                helpExampleThree: "Chọn số của một địa điểm để đặt làm chủ đề cho câu hỏi tiếp theo.",
-                locationRequesting: "Đang chờ quyền truy cập từ trình duyệt…",
-                locationReady: "Đã sẵn sàng sử dụng vị trí. Câu trả lời gần bạn sẽ phù hợp hơn.",
-                locationDenied: "Bạn chưa cấp quyền vị trí. Bạn vẫn có thể trò chuyện hoặc thử lại.",
-                locationUnavailable: "Trình duyệt này không cung cấp được vị trí.",
-                locationError: "Không thể chuẩn bị vị trí. Vui lòng thử lại.",
-                locationReadyBadge: "Đã bật vị trí",
-                chatPlaceholder: "Bạn muốn tìm gì?",
-                emptyQuestion: "Vui lòng nhập câu hỏi hoặc số của địa điểm.",
-                networkError: "Không thể gửi tin nhắn. Vui lòng thử lại.",
-                assistantLoadError: "Không thể tải LEO. Vui lòng tải lại trang và thử lại."
-            },
-            en: {
-                help: "Help",
-                exploreWithContext: "Explore with context",
-                heroTitle: "Explore Places with LEO",
-                heroDescription: "Ask about nearby places, get local ideas, or continue a conversation about a place you selected.",
-                heroDescriptionMobile: "Discover nearby places with a little help from LEO.",
-                locationHelps: "Location helps LEO be useful",
-                locationPrivacy: "Your browser asks for permission. We use your location to find nearby places, not to track you.",
-                chatWithLeo: "Chat with LEO",
-                online: "Online",
-                chatHint: "Try “coffee near me” or choose a suggestion.",
-                locationOff: "Location off",
-                preparingAssistant: "Preparing your local assistant…",
-                yourContext: "Your context",
-                currentLocation: "Current location",
-                checkingLocation: "Checking whether location is available…",
-                coordinates: "Coordinates",
-                notAvailable: "Not available",
-                accuracy: "Accuracy",
-                available: "Available",
-                language: "Language",
-                useMyLocation: "Use my location",
-                refreshLocation: "Refresh location",
-                gettingLocation: "Getting location…",
-                permissionHint: "You can change this permission in your browser settings.",
-                startExploring: "Start exploring",
-                whatLookingFor: "What are you looking for?",
-                placesNearMe: "Places near me",
-                findCafe: "Find a cafe",
-                discoverPlace: "Discover a place of interest",
-                nearbyHint: "LEO will use your location when a nearby search needs it.",
-                madeBy: "Made by",
-                privateByDesign: "· Private by design",
-                locationOptional: "Location services are optional.",
-                helpTitle: "Get more from LEO",
-                helpDescription: "Ask naturally. For local discovery, include “near me” and allow location access when prompted.",
-                helpExampleOne: "“Find the nearest church”",
-                helpExampleTwo: "“What can I do around here?”",
-                helpExampleThree: "Choose a place number to make it the focus of your next questions.",
-                locationRequesting: "Waiting for browser permission…",
-                locationReady: "Location ready. Nearby answers will be more relevant.",
-                locationDenied: "Location access was not granted. You can still chat, or try again.",
-                locationUnavailable: "Location is unavailable in this browser.",
-                locationError: "We could not prepare location. Please try again.",
-                locationReadyBadge: "Location ready",
-                chatPlaceholder: "What would you like to find?",
-                emptyQuestion: "Please enter a question or a place number.",
-                networkError: "Unable to send your message. Please try again.",
-                assistantLoadError: "LEO could not load. Please refresh the page and try again."
-            }
-        };
-
-        window.leoUiText = function (key) {
-            var language = window.LEO_UI_LANGUAGE === "en" ? "en" : "vi";
-            return (window.LEO_UI_TEXTS[language] && window.LEO_UI_TEXTS[language][key])
-                || window.LEO_UI_TEXTS.vi[key]
-                || key;
-        };
-
-        (function () {
-            var latestLocationDetail = { state: "pending" };
-
-            function applyLanguage(language) {
-                window.LEO_UI_LANGUAGE = language === "en" ? "en" : "vi";
-                try {
-                    window.localStorage.setItem("leobot_ui_language", window.LEO_UI_LANGUAGE);
-                } catch (error) {
-                    console.warn("Unable to save LEO language preference.", error);
-                }
-                $("html").attr("lang", window.LEO_UI_LANGUAGE);
-                $("#leobot_language").val(window.LEO_UI_LANGUAGE);
-                $("#leobot_language").attr("aria-label", window.leoUiText("language"));
-                $("#leobot_help_button")
-                    .attr("aria-label", window.leoUiText("help"))
-                    .attr("title", window.leoUiText("help"));
-                $("[data-i18n]").each(function () {
-                    $(this).text(window.leoUiText($(this).data("i18n")));
-                });
-                $(".leobot-quick-action").each(function () {
-                    $(this).attr(
-                        "data-question",
-                        $(this).attr("data-question-" + window.LEO_UI_LANGUAGE)
-                    );
-                });
-                $("#LEO_ChatBot_Container .botui-actions-text-input").attr(
-                    "placeholder",
-                    window.leoUiText("chatPlaceholder")
-                );
-                var $greeting = $("#LEO_ChatBot_Container .leobot-answer .botui-message-content").first();
-                if ($greeting.length && typeof getGreetingMessage === "function") {
-                    $greeting.text(
-                        getGreetingMessage(
-                            window.currentUserProfile
-                                ? window.currentUserProfile.displayName
-                                : "",
-                            window.LEO_UI_LANGUAGE
-                        )
-                    );
-                }
-                updateLocationPanel(latestLocationDetail);
-            }
-
-            function updateLocationPanel(detail) {
-                latestLocationDetail = detail || { state: "pending" };
-                var $status = $("#leobot_location_status");
-                var $button = $("#leobot_location_button");
-                var $icon = $("#leobot_location_icon");
-                var $badge = $("#leobot_chat_location_badge");
-                var $coordinates = $("#leobot_location_coordinates");
-                var $accuracy = $("#leobot_location_accuracy");
-                if (!$status.length || !$button.length || !$icon.length) return;
-
-                var state = detail && detail.state ? detail.state : "pending";
-                var messages = {
-                    pending: ["secondary", "fa-circle-o-notch fa-spin", "checkingLocation"],
-                    requesting: ["info", "fa-location-arrow", "locationRequesting"],
-                    ready: ["success", "fa-check-circle", "locationReady"],
-                    denied: ["warning", "fa-info-circle", "locationDenied"],
-                    unavailable: ["warning", "fa-exclamation-triangle", "locationUnavailable"],
-                    error: ["danger", "fa-exclamation-circle", "locationError"]
-                };
-                var message = messages[state] || messages.error;
-                $status.attr("class", "alert alert-" + message[0] + " small mb-3")
-                    .html('<i class="fa ' + message[1] + ' me-2" aria-hidden="true"></i><span>' + window.leoUiText(message[2]) + '</span>');
-                $icon.attr("class", "leobot-location-icon is-" + state);
-                $button.prop("disabled", state === "requesting").html(state === "requesting"
-                    ? '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>' + window.leoUiText("gettingLocation")
-                    : '<i class="fa fa-crosshairs me-2" aria-hidden="true"></i>' + window.leoUiText(state === "ready" ? "refreshLocation" : "useMyLocation"));
-
-                if (state === "ready" && detail.data) {
-                    var lat = Number(detail.data.latitude);
-                    var lon = Number(detail.data.longitude);
-                    $coordinates.text(lat.toFixed(5) + ", " + lon.toFixed(5));
-                    $accuracy.text(detail.data.accuracy ? "±" + Math.round(detail.data.accuracy) + " m" : window.leoUiText("available"));
-                    $badge.attr("class", "badge rounded-pill text-bg-success-subtle text-success-emphasis d-none d-sm-inline-flex align-items-center gap-1")
-                        .html('<i class="fa fa-location-arrow" aria-hidden="true"></i> ' + window.leoUiText("locationReadyBadge"));
-                } else if (state !== "ready") {
-                    $badge.attr("class", "badge rounded-pill text-bg-light text-secondary d-none d-sm-inline-flex align-items-center gap-1")
-                        .html('<i class="fa fa-location-arrow" aria-hidden="true"></i> ' + window.leoUiText("locationOff"));
-                }
-            }
-
-            $(document).on("leo:location", function (event, detail) {
-                updateLocationPanel(detail || {});
-            });
-
-            $("#leobot_location_button").on("click", function () {
-                if (typeof requestUserGeolocation === "function" && window.currentUserProfile) {
-                    requestUserGeolocation(window.currentUserProfile.visitorId, true);
-                }
-            });
-
-            $("#leobot_language").on("change", function () {
-                applyLanguage($(this).val());
-            });
-
-            $(".leobot-quick-action").on("click", function () {
-                var question = $(this).data("question");
-                if (question && typeof sendQuestionToLeoAI === "function") {
-                    sendQuestionToLeoAI("ask", question);
-                }
-            });
-
-            applyLanguage(window.LEO_UI_LANGUAGE);
-        }());
-    </script>
-    <script>   
-        $(document).ready(function(){
-            var $loader = $("#LEO_ChatBot_Container_Loader");
-            var $chat = $("#LEO_ChatBot_Container");
-            var startupComplete = false;
-            var startChat = function (visitorId) {
-                if (startupComplete) return;
-                startupComplete = true;
-                if (typeof window.startLeoChatBot === "function") {
-                    window.startLeoChatBot(visitorId);
-                } else {
-                    $loader.removeClass("d-flex").addClass("d-none").hide();
-                    $chat.stop(true, true).show().css("opacity", "1").html(
-                        '<div class="alert alert-danger m-3" role="alert">' +
-                        '<i class="fa fa-exclamation-circle me-2" aria-hidden="true"></i>' +
-                        window.leoUiText("assistantLoadError") +
-                        '</div>'
-                    );
-                }
-            };
-            var startupFallback = window.setTimeout(function () {
-                startChat();
-            }, 8000);
-            var obsjs = location.protocol + '//' + HOSTNAME + "/resources/js/leocdp.observer.js";
-            var host = location.hostname;
-            var okToLoad = host === "leobot.leocdp.com" || host === "leobot.example.com";
-
-            if (CDP_TRACKING && okToLoad) {
-                $.getScript(obsjs)
-                    .fail(function () {
-                        console.warn("LEO observer failed to load; starting chatbot without tracking.");
-                        window.clearTimeout(startupFallback);
-                        startChat();
-                    });
-            } else {
-                window.clearTimeout(startupFallback);
-                startChat();
-            }
-        });
-    </script>
+    <script src="https://{{ HOSTNAME }}/resources/js/leocdp.agents.js?_={{ timestamp }}" defer></script>
 </body>
 </html>
