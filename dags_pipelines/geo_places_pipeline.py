@@ -451,7 +451,7 @@ class BraveSearchRepository:
     """Replace one place's Brave Search sources and their snippet chunks."""
 
     USER_ID = "geo_places_pipeline"
-    TENANT_ID = "default"
+    TENANT_ID = "global"
 
     def persist(
         self,
@@ -553,6 +553,7 @@ class BraveSearchRepository:
                 chunk_rows.append(
                     (
                         str(uuid5(source_id, str(sequence))),
+                        self.TENANT_ID,
                         str(source_id),
                         snippet,
                         to_pgvector([float(value) for value in embedding]),
@@ -1234,7 +1235,7 @@ class KnowledgeRepository:
     """Atomically upsert a place-owned source and its vectorized chunks."""
 
     USER_ID = "geo_places_pipeline"
-    TENANT_ID = "default"
+    TENANT_ID = "global"
 
     def persist(
         self,
@@ -1272,10 +1273,13 @@ class KnowledgeRepository:
                 Json(metadata),
             ),
         )
-        cursor.execute(DELETE_KNOWLEDGE_CHUNKS, (str(source_id),))
+        cursor.execute(
+            DELETE_KNOWLEDGE_CHUNKS, (self.TENANT_ID, str(source_id))
+        )
         chunk_rows = [
             (
                 str(uuid5(source_id, str(sequence))),
+                self.TENANT_ID,
                 str(source_id),
                 chunk,
                 to_pgvector(list(enrichment.embeddings[sequence])),

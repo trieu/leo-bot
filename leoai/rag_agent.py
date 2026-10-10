@@ -32,8 +32,37 @@ logger.setLevel(logging.INFO)
 DOCUMENT_CHAT_TOUCHPOINT_ID = "document_agent"
 
 
+def _build_geo_places_enrichment_notice(target_language: str, has_places: bool) -> str:
+    """Build the localized notice shown after nearby-place enrichment is queued."""
+    is_vietnamese = (target_language or "").lower().startswith(("vi", "vietnam"))
+    if is_vietnamese:
+        if has_places:
+            return (
+                "Mình chưa có đủ dữ liệu phù hợp trong bán kính bạn yêu cầu. "
+                "Mình đã gửi yêu cầu tìm thêm địa điểm cho bạn. "
+                "Vui lòng hỏi lại sau khi quá trình tìm kiếm hoàn tất."
+            )
+        return (
+            "Mình chưa có dữ liệu phù hợp trong bán kính bạn yêu cầu. "
+            "Mình đã gửi yêu cầu tìm và bổ sung địa điểm cho bạn. "
+            "Vui lòng hỏi lại sau khi quá trình tìm kiếm hoàn tất."
+        )
+    if has_places:
+        return (
+            "I do not have enough matching place data within your "
+            "requested radius yet. I have queued a search for more "
+            "places. Please ask again after the search finishes."
+        )
+    return (
+        "I have no matching place data within your requested radius "
+        "yet. I have queued a search to find and add places for you. "
+        "Please ask again after the search finishes."
+    )
+
+
 class ChatMessageState(TypedDict, total=False):
     user_id: str
+    tenant_id: str
     user_message: str
     cdp_profile_id: str | None
     persona_id: str | None
@@ -86,6 +115,7 @@ class RAGAgent:
         description: str = "",
         touchpoint_type: str = "web",
         keywords: Optional[List[str]] = None,
+        tenant_id: str = "default",
     ) -> dict:
         """Create or update the user's geolocation touchpoint."""
         return await self.db.upsert_geolocation_touchpoint(
@@ -93,6 +123,7 @@ class RAGAgent:
             latitude,
             longitude,
             touchpoint_id,
+            tenant_id=tenant_id,
             name=name,
             description=description,
             touchpoint_type=touchpoint_type,
@@ -118,6 +149,7 @@ class RAGAgent:
         touchpoint_keywords: Optional[List[str]] = None,
         result_limit: int | None = None,
         context: str = "chatbot",
+        tenant_id: str = "default",
     ) -> str:
         """Process one chat message through the compiled RAG workflow.
 
@@ -150,6 +182,7 @@ class RAGAgent:
         """
         initial_state: ChatMessageState = {
             "user_id": user_id,
+            "tenant_id": tenant_id,
             "user_message": user_message,
             "cdp_profile_id": cdp_profile_id,
             "persona_id": persona_id,
@@ -291,6 +324,7 @@ class RAGAgent:
             state["target_language"],
             state["answer_in_format"],
             state["temperature_score"],
+            state["tenant_id"],
         )
         return {"response": response}
 
@@ -308,6 +342,7 @@ class RAGAgent:
                 latitude=state.get("latitude"),
                 longitude=state.get("longitude"),
                 radius_meters=state["radius_meters"],
+                tenant_id=state["tenant_id"],
             )
         except NearbyLocationUnavailable:
             logger.info(
@@ -360,6 +395,7 @@ class RAGAgent:
             user_id=state["user_id"],
             latitude=state.get("latitude"),
             longitude=state.get("longitude"),
+            tenant_id=state["tenant_id"],
         )
         run_id = await asyncio.to_thread(
             trigger_geo_places_enrichment,
@@ -369,37 +405,9 @@ class RAGAgent:
             radius=state["radius_meters"],
             count=count,
         )
-        is_vietnamese = (state["target_language"] or "").lower().startswith(
-            ("vi", "vietnam")
+        notice = _build_geo_places_enrichment_notice(
+            state["target_language"], has_places=bool(places)
         )
-        if is_vietnamese:
-            notice = (
-                (
-                    "Mình chưa có đủ dữ liệu phù hợp trong bán kính bạn yêu cầu. "
-                    "Mình đã gửi yêu cầu tìm thêm địa điểm cho bạn. "
-                    "Vui lòng hỏi lại sau khi quá trình tìm kiếm hoàn tất."
-                )
-                if places
-                else (
-                    "Mình chưa có dữ liệu phù hợp trong bán kính bạn yêu cầu. "
-                    "Mình đã gửi yêu cầu tìm và bổ sung địa điểm cho bạn. "
-                    "Vui lòng hỏi lại sau khi quá trình tìm kiếm hoàn tất."
-                )
-            )
-        else:
-            notice = (
-                (
-                    "I do not have enough matching place data within your "
-                    "requested radius yet. I have queued a search for more "
-                    "places. Please ask again after the search finishes."
-                )
-                if places
-                else (
-                    "I have no matching place data within your requested radius "
-                    "yet. I have queued a search to find and add places for you. "
-                    "Please ask again after the search finishes."
-                )
-            )
         if places:
             response = format_nearby_places_answer(
                 places,
@@ -426,6 +434,7 @@ class RAGAgent:
                 state.get("cdp_profile_id"),
                 state.get("persona_id"),
                 state.get("touchpoint_id") or "web_leobot",
+                tenant_id=state["tenant_id"],
                 embed=False,
             )
         return {}
@@ -439,6 +448,7 @@ class RAGAgent:
                 state["latitude"],
                 state["longitude"],
                 touchpoint_id,
+                tenant_id=state["tenant_id"],
                 name=state["touchpoint_name"],
                 description=state["touchpoint_description"],
                 touchpoint_type=state["touchpoint_type"],
@@ -459,6 +469,7 @@ class RAGAgent:
                 persona_id=state.get("persona_id"),
                 touchpoint_id=state["touchpoint_id"],
                 keywords=state.get("keywords"),
+                tenant_id=state["tenant_id"],
             )
         except Exception as exc:
             logger.error("❌ Failed to save user message to DB: %s", exc)
@@ -471,6 +482,7 @@ class RAGAgent:
             state["touchpoint_id"],
             state.get("cdp_profile_id"),
             state["user_message"],
+            tenant_id=state["tenant_id"],
         )
         user_context = summarized_context.get("user_context", {})
         return {
@@ -509,6 +521,7 @@ class RAGAgent:
             state["touchpoint_id"],
             state.get("cdp_profile_id"),
             persisted_context,
+            tenant_id=state["tenant_id"],
         ):
             raise RuntimeError("Failed to save the nearby-place choices.")
         response = format_place_picker(
@@ -521,6 +534,7 @@ class RAGAgent:
             state.get("cdp_profile_id"),
             state.get("persona_id"),
             state["touchpoint_id"],
+            tenant_id=state["tenant_id"],
         )
         return {"response": response}
 
@@ -546,6 +560,7 @@ class RAGAgent:
             state["touchpoint_id"],
             state.get("cdp_profile_id"),
             persisted_context,
+            tenant_id=state["tenant_id"],
         ):
             raise RuntimeError("Failed to save the selected place.")
         response = format_place_selection_confirmation(
@@ -558,6 +573,7 @@ class RAGAgent:
             state.get("cdp_profile_id"),
             state.get("persona_id"),
             state["touchpoint_id"],
+            tenant_id=state["tenant_id"],
         )
         return {"response": response, "selected_place": selected_place}
 
@@ -568,7 +584,7 @@ class RAGAgent:
         selected_place = user_context.get("selected_place")
         if selected_place:
             place_knowledge = await self._retrieve_selected_place_knowledge(
-                selected_place, state["user_message"]
+                selected_place, state["user_message"], state["tenant_id"]
             )
             if place_knowledge:
                 user_context["selected_place_knowledge"] = place_knowledge
@@ -611,18 +627,21 @@ class RAGAgent:
                 state.get("cdp_profile_id"),
                 state.get("persona_id"),
                 state["touchpoint_id"],
+                tenant_id=state["tenant_id"],
             )
         return {}
 
     async def _retrieve_selected_place_knowledge(
-        self, selected_place: dict, user_message: str
+        self, selected_place: dict, user_message: str, tenant_id: str = "default"
     ) -> str:
         """Retrieve focused knowledge for the selected place when supported."""
         retriever = getattr(self, "knowledge", None)
         retrieve = getattr(retriever, "retrieve_selected_place", None)
         if retrieve is None:
             return ""
-        return await retrieve(selected_place, user_message, limit=3)
+        return await retrieve(
+            selected_place, user_message, tenant_id=tenant_id, limit=3
+        )
 
     async def _process_document_chat(
         self,
@@ -633,20 +652,21 @@ class RAGAgent:
         target_language: str,
         answer_in_format: str,
         temperature_score: float,
+        tenant_id: str,
     ) -> str:
         """Answer document questions on an isolated document-chat touchpoint."""
         await self.db.save_chat_message(
             user_id, "user", user_message, cdp_profile_id, persona_id,
-            DOCUMENT_CHAT_TOUCHPOINT_ID,
+            DOCUMENT_CHAT_TOUCHPOINT_ID, tenant_id=tenant_id,
         )
         summary = await self.context.build_context_summary(
             user_id, DOCUMENT_CHAT_TOUCHPOINT_ID, cdp_profile_id, user_message,
-            include_location=False,
+            include_location=False, tenant_id=tenant_id,
         )
         document_context = ""
         if not is_greeting_message(user_message):
             document_context = await self.knowledge.retrieve(
-                user_message, "default", user_id=user_id,
+                user_message, tenant_id, user_id=user_id,
             )
         prompt = self.agent_orchestrator.build_document_prompt(
             user_message, summary, document_context, target_language,
@@ -654,7 +674,7 @@ class RAGAgent:
         answer = await self._safe_generate(prompt, temperature_score)
         await self.db.save_chat_message(
             user_id, "bot", answer, cdp_profile_id, persona_id,
-            DOCUMENT_CHAT_TOUCHPOINT_ID,
+            DOCUMENT_CHAT_TOUCHPOINT_ID, tenant_id=tenant_id,
         )
         return answer
 

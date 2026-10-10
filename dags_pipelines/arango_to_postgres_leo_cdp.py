@@ -451,9 +451,8 @@ def leo_cdp_to_leo_bot_etl():
             INSERT INTO customer_profile
             (cdp_profile_id, tenant_id, full_name, email, phone, country, age, gender, metadata, profile_embedding, created_at, updated_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::vector, now(), now())
-            ON CONFLICT (cdp_profile_id) DO UPDATE
+            ON CONFLICT (tenant_id, cdp_profile_id) DO UPDATE
             SET
-            tenant_id = EXCLUDED.tenant_id,
             full_name = EXCLUDED.full_name,
             email = EXCLUDED.email,
             phone = EXCLUDED.phone,

@@ -484,6 +484,20 @@ def make_agent(places):
     return agent
 
 
+@pytest.mark.parametrize(
+    ("language", "has_places", "expected"),
+    [
+        ("Vietnamese", False, "tìm và bổ sung địa điểm"),
+        ("vi-VN", True, "tìm thêm địa điểm"),
+        ("English", False, "queued a search to find and add places"),
+        ("en", True, "queued a search for more places"),
+    ],
+)
+def test_build_geo_places_enrichment_notice(language, has_places, expected):
+    notice = rag_agent._build_geo_places_enrichment_notice(language, has_places)
+    assert expected in notice
+
+
 @pytest.mark.parametrize("question,language,expected,search_term", [
     (
         "top 3 coffee shop near me in 1 km",

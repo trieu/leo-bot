@@ -171,7 +171,7 @@ def test_place_repository_upserts_on_brave_identity(monkeypatch):
     GeoPlaceRepository().upsert(cursor, [place])
 
     sql, rows = execute_values.call_args.args[1:3]
-    assert "ON CONFLICT (geo_place_id)" in sql
+    assert "ON CONFLICT (tenant_id, geo_place_id)" in sql
     assert rows[0][0] == "brave_api:brave-place-1"
     assert rows[0][3] == "Place"
     assert rows[0][5] == "7P28QJ2C+22"
@@ -245,6 +245,7 @@ def test_knowledge_repository_upserts_source_and_chunks():
     chunk_rows = cursor.executemany.call_args.args[1]
     assert all(isinstance(row[0], str) and isinstance(row[1], str) for row in chunk_rows)
     assert chunk_rows[0][0] == str(uuid5(source_id, "0"))
+    assert all(row[1] == "global" for row in chunk_rows)
 
 
 def test_brave_search_repository_persists_each_source_and_snippet():
@@ -297,12 +298,13 @@ def test_brave_search_repository_persists_each_source_and_snippet():
         for row in call.args[1]
     ]
     assert all(isinstance(row[0], str) and isinstance(row[1], str) for row in chunk_rows)
-    assert [row[2] for row in chunk_rows] == [
+    assert all(row[1] == "global" for row in chunk_rows)
+    assert [row[3] for row in chunk_rows] == [
         "Nghĩa Hoà - Deanery of Chí Hoà",
         "Mass Schedule: Sunday at 04:30",
         "Address: 25/18 Nghĩa Hòa Street",
     ]
-    assert [row[4] for row in chunk_rows] == [0, 1, 0]
+    assert [row[5] for row in chunk_rows] == [0, 1, 0]
     assert ai_client.get_embedding.call_count == 3
 
 

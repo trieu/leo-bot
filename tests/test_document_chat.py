@@ -93,7 +93,7 @@ def test_exact_document_agent_payload_never_uses_cached_geolocation(api_client):
     assert "### Selected Place" not in prompt.prompt_text
     agent.context.build_context_summary.assert_awaited_once_with(
         "7e7c56b6b2a74869a1b79659711f44d5", DOCUMENT_CHAT_TOUCHPOINT_ID, None, "hi ",
-        include_location=False,
+        include_location=False, tenant_id="default",
     )
 
 

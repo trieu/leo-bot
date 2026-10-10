@@ -1170,9 +1170,10 @@ VALUES
 )
 )
 INSERT INTO geo_places (
-    geo_place_id, name, address, description, category, tags, pluscode, geom
+    tenant_id, geo_place_id, name, address, description, category, tags, pluscode, geom
 )
 SELECT
+    'global',
     'sample:' || md5(name),
     name,
     address,
@@ -1182,7 +1183,7 @@ SELECT
     pluscode,
     geom
 FROM sample_places
-ON CONFLICT (geo_place_id) DO UPDATE SET
+ON CONFLICT (tenant_id, geo_place_id) DO UPDATE SET
     name = EXCLUDED.name,
     address = EXCLUDED.address,
     description = EXCLUDED.description,

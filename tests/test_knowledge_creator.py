@@ -245,8 +245,8 @@ def test_creator_upserts_source_and_replaces_chunks_in_one_transaction(monkeypat
         assert json.loads(metadata)["embedding_model"] == "fake-embedding"
         assert "DELETE FROM knowledge_chunks" in conn.execute.call_args_list[1].args[0]
         rows = conn.executemany.call_args.args[1]
-        assert rows[0][1] == source_id and rows[0][4] == 0
-        assert len(json.loads(rows[0][3])) == 768
+        assert rows[0][1] == source_id and rows[0][2] == "default" and rows[0][5] == 0
+        assert len(json.loads(rows[0][4])) == 768
         other = await creator.upsert_url(URL, visitor_id="different")
         assert other.source_id != first.source_id
 
@@ -262,10 +262,10 @@ def test_creator_chunks_long_text_using_existing_overlap(monkeypatch):
         )
         rows = conn.executemany.call_args.args[1]
         assert result.chunk_count == 3
-        assert [row[2] for row in rows] == [
+        assert [row[3] for row in rows] == [
             "one two three four", "four five six seven", "seven eight nine",
         ]
-        assert [row[4] for row in rows] == [0, 1, 2]
+        assert [row[5] for row in rows] == [0, 1, 2]
 
     asyncio.run(scenario())
 

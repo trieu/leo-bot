@@ -240,6 +240,7 @@ class KnowledgeCreator:
         self, url: str, *, visitor_id: str,
         source_type: KnowledgeSourceType = KnowledgeSourceType.WEB_PAGE,
         name: str | None = None,
+        tenant_id: str = "default",
     ) -> KnowledgeUpdateResult:
         if source_type != KnowledgeSourceType.WEB_PAGE:
             raise KnowledgeInputError("URL ingestion currently supports source_type=web_page only.")
@@ -250,6 +251,7 @@ class KnowledgeCreator:
             visitor_id=visitor_id, source_type=source_type,
             name=name or document.title,
             metadata={"fetched_url": document.fetched_url},
+            tenant_id=tenant_id,
         )
 
     async def upsert_text(
@@ -259,6 +261,7 @@ class KnowledgeCreator:
         metadata: dict[str, Any] | None = None,
         max_tokens: int = DEFAULT_MAX_TOKENS,
         overlap_tokens: int = DEFAULT_OVERLAP_TOKENS,
+        tenant_id: str = "default",
     ) -> KnowledgeUpdateResult:
         visitor_id = self._validate_visitor(visitor_id)
         if not text.strip() or not name.strip() or not uri.strip():
@@ -284,7 +287,6 @@ class KnowledgeCreator:
         ):
             raise RuntimeError("Embedding provider returned invalid chunk count, values, or dimensions.")
 
-        tenant_id = "default"
         source_id = uuid5(NAMESPACE_URL, json.dumps([tenant_id, visitor_id, source_type.value, uri]))
         source_metadata = {
             **(metadata or {}),
@@ -295,7 +297,7 @@ class KnowledgeCreator:
         }
         rows = [
             (
-                uuid5(source_id, str(index)), source_id, chunk,
+                uuid5(source_id, str(index)), source_id, tenant_id, chunk,
                 to_pgvector(vector.tolist()), index,
                 json.dumps({"source_name": name.strip(), "uri": uri}),
             )
@@ -315,13 +317,18 @@ class KnowledgeCreator:
                 """, source_id, visitor_id, tenant_id, source_type.value,
                     name.strip(), uri, json.dumps(source_metadata))
                 await conn.execute(
-                    "DELETE FROM knowledge_chunks WHERE source_id=$1", source_id
+                    """
+                    DELETE FROM knowledge_chunks
+                    WHERE tenant_id=$1 AND source_id=$2
+                    """,
+                    tenant_id,
+                    source_id,
                 )
                 await conn.executemany("""
                     INSERT INTO knowledge_chunks (
-                        id, source_id, content, embedding, chunk_sequence, metadata
+                        id, source_id, tenant_id, content, embedding, chunk_sequence, metadata
                     )
-                    VALUES ($1,$2,$3,$4::vector,$5,$6::jsonb);
+                    VALUES ($1,$2,$3,$4,$5::vector,$6,$7::jsonb);
                 """, rows)
         logger.info("Upserted knowledge source %s for visitor %s with %d chunks",
                     source_id, visitor_id, len(chunks))
@@ -350,8 +357,10 @@ class KnowledgeRetriever:
             rows = await conn.fetch("""
                 SELECT kc.content, ks.name AS source_name, ks.uri
                 FROM knowledge_chunks AS kc
-                JOIN knowledge_sources AS ks ON kc.source_id = ks.id
+                JOIN knowledge_sources AS ks
+                  ON kc.tenant_id = ks.tenant_id AND kc.source_id = ks.id
                 WHERE ks.tenant_id = $1 AND ks.user_id = $2 AND ks.status = 'active'
+                  AND kc.tenant_id = $1
                 ORDER BY kc.embedding <=> $3::vector
                 LIMIT $4;
             """, tenant_id, user_id, vector, limit)
@@ -409,8 +418,10 @@ class KnowledgeRetriever:
                 """
                 SELECT kc.content, ks.name AS source_name, ks.uri
                 FROM knowledge_sources AS ks
-                JOIN knowledge_chunks AS kc ON kc.source_id = ks.id
-                WHERE ks.tenant_id = $1
+                JOIN knowledge_chunks AS kc
+                  ON kc.tenant_id = ks.tenant_id AND kc.source_id = ks.id
+                WHERE ks.tenant_id IN ($1, 'global')
+                  AND kc.tenant_id = ks.tenant_id
                   AND ks.status = 'active'
                   AND (
                       ($2 <> '' AND (

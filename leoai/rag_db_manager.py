@@ -82,7 +82,7 @@ class ChatDBManager:
             )
         embedding_str = to_pgvector(embedding_vector)
         async with get_async_pg_conn() as conn:
-            await conn.execute(
+            saved_touchpoint = await conn.fetchval(
                 """
                 INSERT INTO touchpoints (
                     touchpoint_id, user_id, tenant_id, latitude, longitude, geom,
@@ -97,9 +97,8 @@ class ChatDBManager:
                     $8, $9, $10, $11, $12::vector,
                     NOW(), NOW()
                 )
-                ON CONFLICT (touchpoint_id) DO UPDATE SET
+                ON CONFLICT (tenant_id, touchpoint_id) DO UPDATE SET
                     user_id = EXCLUDED.user_id,
-                    tenant_id = EXCLUDED.tenant_id,
                     latitude = EXCLUDED.latitude,
                     longitude = EXCLUDED.longitude,
                     geom = EXCLUDED.geom,
@@ -109,7 +108,9 @@ class ChatDBManager:
                     keywords = EXCLUDED.keywords,
                     embedding = EXCLUDED.embedding,
                     updated_at = NOW(),
-                    last_seen_at = NOW();
+                    last_seen_at = NOW()
+                WHERE touchpoints.user_id = EXCLUDED.user_id
+                RETURNING touchpoint_id;
                 """,
                 touchpoint_id,
                 latitude,
@@ -124,6 +125,8 @@ class ChatDBManager:
                 list(keywords),
                 embedding_str,
             )
+            if saved_touchpoint is None:
+                raise ValueError("touchpoint_id already belongs to another visitor.")
             places = await conn.fetch(
                 """
                 SELECT id, name, address, description, category, tags,
@@ -141,6 +144,7 @@ class ChatDBManager:
                     ), 4326)::geography,
                     $3
                 )
+                  AND tenant_id IN ($5, 'global')
                 ORDER BY geom::geography <-> ST_SetSRID(ST_MakePoint(
                     $2::double precision, $1::double precision
                 ), 4326)::geography
@@ -150,6 +154,7 @@ class ChatDBManager:
                 longitude,
                 NEARBY_PLACES_RADIUS_METERS,
                 NEARBY_PLACES_LIMIT,
+                tenant_id,
             )
 
         return {
@@ -170,7 +175,13 @@ class ChatDBManager:
             ],
         }
 
-    async def get_touchpoint_context(self, touchpoint_id: str | None) -> dict | None:
+    async def get_touchpoint_context(
+        self,
+        touchpoint_id: str | None,
+        *,
+        user_id: str,
+        tenant_id: str = "default",
+    ) -> dict | None:
         if not touchpoint_id:
             return None
         async with get_async_pg_conn() as conn:
@@ -179,9 +190,11 @@ class ChatDBManager:
                 SELECT touchpoint_id, latitude, longitude, name, description,
                        type, keywords
                 FROM touchpoints
-                WHERE touchpoint_id = $1;
+                WHERE tenant_id = $1 AND touchpoint_id = $2 AND user_id = $3;
                 """,
+                tenant_id,
                 touchpoint_id,
+                user_id,
             )
             if not row:
                 return None
@@ -202,6 +215,7 @@ class ChatDBManager:
                     ), 4326)::geography,
                     $3
                 )
+                  AND tenant_id IN ($5, 'global')
                 ORDER BY geom::geography <-> ST_SetSRID(
                     ST_MakePoint(
                         $2::double precision, $1::double precision
@@ -213,6 +227,7 @@ class ChatDBManager:
                 row["longitude"],
                 NEARBY_PLACES_RADIUS_METERS,
                 NEARBY_PLACES_LIMIT,
+                tenant_id,
             )
         return {
             "latitude": float(row["latitude"]),
@@ -242,6 +257,7 @@ class ChatDBManager:
         user_id: str,
         latitude: float | None = None,
         longitude: float | None = None,
+        tenant_id: str = "default",
     ) -> tuple[float, float]:
         """Resolve validated coordinates directly or from a visitor-owned touchpoint."""
         if (latitude is None) != (longitude is None):
@@ -251,8 +267,9 @@ class ChatDBManager:
                 location = await conn.fetchrow(
                     """
                     SELECT latitude, longitude FROM touchpoints
-                    WHERE touchpoint_id = $1 AND user_id = $2;
+                    WHERE tenant_id = $1 AND touchpoint_id = $2 AND user_id = $3;
                     """,
+                    tenant_id,
                     touchpoint_id,
                     user_id,
                 )
@@ -278,6 +295,7 @@ class ChatDBManager:
         latitude: float | None = None,
         longitude: float | None = None,
         radius_meters: float = NEARBY_PLACES_RADIUS_METERS,
+        tenant_id: str = "default",
     ) -> list[dict]:
         """Find the requested number of matching places using coordinates or an owned touchpoint."""
         if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
@@ -285,7 +303,11 @@ class ChatDBManager:
         if not 0 < radius_meters < float("inf"):
             raise ValueError("radius_meters must be positive and finite")
         latitude, longitude = await self.resolve_nearby_location(
-            touchpoint_id, user_id=user_id, latitude=latitude, longitude=longitude,
+            touchpoint_id,
+            user_id=user_id,
+            latitude=latitude,
+            longitude=longitude,
+            tenant_id=tenant_id,
         )
         terms = [term.strip().lower() for term in search_terms if term.strip()]
         async with get_async_pg_conn() as conn:
@@ -300,7 +322,8 @@ class ChatDBManager:
                        ST_Distance(p.geom::geography, t.point) AS distance_meters
                 FROM geo_places AS p
                 CROSS JOIN location AS t
-                WHERE ST_DWithin(p.geom::geography, t.point, $4)
+                WHERE p.tenant_id IN ($6, 'global')
+                  AND ST_DWithin(p.geom::geography, t.point, $4)
                   AND (
                       cardinality($3::text[]) = 0
                       OR EXISTS (
@@ -324,6 +347,7 @@ class ChatDBManager:
                 terms,
                 radius_meters,
                 limit,
+                tenant_id,
             )
         return [
             {
@@ -339,18 +363,12 @@ class ChatDBManager:
         ]
 
     async def save_chat_message(self, user_id, role, message,
-                                cdp_profile_id="_", persona_id="_",
-                                touchpoint_id="_", keywords=[],
+                                cdp_profile_id=None, persona_id=None,
+                                touchpoint_id=None, keywords=None,
                                 tenant_id="default", *, embed: bool = True):
         if not user_id or not message:
             return
 
-        if cdp_profile_id is None:
-            cdp_profile_id = "_"
-        if persona_id is None:
-            persona_id = "_"
-        if touchpoint_id is None:
-            touchpoint_id = "_"
         if keywords is None:
             keywords = []
 
@@ -371,7 +389,7 @@ class ChatDBManager:
                 INSERT INTO chat_messages
                 (message_hash, user_id, cdp_profile_id, tenant_id, persona_id, touchpoint_id, role, message, keywords, created_at)
                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
-                ON CONFLICT (message_hash) DO NOTHING
+                ON CONFLICT (tenant_id, message_hash) DO NOTHING
                 RETURNING message_hash;
             """, msg_hash, user_id, cdp_profile_id, tenant_id, persona_id, touchpoint_id, role, message, keywords)
 
@@ -380,7 +398,7 @@ class ChatDBManager:
                     INSERT INTO chat_message_embeddings
                     (message_hash, tenant_id, embedding, created_at)
                     VALUES ($1,$2,$3::vector,NOW())
-                    ON CONFLICT (message_hash) DO NOTHING;
+                    ON CONFLICT (tenant_id, message_hash) DO NOTHING;
                 """, msg_hash, tenant_id, msg_vector_str)
 
         logger.info(f"💾 Stored {role} message for user={user_id}")
@@ -392,8 +410,6 @@ class ChatDBManager:
                                    tenant_id: str = "default") -> bool:
         """Save or update a conversational context summary (with pgvector embedding)."""
         
-        if cdp_profile_id is None:
-            cdp_profile_id = "_"
         if touchpoint_id is None:
             touchpoint_id = "_"
 
@@ -418,7 +434,7 @@ class ChatDBManager:
                     )
                     VALUES ($1, $2, $3, $4, $5, $6::vector,
                             COALESCE($7, ''), COALESCE($8, 0.0), NOW())
-                    ON CONFLICT (user_id, touchpoint_id)
+                    ON CONFLICT (tenant_id, user_id, touchpoint_id)
                     DO UPDATE SET
                         cdp_profile_id = EXCLUDED.cdp_profile_id,
                         context_data = EXCLUDED.context_data,

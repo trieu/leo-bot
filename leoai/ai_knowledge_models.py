@@ -70,6 +70,7 @@ class KnowledgeSource(BaseModel):
 
 class KnowledgeChunk(BaseModel):
     id: UUID = Field(default_factory=uuid7)
+    tenant_id: constr(strip_whitespace=True, min_length=1) # type: ignore
     source_id: UUID
     content: str
     embedding: List[float]

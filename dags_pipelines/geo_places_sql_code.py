@@ -6,7 +6,7 @@ INSERT INTO geo_places (
     geom, phone, website, rating, rating_count, description, image_url, image_source
 )
 VALUES %s
-ON CONFLICT (geo_place_id) DO UPDATE SET
+ON CONFLICT (tenant_id, geo_place_id) DO UPDATE SET
     name = EXCLUDED.name,
     address = COALESCE(EXCLUDED.address, geo_places.address),
     category = EXCLUDED.category,
@@ -74,24 +74,28 @@ ON CONFLICT (id) DO UPDATE SET
 
 INSERT_KNOWLEDGE_CHUNKS = """
 INSERT INTO knowledge_chunks (
-    id, source_id, content, embedding, chunk_sequence, metadata
+    id, tenant_id, source_id, content, embedding, chunk_sequence, metadata
 )
-VALUES (%s,%s,%s,%s::vector,%s,%s)
+VALUES (%s,%s,%s,%s,%s::vector,%s,%s)
 """
 
 SELECT_SEARCH_PLACES = """
 SELECT id, name, address, category,
        latitude, longitude
 FROM geo_places AS gp
-WHERE data_checked_at IS NULL
-   OR data_checked_at < NOW() - make_interval(days => %s)
+WHERE gp.tenant_id = 'global'
+  AND (
+      gp.data_checked_at IS NULL
+      OR gp.data_checked_at < NOW() - make_interval(days => %s)
+  )
 ORDER BY data_checked_at NULLS FIRST
 """
 
 SELECT_TARGETED_SEARCH_PLACES = """
 SELECT gp.id, gp.name, gp.address, gp.category, gp.latitude, gp.longitude
 FROM geo_places AS gp
-WHERE gp.geom IS NOT NULL
+WHERE gp.tenant_id = 'global'
+  AND gp.geom IS NOT NULL
   AND ST_DWithin(
       gp.geom::geography,
       ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography,
@@ -124,7 +128,7 @@ LIMIT %s
 UPDATE_SEARCH_CHECK = """
 UPDATE geo_places
 SET data_checked_at=NOW(), updated_at=NOW()
-WHERE id=%s
+WHERE tenant_id='global' AND id=%s
 """
 
 UPDATE_PLACE_COORDINATES = """
@@ -134,12 +138,13 @@ SET latitude=%s,
     pluscode=%s,
     geom=ST_SetSRID(ST_MakePoint(%s,%s),4326),
     updated_at=NOW()
-WHERE id=%s
+WHERE tenant_id='global' AND id=%s
 """
 
 SELECT_MASS_SCHEDULE_PLACES = """
 SELECT id, name, address, website FROM geo_places
-WHERE lower(coalesce(category, '')) ~ '(church|cathedral|chapel|parish|nhà thờ)'
+WHERE tenant_id = 'global'
+  AND lower(coalesce(category, '')) ~ '(church|cathedral|chapel|parish|nhà thờ)'
   AND (
       schedule_checked_at IS NULL
       OR schedule_checked_at < NOW() - make_interval(days => %s)
@@ -150,7 +155,8 @@ ORDER BY schedule_checked_at NULLS FIRST, rating_count DESC NULLS LAST
 SELECT_TARGETED_MASS_SCHEDULE_PLACES = """
 SELECT gp.id, gp.name, gp.address, gp.website
 FROM geo_places AS gp
-WHERE lower(coalesce(gp.category, '')) ~ '(church|cathedral|chapel|parish|nhà thờ)'
+WHERE gp.tenant_id = 'global'
+  AND lower(coalesce(gp.category, '')) ~ '(church|cathedral|chapel|parish|nhà thờ)'
   AND gp.geom IS NOT NULL
   AND ST_DWithin(
       gp.geom::geography,
@@ -187,34 +193,36 @@ UPDATE geo_places SET
     schedule_source=%s,
     schedule_checked_at=NOW(),
     updated_at=NOW()
-WHERE id=%s
+WHERE tenant_id='global' AND id=%s
 """
 
 UPDATE_MASS_SCHEDULE_CHECK = """
 UPDATE geo_places
 SET schedule_checked_at=NOW()
-WHERE id=%s
+WHERE tenant_id='global' AND id=%s
 """
 
 UPDATE_GEO_PLACE_ENRICHMENT = """
 UPDATE geo_places
 SET description=%s, tags=%s, updated_at=NOW()
-WHERE id=%s
+WHERE tenant_id='global' AND id=%s
 """
 
 DELETE_KNOWLEDGE_CHUNKS = """
 DELETE FROM knowledge_chunks
-WHERE source_id=%s
+WHERE tenant_id=%s AND source_id=%s
 """
 
 SELECT_KNOWLEDGE_PLACES = """
 SELECT gp.id, gp.geo_place_id, gp.name, gp.address, gp.category,
        gp.phone, gp.website, gp.description, gp.schedule_operation
 FROM geo_places AS gp
-WHERE NOT EXISTS (
+WHERE gp.tenant_id = 'global'
+  AND NOT EXISTS (
     SELECT 1
     FROM knowledge_sources AS ks
-    WHERE ks.metadata->>'geo_place_id' = gp.id::text
+    WHERE ks.tenant_id = 'global'
+      AND ks.metadata->>'geo_place_id' = gp.id::text
       AND ks.metadata->>'source' = 'geo_places'
 )
 ORDER BY gp.created_at, gp.id
@@ -224,7 +232,8 @@ SELECT_TARGETED_KNOWLEDGE_PLACES = """
 SELECT gp.id, gp.geo_place_id, gp.name, gp.address, gp.category,
        gp.phone, gp.website, gp.description, gp.schedule_operation
 FROM geo_places AS gp
-WHERE gp.geom IS NOT NULL
+WHERE gp.tenant_id = 'global'
+  AND gp.geom IS NOT NULL
   AND ST_DWithin(
       gp.geom::geography,
       ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography,
@@ -244,7 +253,8 @@ WHERE gp.geom IS NOT NULL
   AND NOT EXISTS (
       SELECT 1
       FROM knowledge_sources AS ks
-      WHERE ks.metadata->>'geo_place_id' = gp.id::text
+      WHERE ks.tenant_id = 'global'
+        AND ks.metadata->>'geo_place_id' = gp.id::text
         AND ks.metadata->>'source' = 'geo_places'
   )
 ORDER BY gp.created_at, gp.id

@@ -213,6 +213,7 @@ def test_agent_queries_database_before_any_ai_work(count):
             "tp", ["church", "cathedral", "nhà thờ"], count,
             user_id="visitor", latitude=10.747904, longitude=106.6467328,
             radius_meters=rag_db_manager.NEARBY_PLACES_RADIUS_METERS,
+            tenant_id="default",
         )
         agent.context.build_context_summary.assert_not_awaited()
         agent.create_geolocation_touchpoint.assert_not_awaited()
@@ -268,12 +269,16 @@ def test_sql_receives_dynamic_limit_and_coordinates(monkeypatch, count):
             None, ["church", "cathedral"], count,
             user_id="visitor", latitude=10.747904, longitude=106.6467328,
         )
-        sql, longitude, latitude, terms, radius, limit = conn.fetch.call_args.args
+        sql, longitude, latitude, terms, radius, limit, tenant = (
+            conn.fetch.call_args.args
+        )
         assert "LIMIT $5" in sql
         assert "ST_DWithin" in sql
         assert "ORDER BY distance_meters" in sql
         assert terms == ["church", "cathedral"]
         assert limit == count
+        assert "p.tenant_id IN ($6, 'global')" in sql
+        assert tenant == "default"
         assert latitude == 10.747904
         assert longitude == 106.6467328
         assert radius == rag_db_manager.NEARBY_PLACES_RADIUS_METERS
@@ -327,7 +332,9 @@ def test_touchpoint_context_serializes_uuid_place_ids(monkeypatch):
             "distance_meters": 12.0,
         }]
 
-        context = await ChatDBManager(None).get_touchpoint_context("tp")
+        context = await ChatDBManager(None).get_touchpoint_context(
+            "tp", user_id="visitor"
+        )
 
         assert context is not None
         assert context["nearby_places"][0]["id"] == str(place_id)
@@ -342,8 +349,10 @@ def test_sql_resolves_only_visitor_owned_touchpoint(monkeypatch):
         conn.fetchrow.return_value = {"latitude": 10.747904, "longitude": 106.6467328}
         db = ChatDBManager(None)
         await db.find_nearby_places("tp", ["church"], 20, user_id="visitor")
-        assert conn.fetchrow.call_args.args[1:] == ("tp", "visitor")
-        assert "user_id = $2" in conn.fetchrow.call_args.args[0]
+        assert conn.fetchrow.call_args.args[1:] == ("default", "tp", "visitor")
+        assert "tenant_id = $1 AND touchpoint_id = $2 AND user_id = $3" in (
+            conn.fetchrow.call_args.args[0]
+        )
         conn.fetchrow.return_value = None
         with pytest.raises(NearbyLocationUnavailable):
             await db.find_nearby_places("other-tp", ["church"], 20, user_id="visitor")
@@ -530,6 +539,7 @@ def test_unaccented_noodle_question_queues_dagster_enrichment(route_client, monk
         latitude=None,
         longitude=None,
         radius_meters=rag_db_manager.NEARBY_PLACES_RADIUS_METERS,
+        tenant_id="default",
     )
     trigger.assert_called_once_with(
         name="noodle",
