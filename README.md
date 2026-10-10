@@ -265,6 +265,23 @@ Production mode:
 ./start_app.sh
 ```
 
+This starts PostgreSQL, the Dagster **cluster** (webserver and daemon), and the
+FastAPI chatbot. It waits for Dagster and the chatbot health endpoint before
+reporting success. Dagster webserver and daemon logs are written under `logs/`;
+managed service PID files are kept in the ignored `.dagster-pids/` directory.
+
+Stop or restart both the chatbot and Dagster cluster with:
+
+```bash
+./stop_app.sh
+./restart_app.sh
+```
+
+Stopping the application leaves PostgreSQL running. `restart_app.sh` runs the
+lifecycle commands as the `leocdp` service account; set
+`LEOBOT_SERVICE_USER` to override it when needed. The scripts use the repository
+directory they are installed in and can be invoked from any working directory.
+
 To initialize or refresh the 50 Ho Chi Minh City sample places:
 
 ```bash
@@ -297,6 +314,10 @@ Development mode:
 ```bash
 ./start_dev.sh
 ```
+
+`start_dev.sh` starts the chatbot only; to enable background nearby-place
+enrichment in development, start the Dagster cluster separately with
+`./start_dagster.sh --cluster`.
 
 Development mode with sample place data:
 
