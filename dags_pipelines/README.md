@@ -7,6 +7,7 @@ from its pipeline modules:
 | --- | --- | --- |
 | `arango_to_postgres_leo_cdp.py` | `leo_cdp_to_leo_bot_etl` job | Load segment profiles and linked transactions from ArangoDB into PostgreSQL |
 | `causal_sales_dag.py` | `causal_sales_dag` job | Illustrative causal sales model with logged inputs and estimates |
+| `causal_geo_marketing_dag.py` | `geo_marketing_sales_dag` job | Independent catchment, O2O conversion, store-capacity and campaign-economics simulation |
 | `geo_places_pipeline.py` | `geo_places_pipeline` asset job | Search and enrich geo places, then persist their knowledge |
 | `hello_world_dag.py` | `hello_world` job | Small example of a config-driven Dagster op |
 
@@ -143,7 +144,22 @@ The `geo_places_full_refresh_weekly` schedule runs at `0 2 * * 0` (02:00 every
 Sunday, in the Dagster deployment's timezone). Enable the
 schedule in Dagster if it should run automatically.
 
-## Causal sales example
+## Geo-marketing simulation
+
+[`causal_geo_marketing_dag.py`](./causal_geo_marketing_dag.py) owns the
+`geo_marketing_sales_dag` job and its own config, ops and `defs`. It does not
+import the simple sales model. It simulates a single store's local audience,
+frequency-limited ad delivery, online orders, O2O visits, store capacity and
+campaign economics. It uses assumed inputs, not live GPS, ads or POS data;
+reported incremental metrics are simulated differences, not measured causal lift.
+For configuration, equations and examples, see
+[`causal_geo_marketing_dag.md`](./causal_geo_marketing_dag.md).
+
+Both simulations are registered independently in the package code location.
+Geo op definitions use distinct names to avoid collisions; job-local aliases
+preserve the existing geo run-config keys and output names.
+
+## Simple causal sales example
 
 `causal_sales_dag` is a small, deterministic example showing how an assumed
 causal DAG maps to Dagster op dependencies. All sales quantities are estimates

@@ -19,6 +19,28 @@ user-facing paths:
 3. **Standard chat** persists the message, builds context, optionally handles a
    place choice, builds a prompt, generates an answer, and persists the answer.
 
+# Answer instruction contracts
+
+[`leoai/rag_prompt_builder.py`](../leoai/rag_prompt_builder.py) supplies the
+following instructions in both the generated prompt and the system instruction:
+
+- `CURRENT_QUESTION_INSTRUCTIONS` prioritizes the current request, including
+  questions prefixed by greetings and multi-part tasks. It resolves selections
+  using displayed choices, not database IDs, and respects corrections and topic
+  changes. It prohibits claiming completed actions without application evidence.
+- `PLACE_FOLLOWUP_INSTRUCTIONS` keeps place follow-ups on the selected subject
+  while it remains active, without treating nearby candidates as selections.
+  Place-specific claims must match the supplied place evidence; unknown details,
+  conflicting sources, and missing direction origins must not be invented.
+- `DOCUMENT_CHAT_INSTRUCTIONS` keeps document Q&A separate from cached location
+  state. Excerpts ground factual claims; history resolves references. Citations
+  and quotations must come from supplied evidence, and missing retrieval evidence
+  must not be described as proof that the entire collection lacks an answer.
+
+Context and retrieved content are treated as data, not instructions. These are
+generation guidance, not a substitute for application-level validation or
+evidence that a model will always comply.
+
 # Module responsibilities
 
 ## `leoai.rag_agent_utils`

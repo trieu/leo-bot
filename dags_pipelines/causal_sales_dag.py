@@ -1,4 +1,4 @@
-"""Illustrative causal sales DAG implemented as a Dagster job."""
+"""Independent, illustrative website sales funnel implemented as a Dagster job."""
 
 from dagster import Config, Definitions, OpExecutionContext, job, op
 from pydantic import Field

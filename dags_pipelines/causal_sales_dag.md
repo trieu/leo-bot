@@ -1,9 +1,19 @@
-# Tìm hiểu `causal_sales_dag`
+# DAG bán hàng đơn giản: `causal_sales_dag`
 
 Tài liệu này giải thích ví dụ DAG bán hàng trong
 [`causal_sales_dag.py`](./causal_sales_dag.py). Mục tiêu là giúp bạn hiểu cách
 các biến và giả định nhân quả được biểu diễn thành các bước chạy trong
 Dagster.
+
+Module chỉ định nghĩa job **`causal_sales_dag`**, với config, op và `defs`
+riêng. Nó không import hay phụ thuộc vào mô hình geo marketing. Package
+Dagster đăng ký job này độc lập với
+[`geo_marketing_sales_dag`](./causal_geo_marketing_dag.md) qua
+[`__init__.py`](./__init__.py).
+
+Ví dụ đơn giản này chỉ mô tả funnel website, không có catchment, O2O,
+công suất cửa hàng hay economics. Xem tài liệu geo marketing nếu cần
+những nhánh đó. Tên job, khóa cấu hình và phương trình bên dưới giữ nguyên.
 
 ## DAG này mô tả điều gì?
 
@@ -106,6 +116,22 @@ purchases = 35 * 0.046 = 1.61 nghìn giao dịch
 ```
 
 Do đó, kết quả `purchases` mặc định là khoảng 1.61 nghìn giao dịch.
+
+## Chạy riêng job bán hàng
+
+Chọn `causal_sales_dag` trong Dagster Launchpad và dùng YAML ở trên, hoặc
+chạy trong môi trường Python của dự án:
+
+```python
+from dags_pipelines.causal_sales_dag import causal_sales_dag
+
+result = causal_sales_dag.execute_in_process()
+print(result.output_for_node("purchases"))  # 1.61 nghìn giao dịch
+```
+
+`defs` của module này chỉ chứa job bán hàng; `defs` của module geo chỉ
+chứa job geo. Có thể kiểm tra từng module riêng trước khi nạp code location
+chung của package.
 
 ## Đọc log trong Dagster
 
