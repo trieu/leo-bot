@@ -517,6 +517,10 @@ div.leobot-question .botui-message-content {
 
   #LEO_ChatBot_Container {
     height: clamp(320px, 64vh, 520px) !important;
+    overflow: hidden !important;
+  }
+
+  #LEO_ChatBot_Container .botui-container {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
   }
