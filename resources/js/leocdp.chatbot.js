@@ -187,16 +187,18 @@ function initLeoChatBot(context, visitorId, okCallback) {
   chatbotUI.initialize();
 
   loadChatSessionWithProfile();
-  Promise.all([
-    requestUserGeolocation(visitorId),
-    $.getJSON(BASE_URL_GET_VISITOR_INFO, {
+  requestUserGeolocation(visitorId).catch(function (error) {
+    console.warn("Unable to resolve visitor geolocation:", error);
+    emitLocationState("error");
+  });
+  $.getJSON(BASE_URL_GET_VISITOR_INFO, {
       visitor_id: visitorId,
       _: Date.now(),
-    }).then(null, function () {
+    })
+    .then(null, function () {
       return { error_code: 500 };
-    }),
-  ]).then(function (results) {
-    var data = results[1];
+    })
+    .then(function (data) {
     console.log(data);
 
     if (data.error_code === 0 && typeof data.name === "string") {

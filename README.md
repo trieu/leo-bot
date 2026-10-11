@@ -246,6 +246,7 @@ service-account credentials from the
 sudo apt install python-is-python3 python3.12-venv
 python3.12 -m venv env
 source env/bin/activate
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 

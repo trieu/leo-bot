@@ -40,6 +40,7 @@ function setupChat() {
     return {
       find() { return this; },
       on() { return this; },
+      trigger() { return this; },
       slice() { return this; },
       map() { return this; },
       get() { return ["Previous conversation"]; },
@@ -58,6 +59,7 @@ function setupChat() {
 
   const context = vm.createContext({
     window: { addEventListener() {} },
+    document: {},
     console: { log() {}, info() {}, warn() {}, error() {} },
     $: jquery,
     BASE_URL_LEOBOT: "https://leobot.test/_leoai/ask",
@@ -90,6 +92,31 @@ function setupChat() {
     promptCount: () => promptCount,
   };
 }
+
+test("loads the greeting without waiting for optional geolocation", async () => {
+  const chat = setupChat();
+  let greetedName;
+  chat.context.window.currentUserProfile = chat.context.currentUserProfile;
+  chat.context.navigator = {
+    geolocation: {
+      getCurrentPosition() {},
+    },
+  };
+  chat.context.BASE_URL_TOUCHPOINT = "https://leobot.test/touchpoint";
+  chat.context.BASE_URL_GET_VISITOR_INFO = "https://leobot.test/visitor-info";
+  chat.context.lscache.get = () => null;
+  chat.context.$.getJSON = () =>
+    Promise.resolve({ error_code: 0, name: "Ada" });
+  chat.context.chatbotUI.initialize = () => {};
+  chat.context.loadChatSessionWithProfile = () => {};
+  chat.context.showLeoChatBot = name => { greetedName = name; };
+
+  chat.context.initLeoChatBot("leobot_website", "visitor");
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.equal(greetedName, "Ada");
+});
 
 for (const choice of ["1", "2", "3", "4", "5", " 4 "]) {
   test(`sends single-digit place selection ${JSON.stringify(choice)}`, async () => {

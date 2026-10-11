@@ -300,12 +300,20 @@ body {
 }
 
 .leobot-discover-card {
-  background: var(--leobot-surface);
+  background: linear-gradient(145deg, #f2f6ff, var(--leobot-surface) 68%);
+  border: 1px solid rgba(49, 94, 251, 0.14) !important;
+  border-top: 3px solid var(--leobot-primary) !important;
 }
 
 .leobot-quick-action {
+  align-items: center;
   border: 1px solid var(--leobot-border);
   color: var(--leobot-ink);
+  display: flex;
+  font-weight: 600;
+  line-height: 1.35;
+  min-height: 48px;
+  padding: 0.7rem 0.8rem;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
@@ -315,6 +323,20 @@ body {
   box-shadow: 0 8px 20px rgba(49, 94, 251, 0.1);
   color: var(--leobot-primary-dark);
   transform: translateY(-1px);
+}
+
+.leobot-quick-action:focus-visible {
+  outline: 3px solid rgba(49, 94, 251, 0.24);
+  outline-offset: 2px;
+}
+
+.leobot-quick-action .fa {
+  flex: 0 0 auto;
+}
+
+#leobot_location_button {
+  font-weight: 600;
+  min-height: 44px;
 }
 
 #LEO_ChatBot_Container {
