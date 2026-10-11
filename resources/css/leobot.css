@@ -1,49 +1,6 @@
-.botui-message-content span {
-  line-height: 22px !important;
-}
-
-#LEO_ChatBot_Container {
-  width: 100% !important;
-  height: 720px !important;
-  overflow-y: scroll !important;
-  margin-bottom: 20px !important;
-}
-
-.leobot-question-input {
-  width: 76% !important;
-  box-shadow: 0 0 6px #0045fe;
-  display: inline-block !important;
-}
-
-.botui-action-text-icon {
-  display: inline-block !important;
-  font-size: 18px !important;
-}
-
-#leobot_info_box {
-  display: inline-block !important;
-  font-size: 12.8px !important;
-  width: 100% !important;
-  color: #000 !important;
-}
-
-div.leobot-answer .botui-message-content {
-  color: #000 !important;
-}
-
 div.leobot-error .botui-message-content {
   color: red !important;
   border: 1px solid red;
-}
-
-div.leobot-question .botui-message-content {
-  color: blue !important;
-  border: 1px solid blue;
-}
-
-
-.botui-container {
-  font-size: 14.2px !important;
 }
 
 /* ajax loader  */
@@ -348,6 +305,7 @@ body {
   padding: 0 0.35rem 0.5rem;
   scrollbar-color: #cbd5ef transparent;
   scrollbar-width: thin;
+  width: 100% !important;
 }
 
 .botui-container {
@@ -395,9 +353,10 @@ div.leobot-question .botui-message-content {
   z-index: 2;
 }
 
-.botui-actions-text-icon {
+.botui-action-text-icon {
   align-self: center;
   flex: 0 0 auto;
+  font-size: 18px !important;
   margin: 0 0.1rem 0 0;
 }
 
@@ -406,7 +365,7 @@ div.leobot-question .botui-message-content {
   border-radius: 12px !important;
   flex: 1 1 auto;
   font-family: inherit;
-  font-size: 0.95rem;
+  font-size: 1rem;
   height: 44px !important;
   line-height: 1.25;
   margin: 0 !important;
@@ -427,7 +386,6 @@ div.leobot-question .botui-message-content {
   background: var(--leobot-primary);
   border: 0;
   border-radius: 12px;
-  color: #fff;
   display: inline-flex !important;
   flex: 0 0 auto;
   font-family: inherit;
@@ -559,21 +517,23 @@ div.leobot-question .botui-message-content {
 
   #LEO_ChatBot_Container {
     height: clamp(320px, 64vh, 520px) !important;
-    height: clamp(320px, 64dvh, 520px) !important;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
   }
 
-  .botui-actions-text {
-    gap: 0.35rem;
-    padding-top: 0.6rem;
+  @supports (height: 1dvh) {
+    #LEO_ChatBot_Container {
+      height: clamp(320px, 64dvh, 520px) !important;
+    }
   }
 
-  .botui-actions-text-input.leobot-question-input {
-    font-size: 0.95rem;
+  .botui-actions-text {
+    gap: 0.35rem;
+    padding: 0.6rem 0 max(0.25rem, env(safe-area-inset-bottom));
   }
 
   .botui-actions-text-submit {
+    height: 48px;
     min-width: 48px;
     padding-left: 0.7rem;
     padding-right: 0.7rem;

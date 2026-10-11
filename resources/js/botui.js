@@ -78,6 +78,10 @@
                  .replace(_markDownRegex.link, _linkReplacer);
     }
 
+    function _isMobileViewport() {
+      return typeof root.innerWidth === 'number' && root.innerWidth <= 768;
+    }
+
     function loadScript(src, cb) {
       var script = document.createElement('script');
           script.type = 'text/javascript';
@@ -120,7 +124,7 @@
       },
       computed: {
         isMobile: function () {
-          return root.innerWidth && root.innerWidth <= 768;
+          return _isMobileViewport();
         }
       },
     	methods: {
@@ -211,14 +215,17 @@
 
     root.Vue.directive('botui-scroll', {
       inserted: function (el) {
-        _container.scrollTop = _container.scrollHeight;
-	el.scrollIntoView(true);
+        if (_container) {
+          _container.scrollTop = _container.scrollHeight;
+        }
       }
     });
 
     root.Vue.directive('focus', {
       inserted: function (el) {
-        el.focus();
+        if (!_isMobileViewport()) {
+          el.focus();
+        }
       }
     });
 
