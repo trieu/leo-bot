@@ -476,6 +476,31 @@ div.leobot-question .botui-message-content {
     padding-right: 0.75rem;
   }
 
+  .leobot-topbar {
+    gap: 0.5rem !important;
+  }
+
+  .leobot-brand-mark {
+    flex-basis: 36px;
+    height: 36px;
+    width: 36px;
+  }
+
+  .leobot-brand-caption {
+    font-size: 0.65rem;
+  }
+
+  .leobot-language-select {
+    min-height: 44px;
+    width: 6.2rem;
+  }
+
+  .leobot-help-button {
+    height: 44px;
+    min-width: 44px !important;
+    width: 44px;
+  }
+
   .leobot-welcome {
     background-size: 9rem;
     margin-bottom: 0.75rem !important;
@@ -506,8 +531,37 @@ div.leobot-question .botui-message-content {
     display: none;
   }
 
+  #leobot_sidebar > aside {
+    gap: 0.75rem !important;
+  }
+
+  #leobot_quick_actions {
+    display: flex !important;
+    flex-direction: row;
+    -webkit-overflow-scrolling: touch;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-color: #cbd5ef transparent;
+    scrollbar-width: thin;
+    padding-bottom: 0.25rem;
+  }
+
+  #leobot_quick_actions > p {
+    flex: 0 0 100%;
+  }
+
+  #leobot_quick_actions > .leobot-quick-action {
+    flex: 0 0 min(82%, 18rem);
+    justify-content: flex-start;
+    scroll-snap-align: start;
+  }
+
   #LEO_ChatBot_Container {
-    height: 520px !important;
+    height: clamp(320px, 64vh, 520px) !important;
+    height: clamp(320px, 64dvh, 520px) !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
   }
 
   .botui-actions-text {
@@ -528,6 +582,16 @@ div.leobot-question .botui-message-content {
   #leobot_info_box {
     align-items: flex-start !important;
     flex-direction: column;
+  }
+}
+
+@media (max-width: 359.98px) {
+  .leobot-brand-caption {
+    display: none !important;
+  }
+
+  .leobot-language-select {
+    width: 5.8rem;
   }
 }
 

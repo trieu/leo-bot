@@ -1,11 +1,12 @@
 # Dagster pipelines
 
 This package exposes one Dagster code location by merging the `defs` objects
-from its three pipeline modules:
+from its pipeline modules:
 
 | Python module | Dagster definition | Purpose |
 | --- | --- | --- |
 | `arango_to_postgres_leo_cdp.py` | `leo_cdp_to_leo_bot_etl` job | Load segment profiles and linked transactions from ArangoDB into PostgreSQL |
+| `causal_sales_dag.py` | `causal_sales_dag` job | Illustrative causal sales model with logged inputs and estimates |
 | `geo_places_pipeline.py` | `geo_places_pipeline` asset job | Search and enrich geo places, then persist their knowledge |
 | `hello_world_dag.py` | `hello_world` job | Small example of a config-driven Dagster op |
 
@@ -65,6 +66,9 @@ when set, otherwise it uses the key for the selected provider
 (`GEMINI_API_KEY`, `OPENAI_API_KEY`, or `OPENROUTER_API_KEY`).
 
 ## Geo places enrichment
+
+For a Vietnamese, student-oriented walkthrough, see
+[`geo_places_pipeline.md`](./geo_places_pipeline.md).
 
 The assets upsert to `geo_places` and create matching `knowledge_sources` and
 `knowledge_chunks` records. Existing place UUIDs remain unchanged. Initialize
@@ -138,6 +142,48 @@ Other config defaults:
 The `geo_places_full_refresh_weekly` schedule runs at `0 2 * * 0` (02:00 every
 Sunday, in the Dagster deployment's timezone). Enable the
 schedule in Dagster if it should run automatically.
+
+## Causal sales example
+
+`causal_sales_dag` is a small, deterministic example showing how an assumed
+causal DAG maps to Dagster op dependencies. All sales quantities are estimates
+in thousands; the model is illustrative and does not establish causal effects
+from observational data.
+For a Vietnamese student-oriented walkthrough, see
+[`causal_sales_dag.md`](./causal_sales_dag.md).
+
+```text
+marketing_spend ──> ad_impressions ──> website_visits ──> purchases
+seasonality_index ───────────────────> website_visits
+seasonality_index ─────────────────────────────────────> purchases
+product_quality_index ─────────────────────────────────> purchases
+```
+
+The structural equations are:
+
+- `ad_impressions = 100 * marketing_spend` (impressions in thousands per
+  thousand USD spent)
+- `website_visits = ad_impressions * (0.02 + 0.03 * seasonality_index)`
+- `purchases = website_visits * (0.02 + 0.03 * product_quality_index + 0.01 * seasonality_index)`
+
+The three root ops are exogenous inputs supplied through Dagster run config.
+Each op writes its input, equation, and computed estimate as an info-level
+event, visible in the Dagster UI run's Logs tab. Change `marketing_spend` to
+explore how this model's downstream estimates respond; the other equations and
+assumptions remain fixed.
+
+```yaml
+ops:
+  marketing_spend:
+    config:
+      thousands_usd: 10
+  seasonality_index:
+    config:
+      index: 0.5
+  product_quality_index:
+    config:
+      index: 0.7
+```
 
 ## On-demand geo places enrichment
 

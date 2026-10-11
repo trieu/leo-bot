@@ -1,3 +1,4 @@
+import pytest
 from dagster import Definitions, validate_run_config
 
 from dags_pipelines import defs
@@ -14,6 +15,7 @@ def test_pipeline_jobs_are_registered():
         for name in (
         "leo_cdp_to_leo_bot_etl",
         "hello_world",
+        "causal_sales_dag",
         "geo_places_pipeline",
         )
     }
@@ -99,3 +101,45 @@ def test_hello_world_job_accepts_name_config():
         run_config={"ops": {"hello": {"config": {"name": "Dagster"}}}}
     )
     assert result.success
+
+
+def test_causal_sales_dag_has_expected_parent_relationships_and_runs():
+    job = defs.resolve_job_def("causal_sales_dag")
+    dependencies = {
+        node.name: {dependency.node for dependency in inputs.values()}
+        for node, inputs in job.graph.dependencies.items()
+    }
+
+    assert dependencies == {
+        "marketing_spend": set(),
+        "seasonality_index": set(),
+        "product_quality_index": set(),
+        "ad_impressions": {"marketing_spend"},
+        "website_visits": {"ad_impressions", "seasonality_index"},
+        "purchases": {
+            "website_visits",
+            "seasonality_index",
+            "product_quality_index",
+        },
+    }
+
+    result = job.execute_in_process(
+        run_config={
+            "ops": {
+                "marketing_spend": {"config": {"thousands_usd": 10}},
+                "seasonality_index": {"config": {"index": 0.5}},
+                "product_quality_index": {"config": {"index": 0.7}},
+            }
+        }
+    )
+    assert result.success
+    assert result.output_for_node("purchases") == pytest.approx(1.61)
+    invalid_result = job.execute_in_process(
+        run_config={
+            "ops": {
+                "seasonality_index": {"config": {"index": 1.5}},
+            }
+        },
+        raise_on_error=False,
+    )
+    assert not invalid_result.success

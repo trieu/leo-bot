@@ -31,23 +31,26 @@
     <meta name="description" content="Hi, my name is LEO, and I am the AI bot created by Trieu Dataism"/>
     <!-- END META FOR LEO -->
 
+    <!-- BotUI CSS and JS  -->
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.7.14/vue.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
     <!-- JQuery.JS, Bootstrap CSS, font-awesome CSS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.7/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
-    <!-- BotUI CSS and JS  -->
-	<link href="https://cdnjs.cloudflare.com/ajax/libs/botui/0.3.9/botui.min.css" rel="stylesheet" type="text/css" crossorigin="anonymous" referrerpolicy="no-referrer" />
-	<link href="https://cdnjs.cloudflare.com/ajax/libs/botui/0.3.9/botui-theme-default.css" rel="stylesheet" type="text/css" crossorigin="anonymous" referrerpolicy="no-referrer"/>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.7.14/vue.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/botui/0.3.9/botui.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+     <!-- LEO CHATBOT CSS -->
+    <link href="https://{{ HOSTNAME }}/resources/css/botui.css?_={{ timestamp }}" rel="stylesheet" media="all" >
+    <link href="https://{{ HOSTNAME }}/resources/css/botui-theme-default.css?_={{ timestamp }}" rel="stylesheet" media="all" >
+    <link href="https://{{ HOSTNAME }}/resources/css/leobot.css?_={{ timestamp }}" rel="stylesheet" media="all" >
+    <script src="https://{{ HOSTNAME }}/resources/js/botui.js?_={{ timestamp }}" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
 
     <!-- lscache JS  -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lscache/1.3.2/lscache.min.js" integrity="sha512-ved46eQuz4zEGcBm1JdsWqYsndqlY1jAtUXCrkTe+l88a7Sj0BhstPajJntxq3HwRDPa9qwaqRUVN7Jr8NwhMA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
-    <!-- LEO CHATBOT CSS -->
-    <link href="https://{{ HOSTNAME }}/resources/css/leobot.css?_={{ timestamp }}" rel="stylesheet" media="all" >
+   
 </head>
 <body>
     <main class="leobot-shell container-xl py-3 py-lg-4">
