@@ -263,6 +263,28 @@
     }
   }
 
+  function scrollToChatOnMobile() {
+    var isMobile =
+      typeof window.matchMedia === "function"
+        ? window.matchMedia("(max-width: 991.98px)").matches
+        : window.innerWidth <= 991;
+    if (!isMobile) return;
+
+    var chat = document.getElementById("LEO_ChatBot_Container");
+    if (!chat || chat.getClientRects().length === 0) {
+      chat = document.getElementById("leobot_chat_container");
+    }
+    if (!chat) return;
+
+    var prefersReducedMotion =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    chat.scrollIntoView({
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+      block: "start",
+    });
+  }
+
   function startChatbot() {
     var $loader = $("#LEO_ChatBot_Container_Loader");
     var $chat = $("#LEO_ChatBot_Container");
@@ -329,6 +351,7 @@
       applyLanguage($(this).val());
     });
     $("#leobot_quick_actions").on("click", ".leobot-quick-action", function () {
+      scrollToChatOnMobile();
       var question = $(this).attr("data-question");
       if (question && typeof window.sendQuestionToLeoAI === "function") {
         window.sendQuestionToLeoAI("ask", question);
