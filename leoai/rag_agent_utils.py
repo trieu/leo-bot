@@ -126,6 +126,35 @@ def classify_nearby_place_intent(
     ):
         raise RuntimeError("AI returned an incomplete nearby-place classification.")
 
+    return normalize_nearby_place_intent(is_nearby, raw_terms, search_name)
+
+
+def nearby_place_intent_from_entities(entities: dict[str, Any]) -> dict[str, Any]:
+    """Build a nearby-search request from validated top-level intent entities."""
+    search_terms = entities.get("search_terms", [])
+    if not isinstance(search_terms, list) or any(
+        not isinstance(term, str) for term in search_terms
+    ):
+        search_terms = []
+    place_type = entities.get("place_type")
+    search_name = entities.get("search_name")
+    if not isinstance(place_type, str):
+        place_type = ""
+    if not isinstance(search_name, str):
+        search_name = ""
+    if not search_terms and place_type:
+        search_terms = [place_type]
+    if not search_name:
+        search_name = place_type or (search_terms[0] if search_terms else "places")
+    return normalize_nearby_place_intent(True, search_terms, search_name)
+
+
+def normalize_nearby_place_intent(
+    is_nearby: bool,
+    raw_terms: list[str],
+    search_name: str,
+) -> dict[str, Any]:
+    """Sanitize place categories and search name from any classifier source."""
     terms = []
     for term in raw_terms[:6]:
         clean_term = re.sub(r"[^\w\s'-]", "", term, flags=re.UNICODE)
@@ -154,14 +183,6 @@ def classify_nearby_place_intent(
         "terms": terms,
         "search_name": clean_search_name,
     }
-
-
-def is_document_chat(context: str, persona_id: str | None) -> bool:
-    """Return whether the request belongs to the document-chat touchpoint."""
-    return (
-        context.strip().lower() == "agent"
-        and (persona_id or "").strip().lower() == "personal_assistant"
-    )
 
 
 def is_greeting_message(message: str) -> bool:

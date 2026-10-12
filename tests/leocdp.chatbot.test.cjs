@@ -198,7 +198,10 @@ test("refreshes the latest user question after enrichment succeeds", async () =>
   );
 
   source.onmessage({ data: JSON.stringify({ run_id: "run-id", status: "STARTED" }) });
-  assert.match(chat.statusMessages[0].content, /place search is running/i);
+  assert.match(chat.statusMessages[0].content, /Searching nearby places/);
+  assert.match(chat.statusMessages[0].content, /alert-primary/);
+  assert.match(chat.statusMessages[0].content, /spinner-border/);
+  assert.equal(chat.statusMessages[0].type, "html");
   assert.equal(source.closed, false);
 
   chat.context.sendQuestionToLeoAI("ask", "latest user question");
@@ -207,7 +210,9 @@ test("refreshes the latest user question after enrichment succeeds", async () =>
 
   source.onmessage({ data: JSON.stringify({ run_id: "run-id", status: "SUCCESS" }) });
   await Promise.resolve();
-  assert.match(chat.statusMessages[1].content, /checking updated results/i);
+  assert.match(chat.statusMessages[1].content, /checking your latest question/i);
+  assert.match(chat.statusMessages[1].content, /alert-success/);
+  assert.match(chat.statusMessages[1].content, /bi-check-circle-fill/);
   assert.equal(source.closed, true);
   assert.equal(chat.requests.length, 3);
   assert.equal(

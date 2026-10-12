@@ -63,6 +63,7 @@ KEYCLOAK_HEALTHCHECK="${KEYCLOAK_URL}/realms/${KEYCLOAK_REALM}/.well-known/openi
 VENV_PATH="env/bin/activate"
 FASTAPI_APP="main_app:leobot"
 FASTAPI_PORT="${FASTAPI_PORT:-8888}"
+LOG_LEVEL="${LOG_LEVEL:-INFO}"
 
 # ------------------------------------------------------------------------------
 # Function: wait for PostgreSQL
@@ -182,11 +183,13 @@ echo -e "${GREEN}✅ Using Python ${PYTHON_MINOR}.${NC}"
 
 # 5. Run FastAPI
 echo -e "${YELLOW}⚡ Launching FastAPI (port ${FASTAPI_PORT})...${NC}"
+echo -e "${BLUE}🪵 Application log level: ${LOG_LEVEL}${NC}"
 UVICORN_ARGS=(
   "$FASTAPI_APP"
   --reload
   --host 0.0.0.0
   --port "$FASTAPI_PORT"
+  --log-level "${LOG_LEVEL,,}"
 )
 if [[ -f .env ]]; then
   UVICORN_ARGS+=(--env-file .env)

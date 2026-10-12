@@ -5,12 +5,15 @@
 # Overview
 
 [`leoai/rag_agent.py`](../leoai/rag_agent.py) coordinates the retrieval-augmented
-chat flow used by LeoBot. Parsing, response-formatting, and enrichment submission helpers live in
-[`leoai/rag_agent_utils.py`](../leoai/rag_agent_utils.py), keeping the agent
-module focused on workflow orchestration. Together, the modules support three
-user-facing paths:
+chat flow used by LeoBot. Intent detection lives in
+[`leoai/ai_intent_detection.py`](../leoai/ai_intent_detection.py); parsing,
+response-formatting, and enrichment submission helpers live in
+[`leoai/rag_agent_utils.py`](../leoai/rag_agent_utils.py). Together, the
+modules support three user-facing paths:
 
-1. **Document chat** retrieves knowledge without mixing it with geolocation state.
+1. **Document chat** is selected by `IntentDetector` from the message and
+   request context, then retrieves knowledge without mixing it with geolocation
+   state.
 2. **Nearby-place search** parses a category and metric radius, searches local
    data by coordinates, and queues background enrichment when there are no
    matches or fewer than requested. Existing matches remain in a partial
@@ -18,6 +21,13 @@ user-facing paths:
    HTML when called directly.
 3. **Standard chat** persists the message, builds context, optionally handles a
    place choice, builds a prompt, generates an answer, and persists the answer.
+
+`IntentDetector` uses the provider-neutral `AIClient` with a constrained JSON
+schema. It receives the user question and `RequestContext`, predicts one
+`primary_intent`, a generation `purpose`, optional secondary intents, calibrated
+confidence, and entities. Invalid or unavailable model output is converted to a logged,
+low-confidence `general_chat` result that requires clarification rather than
+being routed to a specialized handler.
 
 # Answer instruction contracts
 
@@ -47,8 +57,8 @@ evidence that a model will always comply.
 
 This module has no agent state or direct database writes. It provides:
 
-- classifying document and greeting messages locally, and using the configured
-  `AIClient` to classify nearby-place intent and extract search categories;
+- detecting greetings and using the configured `AIClient` to classify
+  nearby-place intent and extract search categories;
 - parsing place selections and requested result limits; and
 - formatting nearby-place results, pickers, and confirmations as user-facing
   text or HTML; and
@@ -74,18 +84,13 @@ orchestrator. It coordinates the database, context manager, knowledge
 retriever, prompt builder, Redis profile cache, and generation client.
 
 `ChatMessageState` carries identifiers, message and touchpoint metadata,
-location, retrieved context, place-selection state, prompt routing data, and
-the final response.
+`primary_intent`, location, retrieved context, place-selection state, prompt
+routing data, and the final response.
 
 # Public helpers
 
 The following helpers are implemented in `rag_agent_utils.py` and re-exported
 by `rag_agent.py` for backwards compatibility.
-
-## `is_document_chat(context, persona_id)`
-
-Returns `True` for the document-chat combination of the `agent` context and
-`personal_assistant` persona.
 
 ## `is_greeting_message(message)`
 
@@ -176,11 +181,14 @@ The database manager owns the upsert behavior.
 
 Public asynchronous entry point for chat. It assembles a
 `ChatMessageState`, invokes the cached workflow, and returns the response.
-Document-chat and standard-chat routing happens inside the graph.
+Intent classification happens before the graph runs. The router and
+`RAGAgent` pass a `RequestContext` to `IntentDetector`, which returns an
+`IntentDetectionResult`. The graph uses `primary_intent` for its first
+conditional edge.
 
 The workflow is assembled with these stages:
 
-1. Route document chat or standard chat.
+1. Route `document_chat` or continue with the standard workflow.
 2. Validate coordinates and nearby-place parameters.
 3. Search nearby places, or prepare the standard touchpoint.
    An incomplete nearby result list routes to background enrichment before its
@@ -196,8 +204,8 @@ instance. Subsequent messages reuse the same graph.
 
 ## `_route_chat_type(state)`
 
-Routes document-chat requests to `_chat_document_node`; all other requests
-continue through input validation.
+Routes requests whose `primary_intent` is `document_chat` to
+`_chat_document_node`; all other requests continue through input validation.
 
 ## `_validate_input_node(state)`
 
@@ -271,7 +279,10 @@ confirmation.
 ## `_build_prompt_node(state)`
 
 Retrieves focused knowledge for a selected place, updates the profile cache
-when a first name is available, and builds the prompt router.
+when a first name is available, and passes the complete `IntentDetectionResult`
+to `AgentOrchestrator.build_prompt`. The prompt router retains the same
+validated result and embeds it as application metadata for the generation
+model; it is not treated as user instructions.
 
 ## `_generate_answer_node(state)`
 
@@ -280,7 +291,8 @@ Generates the response through `_safe_generate`.
 ## `_save_answer_node(state)`
 
 Persists generated text responses. Report-style prompts are intentionally not
-persisted as ordinary chat messages.
+persisted as ordinary chat messages. Answer, plan, and code purposes are
+persisted because they are normal user-facing chat responses.
 
 ## `_retrieve_selected_place_knowledge(selected_place, user_message)`
 

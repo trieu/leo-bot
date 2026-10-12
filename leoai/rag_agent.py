@@ -3,6 +3,12 @@ import asyncio
 from typing import Any, List, Optional, TypedDict, Union
 from langgraph.graph import END, START, StateGraph
 from leoai.ai_core import GeminiClient, get_embedding_model
+from leoai.ai_intent_detection import (
+    IntentDetectionResult,
+    IntentDetector,
+    IntentType,
+    RequestContext,
+)
 from leoai.rag_db_manager import (
     ChatDBManager, NearbyLocationUnavailable,
 )
@@ -14,7 +20,7 @@ from leoai.rag_agent_utils import (
     format_place_picker,
     format_place_selection_confirmation,
     classify_nearby_place_intent,
-    is_document_chat,
+    nearby_place_intent_from_entities,
     is_greeting_message,
     is_nearby_place_question,
     geo_places_search_name,
@@ -30,6 +36,7 @@ from main_config import REDIS_CLIENT
 logger = logging.getLogger("RAGAgent")
 logger.setLevel(logging.INFO)
 DOCUMENT_CHAT_TOUCHPOINT_ID = "document_agent"
+intent_detector = IntentDetector()
 
 
 def _build_geo_places_enrichment_notice(target_language: str, has_places: bool) -> str:
@@ -83,6 +90,8 @@ class ChatMessageState(TypedDict, total=False):
     search_name: str
     enrichment_run_id: str
     enrichment_run_id_sink: list[str]
+    primary_intent: str
+    intent_result: IntentDetectionResult
     context: str
     terms: list[str]
     matching_places: list[dict]
@@ -151,6 +160,7 @@ class RAGAgent:
         result_limit: int | None = None,
         context: str = "chatbot",
         tenant_id: str = "default",
+        channel: str | None = None,
     ) -> str:
         """Process a chat message and return its response text."""
         result = await self.process_chat_message_with_metadata(
@@ -172,6 +182,7 @@ class RAGAgent:
             result_limit=result_limit,
             context=context,
             tenant_id=tenant_id,
+            channel=channel,
         )
         return result["response"]
 
@@ -195,6 +206,8 @@ class RAGAgent:
         result_limit: int | None = None,
         context: str = "chatbot",
         tenant_id: str = "default",
+        channel: str | None = None,
+        intent_result: IntentDetectionResult | None = None,
     ) -> dict[str, str | None]:
         """Process one chat message through the compiled RAG workflow.
 
@@ -244,20 +257,59 @@ class RAGAgent:
             "touchpoint_keywords": touchpoint_keywords,
             "result_limit": result_limit,
             "context": context,
+            "primary_intent": IntentType.GENERAL_CHAT.value,
         }
         enrichment_run_id_sink: list[str] = []
         initial_state["enrichment_run_id_sink"] = enrichment_run_id_sink
         try:
-            if is_document_chat(context, persona_id):
+            intent_result = intent_result or await intent_detector.detect_async(
+                user_message,
+                RequestContext(
+                    channel=channel or touchpoint_type,
+                    visitor_id=user_id,
+                    tenant_id=tenant_id,
+                    touchpoint_id=touchpoint_id,
+                    context=context,
+                    persona_id=persona_id,
+                ),
+            )
+            if intent_result.needs_clarification:
+                return {
+                    "response": self._clarification_response(target_language),
+                    "enrichment_run_id": None,
+                }
+            initial_state["primary_intent"] = intent_result.primary_intent.value
+            initial_state["intent_result"] = intent_result
+            if intent_result.primary_intent is IntentType.DOCUMENT_CHAT:
                 nearby_intent = {
                     "is_nearby_place_question": False,
                     "terms": [],
                     "search_name": "",
                 }
+            elif intent_result.primary_intent is IntentType.LOCATION_CHAT:
+                location_entity_keys = {
+                    "search_terms", "place_type", "search_name",
+                }
+                if location_entity_keys.intersection(intent_result.entities):
+                    nearby_intent = nearby_place_intent_from_entities(
+                        intent_result.entities
+                    )
+                else:
+                    # Compatibility for callers supplying older/incomplete
+                    # intent results: preserve the primary location decision.
+                    extracted = await asyncio.to_thread(
+                        classify_nearby_place_intent, user_message
+                    )
+                    nearby_intent = {
+                        **extracted,
+                        "is_nearby_place_question": True,
+                    }
             else:
-                nearby_intent = await asyncio.to_thread(
-                    classify_nearby_place_intent, user_message
-                )
+                nearby_intent = {
+                    "is_nearby_place_question": False,
+                    "terms": [],
+                    "search_name": "",
+                }
             initial_state.update(
                 {
                     "is_nearby_search": nearby_intent["is_nearby_place_question"],
@@ -348,9 +400,16 @@ class RAGAgent:
         return self._chat_graph
 
     @staticmethod
+    def _clarification_response(target_language: str) -> str:
+        """Return a clarification instead of routing a low-confidence request."""
+        if (target_language or "").casefold().startswith(("vi", "vietnam")):
+            return "Bạn muốn mình hỗ trợ điều gì? Vui lòng nói rõ hơn một chút nhé."
+        return "What would you like help with? Please clarify your request."
+
+    @staticmethod
     def _route_chat_type(state: ChatMessageState) -> str:
         """Route document-chat requests away from geolocation conversation state."""
-        if is_document_chat(state["context"], state.get("persona_id")):
+        if state.get("primary_intent") == IntentType.DOCUMENT_CHAT.value:
             return "document_chat"
         return "standard_chat"
 
@@ -380,6 +439,7 @@ class RAGAgent:
             state["answer_in_format"],
             state["temperature_score"],
             state["tenant_id"],
+            state["intent_result"],
         )
         return {"response": response}
 
@@ -658,6 +718,7 @@ class RAGAgent:
             summarized_context,
             state["target_language"],
             state.get("persona_id"),
+            state["intent_result"],
         )
         logger.info("🧠 Detected purpose: %s", prompt_router.purpose)
         logger.info("📝 Prompt snippet: %s...", prompt_router.prompt_text[:200])
@@ -675,8 +736,8 @@ class RAGAgent:
         return {"response": response}
 
     async def _save_answer_node(self, state: ChatMessageState) -> dict:
-        """Persist generated text responses; skip persistence for report prompts."""
-        if state["prompt_router"].purpose == "generate_text":
+        """Persist chat responses; report outputs remain outside chat history."""
+        if state["prompt_router"].purpose != "generate_report":
             logger.info("🧠 insert bot message: %s", state["response"])
             await self.db.save_chat_message(
                 state["user_id"],
@@ -711,6 +772,7 @@ class RAGAgent:
         answer_in_format: str,
         temperature_score: float,
         tenant_id: str,
+        intent_result: IntentDetectionResult,
     ) -> str:
         """Answer document questions on an isolated document-chat touchpoint."""
         await self.db.save_chat_message(
@@ -727,7 +789,11 @@ class RAGAgent:
                 user_message, tenant_id, user_id=user_id,
             )
         prompt = self.agent_orchestrator.build_document_prompt(
-            user_message, summary, document_context, target_language,
+            user_message,
+            summary,
+            document_context,
+            target_language,
+            intent_result,
         )
         answer = await self._safe_generate(prompt, temperature_score)
         await self.db.save_chat_message(

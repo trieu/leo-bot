@@ -231,6 +231,165 @@ def test_agent_queries_database_before_any_ai_work(count):
     asyncio.run(scenario())
 
 
+def test_structured_location_intent_routes_without_reclassifying_nearby(monkeypatch):
+    async def scenario():
+        agent = make_agent()
+        agent.db.find_nearby_places.return_value = places(1)
+        monkeypatch.setattr(
+            rag_agent_module,
+            "classify_nearby_place_intent",
+            Mock(side_effect=AssertionError("must use detected intent entities")),
+        )
+        intent_result = rag_agent_module.IntentDetectionResult(
+            primary_intent=rag_agent_module.IntentType.LOCATION_CHAT,
+            purpose="generate_answer",
+            confidence=0.94,
+            entities={
+                "place_type": "coffee",
+                "search_terms": ["coffee"],
+                "search_name": "coffee",
+            },
+        )
+
+        await agent.process_chat_message_with_metadata(
+            "visitor",
+            "Find a coffee shop at my location",
+            touchpoint_id="tp",
+            latitude=10.747904,
+            longitude=106.6467328,
+            target_language="English",
+            result_limit=1,
+            intent_result=intent_result,
+        )
+
+        agent.db.find_nearby_places.assert_awaited_once_with(
+            "tp",
+            ["coffee"],
+            1,
+            user_id="visitor",
+            latitude=10.747904,
+            longitude=106.6467328,
+            radius_meters=rag_db_manager.NEARBY_PLACES_RADIUS_METERS,
+            tenant_id="default",
+        )
+
+    asyncio.run(scenario())
+
+
+def test_uncertain_intent_returns_clarification_without_running_graph():
+    async def scenario():
+        agent = make_agent()
+        intent_result = rag_agent_module.IntentDetectionResult(
+            primary_intent=rag_agent_module.IntentType.GENERAL_CHAT,
+            purpose="generate_text",
+            confidence=0.2,
+            needs_clarification=True,
+        )
+
+        result = await agent.process_chat_message_with_metadata(
+            "visitor",
+            "Maybe do something",
+            target_language="English",
+            intent_result=intent_result,
+        )
+
+        assert result["response"] == (
+            "What would you like help with? Please clarify your request."
+        )
+        assert result["enrichment_run_id"] is None
+        agent.db.find_nearby_places.assert_not_awaited()
+        agent.context.build_context_summary.assert_not_awaited()
+        agent._safe_generate.assert_not_awaited()
+
+    asyncio.run(scenario())
+
+
+def test_rate_limited_web_request_does_not_call_intent_detector(
+    route_client, monkeypatch,
+):
+    from leobot_router import leobot_main_router as routes
+
+    client, _ = route_client
+    detector = AsyncMock()
+    monkeypatch.setattr(routes.intent_detector, "detect_async", detector)
+    monkeypatch.setattr(routes, "is_safe_to_answer", lambda visitor: False)
+
+    response = client.post("/_leoai/ask", json={
+        "visitor_id": "visitor",
+        "question": "Find a church near me",
+    })
+
+    assert response.status_code == 200
+    assert response.json()["error_code"] == 429
+    detector.assert_not_awaited()
+
+
+def test_unimplemented_intent_uses_general_flow_with_result_preserved(
+    route_client, monkeypatch,
+):
+    from leobot_router import leobot_main_router as routes
+
+    client, agent = route_client
+    intent_result = rag_agent_module.IntentDetectionResult(
+        primary_intent=rag_agent_module.IntentType.WEB_SEARCH_CHAT,
+        purpose="generate_answer",
+        confidence=0.91,
+    )
+    detector = AsyncMock(return_value=intent_result)
+    process_chat = AsyncMock(return_value={
+        "response": "General chat fallback",
+        "enrichment_run_id": None,
+    })
+    monkeypatch.setattr(routes.intent_detector, "detect_async", detector)
+    monkeypatch.setattr(agent, "process_chat_message_with_metadata", process_chat)
+
+    response = client.post("/_leoai/ask", json={
+        "visitor_id": "visitor",
+        "question": "Find this on the web",
+    })
+
+    assert response.status_code == 200
+    assert response.json()["answer"] == "General chat fallback"
+    assert process_chat.call_args.kwargs["intent_result"] is intent_result
+    agent.create_geolocation_touchpoint.assert_not_awaited()
+
+
+def test_channel_is_passed_to_detector_without_affecting_intent(monkeypatch):
+    async def scenario():
+        agent = make_agent()
+        detected_contexts = []
+        clarification = rag_agent_module.IntentDetectionResult(
+            primary_intent=rag_agent_module.IntentType.GENERAL_CHAT,
+            purpose="generate_text",
+            confidence=0.2,
+            needs_clarification=True,
+        )
+
+        class CapturingDetector:
+            async def detect_async(self, message, context):
+                detected_contexts.append(context)
+                return clarification
+
+        monkeypatch.setattr(
+            rag_agent_module,
+            "intent_detector",
+            CapturingDetector(),
+        )
+        response = await agent.process_chat_message(
+            "visitor",
+            "Please clarify",
+            target_language="English",
+            channel="facebook_messenger",
+        )
+
+        assert "clarify" in response
+        assert detected_contexts[0].channel == "facebook_messenger"
+        assert detected_contexts[0].visitor_id == "visitor"
+        agent.db.find_nearby_places.assert_not_awaited()
+
+    asyncio.run(scenario())
+
+
 def test_agent_requests_location_instead_of_hallucinating_results():
     async def scenario():
         agent = make_agent()
