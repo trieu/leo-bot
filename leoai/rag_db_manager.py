@@ -1,9 +1,14 @@
 import asyncio
 import json
 import logging
+import math
 import os
 from typing import Sequence
 from uuid6 import uuid7
+import httpx
+from google.api_core.exceptions import GoogleAPIError
+from google.genai.errors import ClientError as GenAIClientError
+from openai import OpenAIError
 from leoai.ai_core import (
     TOUCHPOINT_EMBEDDING_DIMENSIONS,
     get_touchpoint_embedding_model,
@@ -12,11 +17,13 @@ from leoai.db_utils import get_async_pg_conn, sha256_hash, to_pgvector
 
 logger = logging.getLogger("ChatDB")
 NEARBY_PLACES_RADIUS_METERS = int(
-    os.getenv("NEARBY_PLACES_RADIUS_METERS", "5000")
+    os.getenv("NEARBY_PLACES_RADIUS_METERS", "6000")
 )
 NEARBY_PLACES_LIMIT = int(os.getenv("NEARBY_PLACES_LIMIT", "5"))
 TOUCHPOINT_NAME_DEFAULT = "Web visitor"
 TOUCHPOINT_TYPE_DEFAULT = "web"
+PLACE_VECTOR_MAX_DISTANCE = 0.35
+PLACE_VECTOR_TIMEOUT_SECONDS = 5
 
 
 class NearbyLocationUnavailable(ValueError):
@@ -297,7 +304,7 @@ class ChatDBManager:
         radius_meters: float = NEARBY_PLACES_RADIUS_METERS,
         tenant_id: str = "default",
     ) -> list[dict]:
-        """Find the requested number of matching places using coordinates or an owned touchpoint."""
+        """Find nearby lexical matches first, then fill gaps from place-owned vectors."""
         if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
             raise ValueError("limit must be positive")
         if not 0 < radius_meters < float("inf"):
@@ -329,7 +336,13 @@ class ChatDBManager:
                       OR EXISTS (
                           SELECT 1
                           FROM unnest($3::text[]) AS term
-                          WHERE lower(coalesce(p.name, '')) LIKE '%' || term || '%'
+                          WHERE to_tsvector(
+                              'simple',
+                              coalesce(p.name, '') || ' ' ||
+                              coalesce(p.description, '') || ' ' ||
+                              coalesce(p.category, '')
+                          ) @@ plainto_tsquery('simple', term)
+                             OR lower(coalesce(p.name, '')) LIKE '%' || term || '%'
                              OR lower(coalesce(p.description, '')) LIKE '%' || term || '%'
                              OR lower(coalesce(p.category, '')) LIKE '%' || term || '%'
                              OR EXISTS (
@@ -349,6 +362,108 @@ class ChatDBManager:
                 limit,
                 tenant_id,
             )
+            if terms and len(rows) < limit and self.embedding_model is not None:
+                has_vectors = await conn.fetchval(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM geo_places AS p
+                        JOIN knowledge_sources AS ks
+                          ON ks.metadata->>'geo_place_id' = p.id::text
+                         AND ks.tenant_id = p.tenant_id
+                        JOIN knowledge_chunks AS kc
+                          ON kc.source_id = ks.id AND kc.tenant_id = ks.tenant_id
+                        WHERE p.tenant_id IN ($4, 'global')
+                          AND p.id::text <> ALL($5::text[])
+                          AND ks.status = 'active'
+                          AND (ks.metadata->>'source' = 'geo_places'
+                               OR ks.metadata->>'provider' = 'brave_search')
+                          AND ST_DWithin(
+                              p.geom::geography,
+                              ST_SetSRID(ST_MakePoint(
+                                  $1::double precision, $2::double precision
+                              ), 4326)::geography,
+                              $3
+                          )
+                    )
+                    """,
+                    longitude, latitude, radius_meters, tenant_id,
+                    [str(row["id"]) for row in rows],
+                )
+                if has_vectors:
+                    try:
+                        embedding = await asyncio.wait_for(
+                            asyncio.to_thread(
+                                self.embedding_model.encode,
+                                " ".join(terms),
+                                normalize_embeddings=True,
+                            ),
+                            timeout=PLACE_VECTOR_TIMEOUT_SECONDS,
+                        )
+                        vector = embedding.tolist()
+                        if (
+                            len(vector) != 768
+                            or any(
+                                isinstance(value, bool)
+                                or not isinstance(value, (int, float))
+                                or not math.isfinite(value)
+                                for value in vector
+                            )
+                            or not any(value != 0 for value in vector)
+                        ):
+                            raise ValueError("Invalid 768-dimensional place search vector")
+                    except (
+                        TimeoutError, ValueError, RuntimeError, GoogleAPIError,
+                        GenAIClientError, OpenAIError, httpx.HTTPError,
+                    ):
+                        logger.exception(
+                            "Semantic nearby search failed; retaining %d lexical "
+                            "matches and allowing discovery to fill missing results.",
+                            len(rows),
+                        )
+                    else:
+                        semantic_rows = await conn.fetch(
+                            """
+                            WITH location AS (
+                                SELECT ST_SetSRID(ST_MakePoint(
+                                    $1::double precision, $2::double precision
+                                ), 4326)::geography AS point
+                            )
+                            SELECT p.id, p.name, p.address, p.description,
+                                   p.category, p.tags,
+                                   ST_Distance(p.geom::geography, t.point)
+                                       AS distance_meters,
+                                   min(kc.embedding <=> $6::vector) AS vector_distance
+                            FROM geo_places AS p
+                            CROSS JOIN location AS t
+                            JOIN knowledge_sources AS ks
+                              ON ks.metadata->>'geo_place_id' = p.id::text
+                             AND ks.tenant_id = p.tenant_id
+                            JOIN knowledge_chunks AS kc
+                              ON kc.source_id = ks.id AND kc.tenant_id = ks.tenant_id
+                            WHERE p.tenant_id IN ($5, 'global')
+                              AND ST_DWithin(p.geom::geography, t.point, $3)
+                              AND ks.status = 'active'
+                              AND (ks.metadata->>'source' = 'geo_places'
+                                   OR ks.metadata->>'provider' = 'brave_search')
+                              AND kc.embedding <=> $6::vector <= $7
+                              AND p.id::text <> ALL($8::text[])
+                            GROUP BY p.id, p.name, p.address, p.description,
+                                     p.category, p.tags, t.point
+                            ORDER BY distance_meters, vector_distance, p.id
+                            LIMIT $4
+                            """,
+                            longitude, latitude, radius_meters,
+                            limit - len(rows), tenant_id, to_pgvector(vector),
+                            PLACE_VECTOR_MAX_DISTANCE,
+                            [str(row["id"]) for row in rows],
+                        )
+                        rows = list(rows) + list(semantic_rows)
+                        rows.sort(
+                            key=lambda row: (
+                                float(row["distance_meters"]), str(row["id"])
+                            )
+                        )
         return [
             {
                 "id": str(row["id"]),

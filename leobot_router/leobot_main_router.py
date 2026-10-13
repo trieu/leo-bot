@@ -7,6 +7,8 @@ from fastapi.responses import (
     HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse,
 )
 from dagster_graphql import DagsterGraphQLClientError
+from redis.exceptions import RedisError
+from leoai.geo_place_events import wait_for_geo_places_ready
 from leoai.ai_intent_detection import IntentDetector, IntentType, RequestContext
 from leoai.leo_datamodel import GeolocationTouchpointRequest, Message
 from leoai.leo_personalization import _build_recommended_actions
@@ -16,7 +18,7 @@ from leoai.rag_agent import (
 )
 from leoai.rag_agent_utils import (
     get_geo_places_enrichment_status,
-    positive_finite_radius_meters,
+    nearby_radius_meters,
 )
 from leoai.ai_core import is_ai_model_ready
 
@@ -115,14 +117,18 @@ async def handle_chat(msg: Message):
 
     # 3. Validate location parameters only for a clear location/chat request.
     result_limit = msg.result_limit
+    radius_meters = None
     if nearby_search:
         try:
-            if result_limit is None:
-                result_limit = intent_result.entities.get("result_limit")
-            result_limit = nearby_result_limit(msg.question, result_limit)
-            radius_meters = intent_result.entities.get("radius_meters")
-            if radius_meters is not None:
-                positive_finite_radius_meters(radius_meters)
+            result_limit = nearby_result_limit(
+                msg.question,
+                msg.result_limit,
+                intent_limit=intent_result.entities.get("result_limit"),
+            )
+            radius_meters = nearby_radius_meters(
+                msg.question,
+                intent_result.entities.get("radius_meters"),
+            )
         except ValueError as exc:
             logger.warning("Invalid nearby-place parameters: %s", exc)
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -134,16 +140,21 @@ async def handle_chat(msg: Message):
         raise HTTPException(status_code=400, detail="latitude and longitude must be provided together")
 
     # 4. Load cached visitor context.
-    profile_id = REDIS_CLIENT.hget(visitor_id, "profile_id") or None
+    profile_id = await asyncio.to_thread(
+        REDIS_CLIENT.hget, visitor_id, "profile_id"
+    ) or None
     if isinstance(profile_id, bytes):
         profile_id = profile_id.decode("utf-8")
 
     # 5. Select the isolated document touchpoint or the visitor's active one.
-    touchpoint_id = (
-        DOCUMENT_CHAT_TOUCHPOINT_ID
-        if document_chat
-        else msg.touchpoint_id or REDIS_CLIENT.hget(visitor_id, "touchpoint_id")
-    )
+    if document_chat:
+        touchpoint_id = DOCUMENT_CHAT_TOUCHPOINT_ID
+    else:
+        touchpoint_id = msg.touchpoint_id
+        if not touchpoint_id:
+            touchpoint_id = await asyncio.to_thread(
+                REDIS_CLIENT.hget, visitor_id, "touchpoint_id"
+            )
     if isinstance(touchpoint_id, bytes):
         touchpoint_id = touchpoint_id.decode("utf-8")
 
@@ -176,6 +187,7 @@ async def handle_chat(msg: Message):
         touchpoint_type=msg.touchpoint_type,
         touchpoint_keywords=msg.touchpoint_keywords,
         result_limit=result_limit,
+        radius_meters=radius_meters,
         context=msg.context,
         temperature_score=msg.temperature_score,
         channel="web_widget",
@@ -202,37 +214,74 @@ async def handle_chat(msg: Message):
     name="geo_places_enrichment_events",
 )
 async def geo_places_enrichment_events(run_id: str):
-    """Stream Dagster run status changes until geo-place enrichment finishes."""
+    """Stream committed discovery readiness before slower Dagster enrichment finishes."""
 
     async def status_events():
         last_status = None
         yield "retry: 5000\n\n"
-        while True:
-            try:
-                status = await asyncio.to_thread(
-                    get_geo_places_enrichment_status, run_id
-                )
-            except DagsterGraphQLClientError:
-                logger.exception(
-                    "Unable to stream Dagster status for enrichment run %s",
-                    run_id,
-                )
-                yield "event: status_error\ndata: {}\n\n"
-                return
+        ready_task = asyncio.create_task(wait_for_geo_places_ready(run_id))
+        status_task = None
+        try:
+            while True:
+                if status_task is None:
+                    status_task = asyncio.create_task(
+                        asyncio.to_thread(get_geo_places_enrichment_status, run_id)
+                    )
+                watched_tasks: set[asyncio.Task[object]] = {status_task}
+                if ready_task is not None:
+                    watched_tasks.add(ready_task)
+                await asyncio.wait(watched_tasks, return_when=asyncio.FIRST_COMPLETED)
+                if ready_task is not None and ready_task.done():
+                    try:
+                        event = ready_task.result()
+                    except (RedisError, ValueError):
+                        logger.exception(
+                            "Redis discovery notification unavailable for run %s; "
+                            "falling back to Dagster status.",
+                            run_id,
+                        )
+                        ready_task = None
+                    else:
+                        yield f"data: {json.dumps(event, separators=(',', ':'))}\n\n"
+                        return
 
-            if status != last_status:
-                event = json.dumps(
-                    {"run_id": run_id, "status": status},
-                    separators=(",", ":"),
-                )
-                yield f"data: {event}\n\n"
-                last_status = status
+                try:
+                    if not status_task.done():
+                        continue
+                    status = status_task.result()
+                except DagsterGraphQLClientError:
+                    logger.exception(
+                        "Unable to stream Dagster status for enrichment run %s", run_id
+                    )
+                    yield "event: status_error\ndata: {}\n\n"
+                    return
+                status_task = None
 
-            if status in TERMINAL_DAGSTER_STATUSES:
-                return
+                if status != last_status:
+                    event = json.dumps(
+                        {"run_id": run_id, "status": status},
+                        separators=(",", ":"),
+                    )
+                    yield f"data: {event}\n\n"
+                    last_status = status
 
-            await asyncio.sleep(ENRICHMENT_STATUS_POLL_SECONDS)
-            yield ": keep-alive\n\n"
+                if status in TERMINAL_DAGSTER_STATUSES:
+                    return
+
+                if ready_task is not None:
+                    await asyncio.wait(
+                        {ready_task}, timeout=ENRICHMENT_STATUS_POLL_SECONDS
+                    )
+                else:
+                    await asyncio.sleep(ENRICHMENT_STATUS_POLL_SECONDS)
+                yield ": keep-alive\n\n"
+        finally:
+            tasks: list[asyncio.Task[object]] = [
+                task for task in (ready_task, status_task) if task is not None
+            ]
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
 
     return StreamingResponse(
         status_events(),

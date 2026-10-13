@@ -319,6 +319,8 @@ def test_pipeline_run_config_caps_places_and_rejects_invalid_inputs():
 
 
 def test_full_pipeline_inserts_and_enriches_ramen_places(monkeypatch):
+    publication = Mock()
+    monkeypatch.setattr(pipeline, "publish_geo_places_ready", publication)
     place_id = uuid4()
     geo_place = {
         "id": place_id,
@@ -412,6 +414,7 @@ def test_full_pipeline_inserts_and_enriches_ramen_places(monkeypatch):
     )
 
     assert result.success
+    publication.assert_called_once_with(result.run_id, 1)
     assert set(result.job_def.graph.node_names()) == {
         "process_places",
         "process_brave_search",
@@ -464,6 +467,7 @@ def test_trigger_submits_bounded_job_without_polling(monkeypatch):
         "longitude": 106.62,
         "radius": 1000,
         "count": rag_agent_utils.MAX_GEO_PLACES_ENRICHMENT,
+        "candidate_count": 15,
     }
     assert config["ops"]["process_brave_search"]["config"]["search_name"] == "coffee"
     assert config["ops"]["process_mass_schedule"]["config"]["search_name"] == "coffee"

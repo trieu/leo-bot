@@ -232,3 +232,32 @@ test("refreshes the latest user question after enrichment succeeds", async () =>
   assert.equal(secondSource.closed, true);
   assert.equal(chat.requests.length, 3);
 });
+
+test("refreshes once when discovery saves places before enrichment succeeds", async () => {
+  const chat = setupChat();
+  chat.context.sendQuestionToLeoAI("ask", "4 quán phở gần tui trong 5 km");
+  await Promise.resolve();
+  chat.requests[0].success({
+    error_code: 0,
+    answer: "Discovery queued",
+    enrichment_status_url: "/_leoai/geo-places/enrichment/run-id/events",
+  });
+  const source = chat.eventSources[0];
+  source.onmessage({
+    data: JSON.stringify({
+      run_id: "run-id", status: "PLACES_READY", saved_places: 4,
+    }),
+  });
+  await Promise.resolve();
+  assert.equal(source.closed, true);
+  assert.equal(chat.requests.length, 2);
+  assert.equal(
+    JSON.parse(chat.requests[1].options.data).question,
+    "4 quán phở gần tui trong 5 km"
+  );
+  source.onmessage({
+    data: JSON.stringify({ run_id: "run-id", status: "SUCCESS" }),
+  });
+  await Promise.resolve();
+  assert.equal(chat.requests.length, 2);
+});

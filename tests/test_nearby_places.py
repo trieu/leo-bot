@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import threading
 from contextlib import asynccontextmanager
 from html.parser import HTMLParser
 from types import SimpleNamespace
@@ -553,6 +554,11 @@ def route_client(monkeypatch):
         hset=Mock(),
     ))
     monkeypatch.setattr(routes, "is_safe_to_answer", lambda visitor: True)
+
+    async def wait_for_discovery(run_id):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(routes, "wait_for_geo_places_ready", wait_for_discovery)
     app = FastAPI()
     app.include_router(routes.router)
     return TestClient(app), agent
@@ -702,6 +708,65 @@ def test_handle_chat_returns_queued_enrichment_notice_for_no_data(route_client, 
     )
 
 
+def test_fastapi_partial_pho_request_refreshes_on_discovery_ready(
+    route_client, monkeypatch,
+):
+    from leobot_router import leobot_main_router as routes
+
+    client, agent = route_client
+    saved_places = places(4)
+    for index, saved in enumerate(saved_places, 1):
+        saved["name"] = f"Pho shop {index}"
+    agent.db.find_nearby_places.side_effect = [saved_places[:1], saved_places]
+    agent.db.resolve_nearby_location = AsyncMock(return_value=(10.7905024, 106.676224))
+    detector = AsyncMock(return_value=rag_agent_module.IntentDetectionResult(
+        primary_intent=rag_agent_module.IntentType.LOCATION_CHAT,
+        purpose="generate_answer",
+        confidence=0.95,
+        entities={
+            "search_name": "pho", "search_terms": ["pho"],
+            "result_limit": 3, "radius_meters": 1000,
+        },
+    ))
+    monkeypatch.setattr(routes.intent_detector, "detect_async", detector)
+    trigger = Mock(return_value="run-id")
+    monkeypatch.setattr(rag_agent_module, "trigger_geo_places_enrichment", trigger)
+    monkeypatch.setattr(
+        routes, "wait_for_geo_places_ready",
+        AsyncMock(return_value={
+            "run_id": "run-id", "status": "PLACES_READY", "saved_places": 4,
+        }),
+    )
+    monkeypatch.setattr(
+        routes, "get_geo_places_enrichment_status", lambda run_id: "STARTED",
+    )
+    payload = {
+        "question": "4 quán phở gần tui trong 5 km",
+        "visitor_id": "visitor", "touchpoint_id": "tp",
+        "latitude": 10.7905024, "longitude": 106.676224,
+        "answer_in_language": "Vietnamese", "answer_in_format": "html",
+    }
+    initial = client.post("/_leoai/ask", json=payload)
+    assert initial.status_code == 200
+    assert initial.json()["answer"].count("<li>") == 1
+    assert initial.json()["enrichment_run_id"] == "run-id"
+    trigger.assert_called_once_with(
+        name="pho", latitude=10.7905024, longitude=106.676224,
+        radius=5000, count=3,
+    )
+    readiness = client.get(initial.json()["enrichment_status_url"])
+    assert '"status":"PLACES_READY"' in readiness.text
+    assert '"status":"SUCCESS"' not in readiness.text
+
+    refreshed = client.post("/_leoai/ask", json=payload)
+    assert refreshed.status_code == 200
+    assert refreshed.json()["answer"].count("<li>") == 4
+    assert "enrichment_run_id" not in refreshed.json()
+    assert trigger.call_count == 1
+    assert agent.db.find_nearby_places.call_args.args[2] == 4
+    assert agent.db.find_nearby_places.call_args.kwargs["radius_meters"] == 5000
+
+
 def test_geo_places_enrichment_sse_streams_until_terminal_status(
     route_client, monkeypatch,
 ):
@@ -724,6 +789,86 @@ def test_geo_places_enrichment_sse_streams_until_terminal_status(
     assert "data: {\"run_id\":\"run-id\",\"status\":\"QUEUED\"}" in body
     assert "data: {\"run_id\":\"run-id\",\"status\":\"STARTED\"}" in body
     assert "data: {\"run_id\":\"run-id\",\"status\":\"SUCCESS\"}" in body
+
+
+def test_sse_returns_committed_discovery_before_job_finishes(route_client, monkeypatch):
+    from leobot_router import leobot_main_router as routes
+
+    client, _ = route_client
+    monkeypatch.setattr(
+        routes,
+        "wait_for_geo_places_ready",
+        AsyncMock(return_value={
+            "run_id": "run-id", "status": "PLACES_READY", "saved_places": 4,
+        }),
+    )
+    monkeypatch.setattr(
+        routes, "get_geo_places_enrichment_status", lambda run_id: "STARTED",
+    )
+    with client.stream(
+        "GET", "/_leoai/geo-places/enrichment/run-id/events"
+    ) as response:
+        body = "".join(response.iter_text())
+
+    assert response.status_code == 200
+    assert '"status":"PLACES_READY"' in body
+    assert '"saved_places":4' in body
+    assert '"status":"SUCCESS"' not in body
+
+
+def test_sse_redis_failure_falls_back_to_dagster(route_client, monkeypatch, caplog):
+    from redis.exceptions import ConnectionError
+    from leobot_router import leobot_main_router as routes
+
+    client, _ = route_client
+    monkeypatch.setattr(
+        routes,
+        "wait_for_geo_places_ready",
+        AsyncMock(side_effect=ConnectionError("Redis offline")),
+    )
+    monkeypatch.setattr(
+        routes, "get_geo_places_enrichment_status", lambda run_id: "SUCCESS",
+    )
+    with client.stream(
+        "GET", "/_leoai/geo-places/enrichment/run-id/events"
+    ) as response:
+        body = "".join(response.iter_text())
+    assert '"status":"SUCCESS"' in body
+    assert "falling back to Dagster status" in caplog.text
+
+
+def test_redis_readiness_does_not_wait_for_slow_dagster_status(monkeypatch):
+    from leobot_router import leobot_main_router as routes
+
+    poll_started = threading.Event()
+    poll_release = threading.Event()
+    poll_finished = []
+
+    def poll(run_id):
+        poll_started.set()
+        poll_release.wait(timeout=2)
+        poll_finished.append(True)
+        return "STARTED"
+
+    async def ready(run_id):
+        await asyncio.to_thread(poll_started.wait, 2)
+        return {"run_id": run_id, "status": "PLACES_READY", "saved_places": 4}
+
+    monkeypatch.setattr(routes, "get_geo_places_enrichment_status", poll)
+    monkeypatch.setattr(routes, "wait_for_geo_places_ready", ready)
+
+    async def scenario():
+        response = await routes.geo_places_enrichment_events("run-id")
+        try:
+            body = "".join([
+                chunk async for chunk in response.body_iterator
+            ])
+            assert '"status":"PLACES_READY"' in body
+            assert poll_finished == []
+        finally:
+            poll_release.set()
+
+    asyncio.run(scenario())
 
 
 def test_unaccented_noodle_question_queues_dagster_enrichment(route_client, monkeypatch):
@@ -866,3 +1011,20 @@ def test_real_postgis_filters_orders_and_returns_requested_counts(monkeypatch):
             await conn.close()
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "question,expected_count,expected_meters",
+    [
+        ("4 quán phở gần tui trong 5 km", 4, 5_000),
+        ("5 quán phở trong 10 km", 5, 10_000),
+        ("Find cafes within 1.5 km", 3, 1_500),
+    ],
+)
+def test_count_and_radius_come_from_request_text_not_ai_defaults(
+    question, expected_count, expected_meters,
+):
+    from leoai.rag_agent_utils import nearby_radius_meters
+
+    assert nearby_result_limit(question, intent_limit=3) == expected_count
+    assert nearby_radius_meters(question, 1_000) == expected_meters

@@ -117,7 +117,8 @@ AI request. Nearby phrases are matched after Vietnamese accent normalization.
 
 Resolves the requested number of results. An explicit API value wins over a
 number parsed from the message. If no number is supplied,
-`NEARBY_PLACES_LIMIT` is used. Invalid, non-positive, and boolean values raise
+an AI-extracted count is considered before `NEARBY_PLACES_LIMIT`.
+Invalid, non-positive, and boolean values raise
 `ValueError`.
 
 ## `nearby_radius_meters(message)`
@@ -125,6 +126,42 @@ number parsed from the message. If no number is supplied,
 Parses a positive metric radius such as `1 km`, `500 meters`, or `1,5 km`.
 If no radius is present, `NEARBY_PLACES_RADIUS_METERS` is used. The same radius
 is applied to the local PostGIS query and the enrichment job.
+
+## Hybrid nearby-place lookup and discovery notifications
+
+The lookup uses PostGIS to enforce the requested radius and tenant visibility.
+It matches PostgreSQL full-text tokens in place names, descriptions, and
+categories, retaining substring/tag matching for existing query compatibility.
+If the lexical results satisfy the requested count, no embedding API is called.
+
+When the list is still short and nearby place-owned knowledge vectors exist,
+the lookup embeds the narrow category terms and fills only missing slots with
+semantic matches. It deduplicates places with multiple chunks, excludes lexical
+matches already returned, and accepts cosine distance at most `0.35`. This
+initial relevance threshold is conservative but requires production calibration
+for the configured embedding model. Vector generation has a five-second wait
+budget; timeouts or provider failures are logged, and cached lexical matches
+remain available while discovery can fill the gaps.
+
+`/_leoai/ask` still returns partial results and the existing enrichment SSE URL
+immediately after Dagster accepts the job. `process_places` now publishes
+`PLACES_READY` to Redis **after its PostgreSQL transaction commits**. The SSE
+route subscribes to the run-specific channel and replays retained state, so
+events published before the browser connects are not lost. Redis readiness can
+interrupt a slow Dagster status poll. The browser refreshes its latest question
+once on readiness and closes that stream, without waiting for descriptions,
+web sources, mass schedules, or embeddings. `SUCCESS` remains a backward-
+compatible fallback when Redis is unavailable.
+
+Freshly saved places can be returned by the lexical query before their vectors
+exist. Discovery completion does not promise a full result count: only real
+matching places within the user's radius are returned.
+
+For existing databases, apply
+[`geo_places_search_indexes.sql`](../sql_scripts/geo_places_search_indexes.sql)
+outside a transaction. It builds the full-text and place-source lookup indexes
+concurrently without blocking normal writes. New installations include the
+same indexes in the base schema.
 
 ## `geo_places_search_name(message)`
 
@@ -337,8 +374,9 @@ process_places
 
 Discovery calls Brave Place Search, filters unrelated results, and uses PostGIS
 `ST_DWithin` to enforce the radius. Brave's radius parameter alone is only a
-location bias. At most five matching places are upserted into `geo_places`
-using the requested category. `process_brave_search` and `process_knowledge`
+location bias. Discovery saves a bounded pool of matching candidates into
+`geo_places` using the requested category; downstream enrichment processes at
+most five scoped places. `process_brave_search` and `process_knowledge`
 use the same category/radius scope. `process_mass_schedule` executes as part of
 the full job but skips non-church categories. Knowledge enrichment creates the
 place-owned `knowledge_sources` row and vectorized `knowledge_chunks`.
@@ -355,7 +393,8 @@ Bot: I have no matching place data within your requested radius yet.
 
 The existing chat API returns this notice in its `answer` field, so no frontend
 response shape changes are required. A later question queries the database
-again and returns available matching places. A queued run is not a promise
+automatically after `PLACES_READY` and returns available matching places.
+A queued run is not a promise
 that the provider will find results or that enrichment will succeed.
 
 Dagster must be running with the updated `dags_pipelines` code location and

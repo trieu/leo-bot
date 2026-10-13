@@ -663,6 +663,14 @@ class GeoPlacesEnrichmentWatcher {
         icon: "bi-check-circle-fill",
         color: "success",
       },
+      PLACES_READY: {
+        text: [
+          "Place discovery finished. Checking saved results.",
+          "Đã hoàn tất tìm kiếm địa điểm. Đang kiểm tra kết quả đã lưu.",
+        ],
+        icon: "bi-check-circle-fill",
+        color: "success",
+      },
       FAILURE: {
         text: [
           "Place search failed. Try again later.",
@@ -708,7 +716,7 @@ class GeoPlacesEnrichmentWatcher {
     const languageIndex = language === "en" ? 0 : 1;
 
     const localizedMessage =
-      status === "SUCCESS" && willRefreshResults
+      (status === "SUCCESS" || status === "PLACES_READY") && willRefreshResults
         ? this.refreshSuccessMessages[languageIndex]
         : statusMessage.text[languageIndex];
 
@@ -772,10 +780,12 @@ class GeoPlacesEnrichmentWatcher {
       return;
     }
 
+    var placesReady =
+      update.status === "SUCCESS" || update.status === "PLACES_READY";
     var refreshQuestion =
-      update.status === "SUCCESS" ? this.state.getQuestionToRefresh() : null;
+      placesReady ? this.state.getQuestionToRefresh() : null;
     this.showStatus(update.status, Boolean(refreshQuestion));
-    if (this.terminalStatuses.indexOf(update.status) >= 0) {
+    if (placesReady || this.terminalStatuses.indexOf(update.status) >= 0) {
       eventSource.close();
     }
     if (refreshQuestion) {

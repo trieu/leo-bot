@@ -10,7 +10,7 @@ from leoai.ai_intent_detection import (
     RequestContext,
 )
 from leoai.rag_db_manager import (
-    ChatDBManager, NearbyLocationUnavailable, NEARBY_PLACES_RADIUS_METERS,
+    ChatDBManager, NearbyLocationUnavailable,
 )
 from leoai.rag_context_manager import ContextManager
 from leoai.rag_prompt_builder import AgentOrchestrator
@@ -26,7 +26,7 @@ from leoai.rag_agent_utils import (
     geo_places_search_name,
     nearby_place_terms,
     nearby_result_limit,
-    positive_finite_radius_meters,
+    nearby_radius_meters,
     MAX_GEO_PLACES_ENRICHMENT,
     selected_place_index,
     trigger_geo_places_enrichment,
@@ -208,6 +208,7 @@ class RAGAgent:
         tenant_id: str = "default",
         channel: str | None = None,
         intent_result: IntentDetectionResult | None = None,
+        radius_meters: float | None = None,
     ) -> dict[str, str | None]:
         """Process one chat message through the compiled RAG workflow.
 
@@ -256,6 +257,7 @@ class RAGAgent:
             "touchpoint_type": touchpoint_type,
             "touchpoint_keywords": touchpoint_keywords,
             "result_limit": result_limit,
+            "radius_meters": radius_meters,
             "context": context,
             "primary_intent": IntentType.GENERAL_CHAT.value,
         }
@@ -319,19 +321,18 @@ class RAGAgent:
                 }
             )
             if is_nearby_search:
-                detected_limit = result_limit
-                if detected_limit is None:
-                    detected_limit = nearby_intent.get("result_limit")
-                radius_meters = nearby_intent.get("radius_meters")
-                if radius_meters is None:
-                    radius_meters = NEARBY_PLACES_RADIUS_METERS
                 initial_state.update(
                     {
                         "result_limit": nearby_result_limit(
-                            user_message, detected_limit
+                            user_message,
+                            result_limit,
+                            intent_limit=nearby_intent.get("result_limit"),
                         ),
-                        "radius_meters": positive_finite_radius_meters(
+                        "radius_meters": nearby_radius_meters(
+                            user_message,
                             radius_meters
+                            if radius_meters is not None
+                            else nearby_intent.get("radius_meters"),
                         ),
                     }
                 )
