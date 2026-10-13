@@ -12,10 +12,11 @@ from leoai.leo_datamodel import GeolocationTouchpointRequest, Message
 from leoai.leo_personalization import _build_recommended_actions
 from leoai.rag_agent import (
     DOCUMENT_CHAT_TOUCHPOINT_ID, RAGAgent,
-    nearby_result_limit, nearby_radius_meters,
+    nearby_result_limit,
 )
 from leoai.rag_agent_utils import (
     get_geo_places_enrichment_status,
+    positive_finite_radius_meters,
 )
 from leoai.ai_core import is_ai_model_ready
 
@@ -116,8 +117,12 @@ async def handle_chat(msg: Message):
     result_limit = msg.result_limit
     if nearby_search:
         try:
+            if result_limit is None:
+                result_limit = intent_result.entities.get("result_limit")
             result_limit = nearby_result_limit(msg.question, result_limit)
-            nearby_radius_meters(msg.question)
+            radius_meters = intent_result.entities.get("radius_meters")
+            if radius_meters is not None:
+                positive_finite_radius_meters(radius_meters)
         except ValueError as exc:
             logger.warning("Invalid nearby-place parameters: %s", exc)
             raise HTTPException(status_code=400, detail=str(exc)) from exc

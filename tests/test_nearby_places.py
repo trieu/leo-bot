@@ -231,7 +231,13 @@ def test_agent_queries_database_before_any_ai_work(count):
     asyncio.run(scenario())
 
 
-def test_structured_location_intent_routes_without_reclassifying_nearby(monkeypatch):
+@pytest.mark.parametrize(
+    "api_result_limit,expected_limit",
+    [(None, 7), (2, 2)],
+)
+def test_structured_location_intent_routes_without_reclassifying_nearby(
+    monkeypatch, api_result_limit, expected_limit,
+):
     async def scenario():
         agent = make_agent()
         agent.db.find_nearby_places.return_value = places(1)
@@ -248,6 +254,8 @@ def test_structured_location_intent_routes_without_reclassifying_nearby(monkeypa
                 "place_type": "coffee",
                 "search_terms": ["coffee"],
                 "search_name": "coffee",
+                "result_limit": 7,
+                "radius_meters": 1200,
             },
         )
 
@@ -258,18 +266,18 @@ def test_structured_location_intent_routes_without_reclassifying_nearby(monkeypa
             latitude=10.747904,
             longitude=106.6467328,
             target_language="English",
-            result_limit=1,
+            result_limit=api_result_limit,
             intent_result=intent_result,
         )
 
         agent.db.find_nearby_places.assert_awaited_once_with(
             "tp",
             ["coffee"],
-            1,
+            expected_limit,
             user_id="visitor",
             latitude=10.747904,
             longitude=106.6467328,
-            radius_meters=rag_db_manager.NEARBY_PLACES_RADIUS_METERS,
+            radius_meters=1200,
             tenant_id="default",
         )
 
@@ -651,12 +659,29 @@ def test_handle_chat_accepts_coordinates_and_api_count_override(route_client):
 
 def test_handle_chat_returns_queued_enrichment_notice_for_no_data(route_client, monkeypatch):
     from leoai import rag_agent
+    from leobot_router import leobot_main_router as routes
 
     client, agent = route_client
     agent.db.find_nearby_places.return_value = []
     agent.db.resolve_nearby_location = AsyncMock(return_value=(10.75, 106.62))
     trigger = Mock(return_value="run-id")
     monkeypatch.setattr(rag_agent, "trigger_geo_places_enrichment", trigger)
+    monkeypatch.setattr(
+        routes.intent_detector,
+        "detect_async",
+        AsyncMock(return_value=rag_agent_module.IntentDetectionResult(
+            primary_intent=rag_agent_module.IntentType.LOCATION_CHAT,
+            purpose="generate_answer",
+            confidence=0.94,
+            entities={
+                "place_type": "coffee",
+                "search_terms": ["coffee"],
+                "search_name": "coffee",
+                "result_limit": 3,
+                "radius_meters": 1000,
+            },
+        )),
+    )
     response = client.post("/_leoai/ask", json={
         "visitor_id": "visitor", "question": "top 3 coffee shop near me in 1 km",
         "answer_in_language": "en",
@@ -733,12 +758,29 @@ def test_unaccented_noodle_question_queues_dagster_enrichment(route_client, monk
         latitude=10.75,
         longitude=106.62,
         radius=rag_db_manager.NEARBY_PLACES_RADIUS_METERS,
-        count=5,
+        count=rag_agent_module.MAX_GEO_PLACES_ENRICHMENT,
     )
 
 
-def test_handle_chat_rejects_invalid_radius_before_search(route_client):
+def test_handle_chat_rejects_invalid_radius_before_search(route_client, monkeypatch):
+    from leobot_router import leobot_main_router as routes
+
     client, agent = route_client
+    monkeypatch.setattr(
+        routes.intent_detector,
+        "detect_async",
+        AsyncMock(return_value=rag_agent_module.IntentDetectionResult(
+            primary_intent=rag_agent_module.IntentType.LOCATION_CHAT,
+            purpose="generate_answer",
+            confidence=0.94,
+            entities={
+                "place_type": "coffee",
+                "search_terms": ["coffee"],
+                "search_name": "coffee",
+                "radius_meters": -1000,
+            },
+        )),
+    )
     response = client.post("/_leoai/ask", json={
         "visitor_id": "visitor", "question": "coffee near me in -1 km",
     })

@@ -1,5 +1,7 @@
 import logging
 
+import pytest
+
 from leoai.ai_intent_detection import (
     IntentDetector,
     IntentType,
@@ -65,6 +67,8 @@ def test_detector_uses_question_and_request_context_in_structured_prompt():
         "customer_id",
         "campaign_id",
         "operation",
+        "result_limit",
+        "radius_meters",
     } <= schema["properties"]["entities"]["properties"].keys()
     assert schema["properties"]["entities"]["properties"]["search_terms"] == {
         "type": "array",
@@ -72,6 +76,69 @@ def test_detector_uses_question_and_request_context_in_structured_prompt():
         "maxItems": 6,
     }
     assert "the channel a message arrived on is not an intent" in system_instruction
+
+
+def test_location_intent_extracts_result_limit_and_radius_in_meters():
+    client = FakeAIClient(intent_response(
+        "location_chat",
+        entities={
+            "place_type": "coffee",
+            "search_terms": ["coffee"],
+            "search_name": "coffee",
+            "result_limit": 5,
+            "radius_meters": 1500,
+        },
+    ))
+
+    result = IntentDetector(ai_client=client).detect(
+        "Find 5 coffee shops within 1.5 km",
+    )
+
+    assert result.entities["result_limit"] == 5
+    assert result.entities["radius_meters"] == 1500.0
+    assert "Convert kilometers or kilometres to meters" in client.calls[0][2]
+
+
+@pytest.mark.parametrize("entity,value", [
+    ("result_limit", 0),
+    ("result_limit", 2.5),
+    ("result_limit", True),
+    ("radius_meters", float("inf")),
+    ("radius_meters", True),
+])
+def test_location_intent_rejects_invalid_result_limit_or_radius(entity, value):
+    client = FakeAIClient(intent_response(
+        "location_chat",
+        entities={
+            "place_type": "coffee",
+            "search_terms": ["coffee"],
+            "search_name": "coffee",
+            entity: value,
+        },
+    ))
+
+    result = IntentDetector(ai_client=client).detect("Find coffee nearby")
+
+    assert result.primary_intent is IntentType.GENERAL_CHAT
+    assert result.needs_clarification is True
+
+
+@pytest.mark.parametrize("radius", [0, -100])
+def test_location_intent_preserves_nonpositive_radius_for_request_validation(radius):
+    client = FakeAIClient(intent_response(
+        "location_chat",
+        entities={
+            "place_type": "coffee",
+            "search_terms": ["coffee"],
+            "search_name": "coffee",
+            "radius_meters": radius,
+        },
+    ))
+
+    result = IntentDetector(ai_client=client).detect("Find coffee nearby")
+
+    assert result.primary_intent is IntentType.LOCATION_CHAT
+    assert result.entities["radius_meters"] == float(radius)
 
 
 def test_location_intent_is_separate_from_facebook_channel():

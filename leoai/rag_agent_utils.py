@@ -12,7 +12,7 @@ from urllib.parse import urlencode
 from dagster_graphql import DagsterGraphQLClient
 
 from leoai.ai_core import AIClient
-from leoai.rag_db_manager import NEARBY_PLACES_LIMIT, NEARBY_PLACES_RADIUS_METERS
+from leoai.rag_db_manager import NEARBY_PLACES_LIMIT
 
 logger = logging.getLogger(__name__)
 GEO_PLACES_PIPELINE_JOB = "geo_places_pipeline"
@@ -22,7 +22,7 @@ GEO_PLACES_PIPELINE_ASSETS = [
     "process_mass_schedule",
     "process_knowledge",
 ]
-MAX_GEO_PLACES_ENRICHMENT = 5
+MAX_GEO_PLACES_ENRICHMENT = 3
 
 GREETING_PATTERN = re.compile(
     r"^(?:hi|hello|hey|xin chao|xin chào|chao|chào|good morning|"
@@ -34,10 +34,13 @@ PLACE_SELECTION_PATTERN = re.compile(
     re.IGNORECASE,
 )
 NEARBY_QUERY_PATTERN = re.compile(
-    r"\b(?:near\s+me|nearby|near\s+here|close\s+(?:to\s+me|by)|"
-    r"around\s+(?:me|here)|in\s+(?:my|this)\s+(?:area|neighbou?rhood)|"
-    r"gan\s+(?:toi|minh|day|khu\s+vuc)|xung\s+quanh(?:\s+(?:toi|day))?|"
-    r"quanh\s+(?:toi|day))\b",
+    r"\b(?:near(?:\s+to)?\s+(?:(?:the|a|an|my|our)\s+)?[\w'-]+|nearby|"
+    r"close\s+(?:by|to\s+(?:(?:the|a|an|my|our)\s+)?[\w'-]+)|"
+    r"around\s+(?:(?:the|a|an|my|our)\s+)?[\w'-]+|"
+    r"in\s+(?:my|this)\s+(?:area|neighbou?rhood)|"
+    r"gan\s+(?:toi|minh|day|khu\s+vuc|[\w'-]+)|"
+    r"xung\s+quanh(?:\s+(?:toi|day|[\w'-]+))?|"
+    r"quanh\s+(?:toi|day|[\w'-]+))\b",
     re.IGNORECASE,
 )
 NEARBY_INTENT_SCHEMA = {
@@ -146,7 +149,11 @@ def nearby_place_intent_from_entities(entities: dict[str, Any]) -> dict[str, Any
         search_terms = [place_type]
     if not search_name:
         search_name = place_type or (search_terms[0] if search_terms else "places")
-    return normalize_nearby_place_intent(True, search_terms, search_name)
+    nearby_intent = normalize_nearby_place_intent(True, search_terms, search_name)
+    for key in ("result_limit", "radius_meters"):
+        if key in entities:
+            nearby_intent[key] = entities[key]
+    return nearby_intent
 
 
 def normalize_nearby_place_intent(
@@ -250,22 +257,16 @@ def nearby_result_limit(message: str, explicit_limit: int | None = None) -> int:
     return limit
 
 
-def nearby_radius_meters(message: str) -> float:
-    """Parse a positive metric search radius, or use the configured default."""
-    match = re.search(
-        r"(?<![\w.])([+-]?\d+(?:[.,]\d+)?)\s*"
-        r"(kilometers?|kilometres?|km|meters?|metres?|mét|m)\b",
-        message,
-        re.IGNORECASE,
-    )
-    if match is None:
-        return float(NEARBY_PLACES_RADIUS_METERS)
-    radius = float(match.group(1).replace(",", "."))
-    if match.group(2).lower().startswith("k"):
-        radius *= 1000
-    if not math.isfinite(radius) or radius <= 0:
+def positive_finite_radius_meters(value: Any) -> float:
+    """Validate and normalize a radius already expressed in meters."""
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)
+        or value <= 0
+    ):
         raise ValueError("Requested search radius must be positive and finite.")
-    return radius
+    return float(value)
 
 
 def geo_places_search_name(

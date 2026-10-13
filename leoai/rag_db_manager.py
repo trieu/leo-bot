@@ -12,7 +12,7 @@ from leoai.db_utils import get_async_pg_conn, sha256_hash, to_pgvector
 
 logger = logging.getLogger("ChatDB")
 NEARBY_PLACES_RADIUS_METERS = int(
-    os.getenv("NEARBY_PLACES_RADIUS_METERS", "50000")
+    os.getenv("NEARBY_PLACES_RADIUS_METERS", "5000")
 )
 NEARBY_PLACES_LIMIT = int(os.getenv("NEARBY_PLACES_LIMIT", "5"))
 TOUCHPOINT_NAME_DEFAULT = "Web visitor"
