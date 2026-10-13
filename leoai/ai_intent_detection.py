@@ -149,6 +149,9 @@ Rules:
   place categories (or [] for an unqualified nearby request) and entities.search_name
   as a concise category or "places". Use entities.place_type when one category
   is clear. Do not classify the channel as an intent.
+  Preserve specific dishes for name search: "5 quán miến ngon" means search_terms
+  ["miến"], search_name "miến", result_limit 5. Do not broaden miến to noodles,
+  restaurants, phở, or bún bò. Quality words such as "ngon" are not dish names.
 - For location_chat, extract entities.result_limit only when the user asks for
   a specific number of results; it must be a positive integer.
 - Extract entities.radius_meters only when the user specifies a search radius.

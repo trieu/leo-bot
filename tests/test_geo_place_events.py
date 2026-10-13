@@ -21,6 +21,7 @@ def test_publish_stores_replay_and_publishes_atomically(monkeypatch):
     events.publish_geo_places_ready("run-id", 4)
 
     client.pipeline.assert_called_once_with(transaction=True)
+    transaction.incr.assert_called_once_with(events.CHAT_CACHE_REVISION_KEY)
     key, payload = transaction.set.call_args.args
     assert key == events.geo_place_event_key("run-id")
     assert json.loads(payload) == {
@@ -168,6 +169,8 @@ def test_real_redis_live_delivery_and_late_subscriber_replay(monkeypatch, replay
     async def scenario():
         run_id = f"test-{uuid4()}"
         key = events.geo_place_event_key(run_id)
+        revision_key = f"{key}:cache-revision"
+        monkeypatch.setattr(events, "CHAT_CACHE_REVISION_KEY", revision_key)
         subscribed = asyncio.Event()
         original_subscription = events.subscribe_geo_place_events
 
@@ -194,6 +197,6 @@ def test_real_redis_live_delivery_and_late_subscriber_replay(monkeypatch, replay
                     "run_id": run_id, "status": "PLACES_READY", "saved_places": 4,
                 }
             finally:
-                await client.delete(key)
+                await client.delete(key, revision_key)
 
     asyncio.run(scenario())

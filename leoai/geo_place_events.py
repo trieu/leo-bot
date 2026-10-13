@@ -9,6 +9,7 @@ from redis.asyncio import Redis as AsyncRedis
 from redis.asyncio.client import PubSub
 
 from main_config import REDIS_HOST, REDIS_PORT, REDIS_USER_SESSION_DB
+from leoai.chat_response_cache import CHAT_CACHE_REVISION_KEY
 
 EVENT_TTL_SECONDS = 3600
 
@@ -37,6 +38,7 @@ def publish_geo_places_ready(run_id: str, saved_places: int) -> None:
         socket_timeout=2,
     ) as client:
         with client.pipeline(transaction=True) as transaction:
+            transaction.incr(CHAT_CACHE_REVISION_KEY)
             transaction.set(key, event, ex=EVENT_TTL_SECONDS)
             transaction.publish(key, event)
             transaction.execute()

@@ -303,8 +303,9 @@ class ChatDBManager:
         longitude: float | None = None,
         radius_meters: float = NEARBY_PLACES_RADIUS_METERS,
         tenant_id: str = "default",
+        similar_places: list[dict] | None = None,
     ) -> list[dict]:
-        """Find nearby lexical matches first, then fill gaps from place-owned vectors."""
+        """Return name matches; optionally collect vector recommendations separately."""
         if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
             raise ValueError("limit must be positive")
         if not 0 < radius_meters < float("inf"):
@@ -317,6 +318,7 @@ class ChatDBManager:
             tenant_id=tenant_id,
         )
         terms = [term.strip().lower() for term in search_terms if term.strip()]
+        semantic_rows = []
         async with get_async_pg_conn() as conn:
             rows = await conn.fetch(
                 """
@@ -337,19 +339,8 @@ class ChatDBManager:
                           SELECT 1
                           FROM unnest($3::text[]) AS term
                           WHERE to_tsvector(
-                              'simple',
-                              coalesce(p.name, '') || ' ' ||
-                              coalesce(p.description, '') || ' ' ||
-                              coalesce(p.category, '')
+                              'simple', coalesce(p.name, '')
                           ) @@ plainto_tsquery('simple', term)
-                             OR lower(coalesce(p.name, '')) LIKE '%' || term || '%'
-                             OR lower(coalesce(p.description, '')) LIKE '%' || term || '%'
-                             OR lower(coalesce(p.category, '')) LIKE '%' || term || '%'
-                             OR EXISTS (
-                                 SELECT 1
-                                 FROM unnest(coalesce(p.tags, ARRAY[]::text[])) AS tag
-                                 WHERE lower(tag) LIKE '%' || term || '%'
-                             )
                       )
                   )
                 ORDER BY distance_meters, p.id
@@ -362,7 +353,12 @@ class ChatDBManager:
                 limit,
                 tenant_id,
             )
-            if terms and len(rows) < limit and self.embedding_model is not None:
+            if (
+                similar_places is not None
+                and terms
+                and len(rows) < limit
+                and self.embedding_model is not None
+            ):
                 has_vectors = await conn.fetchval(
                     """
                     SELECT EXISTS (
@@ -454,16 +450,16 @@ class ChatDBManager:
                             LIMIT $4
                             """,
                             longitude, latitude, radius_meters,
-                            limit - len(rows), tenant_id, to_pgvector(vector),
+                            limit, tenant_id, to_pgvector(vector),
                             PLACE_VECTOR_MAX_DISTANCE,
                             [str(row["id"]) for row in rows],
                         )
-                        rows = list(rows) + list(semantic_rows)
-                        rows.sort(
-                            key=lambda row: (
-                                float(row["distance_meters"]), str(row["id"])
-                            )
-                        )
+        if similar_places is not None:
+            similar_places.extend(self._serialize_places(semantic_rows))
+        return self._serialize_places(rows)
+
+    @staticmethod
+    def _serialize_places(rows) -> list[dict]:
         return [
             {
                 "id": str(row["id"]),

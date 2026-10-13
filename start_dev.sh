@@ -135,7 +135,12 @@ wait_for_keycloak() {
 # EXECUTION FLOW
 # ------------------------------------------------------------------------------
 
-# 1. Start Postgres (Always required)
+# Update before applying SQL so startup uses the updated schema and indexes.
+echo -e "${YELLOW}📦 Updating Git repository...${NC}"
+git pull --quiet
+echo -e "${GREEN}✅ Repository updated.${NC}"
+
+# 1. Start Postgres (applies canonical schema and geo-place search indexes)
 wait_for_postgres
 
 if [[ "$SEED_DATA" == true ]]; then
@@ -150,11 +155,6 @@ if [[ "$KEYCLOAK_ENABLED" == "true" ]]; then
 else
   echo -e "${BLUE}ℹ️  KEYCLOAK_ENABLED is '$KEYCLOAK_ENABLED'. Skipping Keycloak startup.${NC}"
 fi
-
-# 3. Update Git
-echo -e "${YELLOW}📦 Updating Git repository...${NC}"
-git pull --quiet
-echo -e "${GREEN}✅ Repository updated.${NC}"
 
 # 4. Activate Venv
 if [[ ! -x "env/bin/python" ]]; then

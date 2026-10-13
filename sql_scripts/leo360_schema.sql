@@ -596,6 +596,9 @@ CREATE INDEX IF NOT EXISTS places_text_search_gin ON geo_places USING GIN (
         coalesce(category, '')
     )
 );
+CREATE INDEX IF NOT EXISTS places_name_search_gin ON geo_places USING GIN (
+    to_tsvector('simple', coalesce(name, ''))
+);
 CREATE INDEX IF NOT EXISTS knowledge_sources_geo_place_lookup_ix
 ON knowledge_sources (tenant_id, (metadata->>'geo_place_id'))
 WHERE status = 'active'

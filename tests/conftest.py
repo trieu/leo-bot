@@ -2,6 +2,8 @@ import sys
 import os
 
 import pytest
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 # add repo root to python import path
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -47,3 +49,17 @@ def stub_application_intent_detection(monkeypatch):
     detector = StubIntentDetector()
     monkeypatch.setattr(leobot_main_router, "intent_detector", detector)
     monkeypatch.setattr(rag_agent, "intent_detector", detector)
+
+
+@pytest.fixture(autouse=True)
+def disable_external_chat_cache(monkeypatch):
+    from leobot_router import leobot_main_router, leobot_knowledge_router
+
+    cache = SimpleNamespace(
+        lookup=AsyncMock(return_value=(None, None)),
+        store=AsyncMock(),
+        invalidate_visitor=AsyncMock(),
+        invalidate_places=AsyncMock(),
+    )
+    monkeypatch.setattr(leobot_main_router, "chat_response_cache", cache)
+    monkeypatch.setattr(leobot_knowledge_router, "chat_response_cache", cache)

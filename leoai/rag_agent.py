@@ -98,6 +98,7 @@ class ChatMessageState(TypedDict, total=False):
     summarized_context: dict
     user_context: dict
     nearby_places: list[dict]
+    similar_places: list[dict]
     selected_place: dict | None
     prompt_router: Any
     response: str
@@ -209,7 +210,7 @@ class RAGAgent:
         channel: str | None = None,
         intent_result: IntentDetectionResult | None = None,
         radius_meters: float | None = None,
-    ) -> dict[str, str | None]:
+    ) -> dict[str, Any]:
         """Process one chat message through the compiled RAG workflow.
 
         The workflow routes document chat, nearby-place search, place selection,
@@ -340,11 +341,14 @@ class RAGAgent:
             return {
                 "response": result["response"],
                 "enrichment_run_id": result.get("enrichment_run_id"),
+                "places": result.get("matching_places", []),
+                "similar_places": result.get("similar_places", []),
             }
         except Exception as e:
             logger.exception("❌ RAG pipeline error")
             return {
                 "response": f"I'm sorry, but something went wrong: {e}",
+                "error": True,
                 "enrichment_run_id": (
                     enrichment_run_id_sink[0] if enrichment_run_id_sink else None
                 ),
@@ -459,6 +463,7 @@ class RAGAgent:
         if result_limit is None:
             raise RuntimeError("Nearby search requires a validated result limit.")
         try:
+            similar_places: list[dict] = []
             places = await self.db.find_nearby_places(
                 state.get("touchpoint_id"),
                 state["terms"],
@@ -468,6 +473,7 @@ class RAGAgent:
                 longitude=state.get("longitude"),
                 radius_meters=state["radius_meters"],
                 tenant_id=state["tenant_id"],
+                similar_places=similar_places,
             )
         except NearbyLocationUnavailable:
             logger.info(
@@ -487,7 +493,11 @@ class RAGAgent:
             state["terms"],
             state["answer_in_format"],
         )
-        return {"response": response, "matching_places": places}
+        return {
+            "response": response,
+            "matching_places": places,
+            "similar_places": similar_places,
+        }
 
     @staticmethod
     def _route_after_nearby_places(state: ChatMessageState) -> str:

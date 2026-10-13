@@ -589,6 +589,7 @@ def test_empty_search_queues_enrichment_and_returns_notice(
             else rag_db_manager.NEARBY_PLACES_RADIUS_METERS
         ),
         tenant_id="default",
+        similar_places=[],
     )
     agent._safe_generate.assert_not_awaited()
     assert agent.db.save_chat_message.await_args_list[1].args[2] == response

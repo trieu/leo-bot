@@ -50,23 +50,26 @@ def test_full_lexical_results_skip_embedding_provider(monkeypatch):
     assert "plainto_tsquery('simple', term)" in conn.fetch.call_args.args[0]
 
 
-def test_vector_fallback_fills_only_missing_places_with_scope_and_threshold(monkeypatch):
+def test_vector_recommendations_are_separate_from_name_matches(monkeypatch):
     lexical = [place("Pho A", 100)]
     semantic = [place("Noodle House", 50)]
     conn = connection_stub(monkeypatch, lexical, semantic)
     model = Mock()
     model.encode.return_value = np.array([1.0] + [0.0] * 767)
+    similar = []
     results = asyncio.run(rag_db_manager.ChatDBManager(model).find_nearby_places(
         None, ["pho"], 4, user_id="visitor", latitude=10.79, longitude=106.67,
         radius_meters=5_000, tenant_id="tenant-a",
+        similar_places=similar,
     ))
-    assert [row["name"] for row in results] == ["Noodle House", "Pho A"]
+    assert [row["name"] for row in results] == ["Pho A"]
+    assert [row["name"] for row in similar] == ["Noodle House"]
     model.encode.assert_called_once_with("pho", normalize_embeddings=True)
     sql, longitude, latitude, radius, missing, tenant, vector, threshold, excluded = (
         conn.fetch.call_args.args
     )
     assert (longitude, latitude, radius, missing, tenant) == (
-        106.67, 10.79, 5_000, 3, "tenant-a",
+        106.67, 10.79, 5_000, 4, "tenant-a",
     )
     assert excluded == [str(lexical[0]["id"])]
     assert threshold == 0.35
@@ -82,6 +85,7 @@ def test_absent_vectors_skip_embedding_and_allow_discovery(monkeypatch):
     model = Mock()
     results = asyncio.run(rag_db_manager.ChatDBManager(model).find_nearby_places(
         None, ["pho"], 4, user_id="visitor", latitude=10.79, longitude=106.67,
+        similar_places=[],
     ))
     assert results == []
     model.encode.assert_not_called()
@@ -105,6 +109,7 @@ def test_invalid_search_vectors_are_logged_and_do_not_query_semantic_matches(
     model.encode.return_value = vector
     rows = asyncio.run(rag_db_manager.ChatDBManager(model).find_nearby_places(
         None, ["pho"], 4, user_id="visitor", latitude=10.79, longitude=106.67,
+        similar_places=[],
     ))
     assert len(rows) == 1
     assert conn.fetch.await_count == 1
@@ -129,6 +134,7 @@ def test_vector_timeout_retains_lexical_matches_without_waiting_for_provider(
             SimpleNamespace(encode=encode)
         ).find_nearby_places(
             None, ["pho"], 4, user_id="visitor", latitude=10.79, longitude=106.67,
+            similar_places=[],
         )
         assert provider_finished == []
         assert len(results) == 1
@@ -212,14 +218,37 @@ def test_real_hybrid_search_filters_radius_tenants_duplicates_and_irrelevant_vec
             monkeypatch.setattr(rag_db_manager, "get_async_pg_conn", connect)
             model = Mock()
             model.encode.return_value = np.array([1.0] + [0.0] * 767)
+            similar = []
             rows = await rag_db_manager.ChatDBManager(model).find_nearby_places(
                 None, ["pho"], 4, user_id="visitor", latitude=10.79,
                 longitude=106.67, radius_meters=1_000, tenant_id="tenant-a",
+                similar_places=similar,
             )
-            assert [row["name"] for row in rows] == [
-                "Pho shop", "Noodle House", "Near Threshold",
-            ]
+            assert [row["name"] for row in rows] == ["Pho shop"]
+            assert [row["name"] for row in similar] == ["Noodle House", "Near Threshold"]
             assert all(row["distance_meters"] <= 1_000 for row in rows)
+            mien_names = ["miến ngon", "Miến trộn Đậu Đậu", "Miến xào Phúc Cua"]
+            for name in mien_names:
+                await conn.execute(
+                    "INSERT INTO geo_places VALUES "
+                    "($1,'global',$2,NULL,NULL,'restaurant',ARRAY[]::text[],"
+                    "ST_SetSRID(ST_MakePoint(106.67,10.79),4326))",
+                    uuid4(), name,
+                )
+            await conn.execute(
+                "UPDATE geo_places SET description='miến', category='miến', "
+                "tags=ARRAY['miến'] WHERE name='Market'"
+            )
+            similar = []
+            matches = await rag_db_manager.ChatDBManager(model).find_nearby_places(
+                None, ["miến"], 5, user_id="visitor", latitude=10.79,
+                longitude=106.67, radius_meters=1_000, tenant_id="tenant-a",
+                similar_places=similar,
+            )
+            assert {row["name"] for row in matches} == set(mien_names)
+            assert "Market" not in {row["name"] for row in matches}
+            assert "Pho shop" in {row["name"] for row in similar}
+            assert not set(mien_names).intersection(row["name"] for row in similar)
         finally:
             await transaction.rollback()
             await conn.close()

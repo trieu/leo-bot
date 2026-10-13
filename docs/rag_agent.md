@@ -130,13 +130,19 @@ is applied to the local PostGIS query and the enrichment job.
 ## Hybrid nearby-place lookup and discovery notifications
 
 The lookup uses PostGIS to enforce the requested radius and tenant visibility.
-It matches PostgreSQL full-text tokens in place names, descriptions, and
-categories, retaining substring/tag matching for existing query compatibility.
+It matches PostgreSQL full-text tokens in **place names only**. Descriptions,
+categories, and tags cannot promote a place into the name-match result list.
+For example, `miến` matches `miến ngon`, `Miến trộn Đậu Đậu`, and
+`Miến xào Phúc Cua`; a phở shop mentioning miến in metadata is not a name match.
 If the lexical results satisfy the requested count, no embedding API is called.
 
 When the list is still short and nearby place-owned knowledge vectors exist,
-the lookup embeds the narrow category terms and fills only missing slots with
-semantic matches. It deduplicates places with multiple chunks, excludes lexical
+the lookup embeds the narrow category terms and returns recommendations in a
+separate `similar_places` JSON array, **never mixed into `places` or `answer`**.
+The API also returns a localized `similar_places_notice` and separately escaped
+`similar_places_answer`; the browser displays them as a second labelled message.
+Similar suggestions do not count toward the requested matches or prevent
+background discovery from running. It deduplicates places with multiple chunks, excludes lexical
 matches already returned, and accepts cosine distance at most `0.35`. This
 initial relevance threshold is conservative but requires production calibration
 for the configured embedding model. Vector generation has a five-second wait
@@ -159,9 +165,41 @@ matching places within the user's radius are returned.
 
 For existing databases, apply
 [`geo_places_search_indexes.sql`](../sql_scripts/geo_places_search_indexes.sql)
-outside a transaction. It builds the full-text and place-source lookup indexes
+outside a transaction. It builds the name-only full-text and place-source lookup indexes
 concurrently without blocking normal writes. New installations include the
 same indexes in the base schema.
+
+## Five-minute request cache for `/ask` and `/_leoai/ask`
+
+Both aliases share a Redis response cache with a **300-second TTL**.
+Validation and rate limiting still run on every request. An identical cached
+request returns the complete original JSON before intent detection, search,
+generation, history writes, or another Dagster submission.
+
+Cache fingerprints include the normalized visitor ID, full validated payload,
+effective touchpoint, and current profile ID. Changes to the question, context,
+persona, coordinates, count, language, or output format cause a miss. Each
+visitor retains only their latest request, avoiding reuse of an old answer after
+an intervening question. The explicit document-agent mode remains isolated from
+the visitor's cached geolocation.
+
+Discovery increments the cache's place-data revision in the same Redis
+transaction that stores and publishes `PLACES_READY`, **after PostgreSQL has
+committed**. The SSE-triggered repeat therefore fetches new results rather than
+the cached partial answer. Terminal Dagster status fallback also invalidates
+the place revision. Knowledge ingestion, geolocation updates, and visitor
+context updates invalidate that visitor's cache.
+
+Redis Lua operations compare both data revisions and the latest request token
+before storing a response. A slow request cannot repopulate stale data after
+invalidation or replace the answer for a newer request. Only successful
+responses are cached; agent failures now carry an explicit error flag and are
+not cached. Cache failures are logged and the fresh-request flow continues.
+
+The cache preserves `places`, `similar_places`, their separate UI labels,
+and enrichment SSE URLs without changing the response on a cache hit.
+This caches completed responses; simultaneous requests that arrive before the
+first response is stored can still be processed independently.
 
 ## `geo_places_search_name(message)`
 

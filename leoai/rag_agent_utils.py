@@ -66,6 +66,8 @@ GENERIC_PLACE_TERMS = {
     "cafes",
     "eatery",
     "food",
+    "noodle",
+    "noodles",
     "place",
     "places",
     "quán",
@@ -82,7 +84,9 @@ activity, business, and place categories.
 Return only the requested JSON fields. Extract the user's specific category as
 short search terms and a concise search_name. Prefer exact intent over parent
 categories: ramen is not generic restaurant/food; bubble tea is not generic
-cafe; a named cuisine is not any restaurant. Add only close synonyms that
+cafe; miến (glass noodles) is not phở, bún bò, or generic noodles.
+Preserve a named dish as the name-search term; "ngon" is a quality preference,
+not part of the dish name. A named cuisine is not any restaurant. Add only close synonyms that
 would still be relevant matches. Do not add broad terms such as "food",
 "restaurant", "place", or "quán" when the user specified a narrower category.
 For an unqualified nearby-places request, use empty terms and search_name
@@ -253,7 +257,7 @@ def nearby_result_limit(
                 r"caf[eé]s?|coffee(?:\s+shops?)?|restaurants?|nhà\s+thờ|nha\s+tho|"
                 r"địa\s+điểm|cà\s+phê|chùa|chợ|noodles?|"
                 r"quán\s+m[iìíỉĩị]|quán\s+m[ỳýỷỹỵ]|"
-                r"quán\s+ph(?:ở|o)|quan\s+(?:mi|my))\b",
+                r"quán\s+miến|quán\s+ph(?:ở|o)|quan\s+(?:mien|mi|my))\b",
                 message,
                 re.IGNORECASE,
             )

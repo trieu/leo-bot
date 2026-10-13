@@ -152,6 +152,23 @@ test("continues sending normal questions", async () => {
   );
 });
 
+test("shows similar recommendations as a separate labelled answer", async () => {
+  const chat = setupChat();
+  chat.context.sendQuestionToLeoAI("ask", "5 quán miến ngon");
+  await Promise.resolve();
+  const answer = "<p>No matching miến names yet.</p>";
+  const recommendations = "<p>Similar suggestions, not name matches.</p><ol><li>Phở</li></ol>";
+  chat.requests[0].success({
+    error_code: 0,
+    answer,
+    places: [],
+    similar_places: [{ name: "Phở" }],
+    similar_places_answer: recommendations,
+  });
+  assert.deepEqual(chat.answers, [answer, recommendations]);
+  assert.equal(chat.answers[0].includes("Phở"), false);
+});
+
 test("blank input shows feedback and restores the question prompt", async () => {
   const chat = setupChat();
   chat.context.sendQuestionToLeoAI("ask", "   ");

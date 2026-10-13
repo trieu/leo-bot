@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import time
+from html import escape
 from fastapi import APIRouter, HTTPException, Request, Query
 from fastapi.responses import (
     HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse,
@@ -9,6 +10,7 @@ from fastapi.responses import (
 from dagster_graphql import DagsterGraphQLClientError
 from redis.exceptions import RedisError
 from leoai.geo_place_events import wait_for_geo_places_ready
+from leoai.chat_response_cache import ChatResponseCache
 from leoai.ai_intent_detection import IntentDetector, IntentType, RequestContext
 from leoai.leo_datamodel import GeolocationTouchpointRequest, Message
 from leoai.leo_personalization import _build_recommended_actions
@@ -19,6 +21,7 @@ from leoai.rag_agent import (
 from leoai.rag_agent_utils import (
     get_geo_places_enrichment_status,
     nearby_radius_meters,
+    format_nearby_places_answer,
 )
 from leoai.ai_core import is_ai_model_ready
 
@@ -39,6 +42,7 @@ logger = logging.getLogger("leobot-router")
 router = APIRouter()
 rag_agent = RAGAgent()
 intent_detector = IntentDetector()
+chat_response_cache = ChatResponseCache()
 ENRICHMENT_STATUS_POLL_SECONDS = 2
 TERMINAL_DAGSTER_STATUSES = {"SUCCESS", "FAILURE", "CANCELED"}
 
@@ -80,11 +84,43 @@ async def handle_chat(msg: Message):
     # Keep using the normalized visitor ID for state and rate limiting.
     visitor_id = filtered_request.visitor_id
     try:
-        if not is_safe_to_answer(visitor_id):
+        if not await asyncio.to_thread(is_safe_to_answer, visitor_id):
             return {"error": True, "error_code": 429, "answer": "Too many messages"}
     except RequestFilterUnavailable:
         logger.exception("Unable to enforce chat rate limit")
         raise HTTPException(status_code=503, detail="Chat service temporarily unavailable")
+
+    profile_id = await asyncio.to_thread(
+        REDIS_CLIENT.hget, visitor_id, "profile_id"
+    ) or None
+    document_context = (
+        msg.context == "agent" and msg.persona_id == "personal_assistant"
+    )
+    active_touchpoint_id = msg.touchpoint_id
+    if not active_touchpoint_id and not document_context:
+        active_touchpoint_id = await asyncio.to_thread(
+            REDIS_CLIENT.hget, visitor_id, "touchpoint_id"
+        )
+    if isinstance(profile_id, bytes):
+        profile_id = profile_id.decode("utf-8")
+    if isinstance(active_touchpoint_id, bytes):
+        active_touchpoint_id = active_touchpoint_id.decode("utf-8")
+    cache_request = None
+    try:
+        cache_request, cached_response = await chat_response_cache.lookup(
+            visitor_id,
+            {
+                **msg.model_dump(mode="json"),
+                "visitor_id": visitor_id,
+                "active_touchpoint_id": active_touchpoint_id,
+                "profile_id": profile_id,
+            },
+        )
+    except (RedisError, ValueError):
+        logger.exception("Chat response cache lookup failed; processing the request.")
+    else:
+        if cached_response is not None:
+            return cached_response
 
     # 2. Classify once, keeping channel metadata separate from the user's intent.
     intent_result = await intent_detector.detect_async(
@@ -139,24 +175,18 @@ async def handle_chat(msg: Message):
     ):
         raise HTTPException(status_code=400, detail="latitude and longitude must be provided together")
 
-    # 4. Load cached visitor context.
-    profile_id = await asyncio.to_thread(
-        REDIS_CLIENT.hget, visitor_id, "profile_id"
-    ) or None
-    if isinstance(profile_id, bytes):
-        profile_id = profile_id.decode("utf-8")
-
     # 5. Select the isolated document touchpoint or the visitor's active one.
     if document_chat:
         touchpoint_id = DOCUMENT_CHAT_TOUCHPOINT_ID
     else:
-        touchpoint_id = msg.touchpoint_id
-        if not touchpoint_id:
+        touchpoint_id = active_touchpoint_id
+        if not touchpoint_id and document_context:
             touchpoint_id = await asyncio.to_thread(
                 REDIS_CLIENT.hget, visitor_id, "touchpoint_id"
             )
-    if isinstance(touchpoint_id, bytes):
-        touchpoint_id = touchpoint_id.decode("utf-8")
+            if isinstance(touchpoint_id, bytes):
+                touchpoint_id = touchpoint_id.decode("utf-8")
+            cache_request = None
 
     if (
         touchpoint_id is None
@@ -198,14 +228,41 @@ async def handle_chat(msg: Message):
         "answer": chat_result["response"],
         "visitor_id": visitor_id,
         "touchpoint_id": touchpoint_id,
-        "error_code": 0,
+        "error_code": 500 if chat_result.get("error") else 0,
     }
+    if chat_result.get("error"):
+        response["error"] = True
+    if nearby_search:
+        response["places"] = chat_result.get("places", [])
+        response["similar_places"] = chat_result.get("similar_places", [])
+        if response["similar_places"]:
+            response["similar_places_notice"] = (
+                "Gợi ý tương tự, không phải kết quả khớp tên bạn tìm."
+                if (msg.answer_in_language or "").lower().startswith(("vi", "vietnam"))
+                else "Similar suggestions, not name matches for your search."
+            )
+            notice = response["similar_places_notice"]
+            response["similar_places_answer"] = (
+                f"<p><strong>{escape(notice)}</strong></p>"
+                if msg.answer_in_format == "html"
+                else f"{notice}\n\n"
+            ) + format_nearby_places_answer(
+                response["similar_places"],
+                msg.answer_in_language or "English",
+                [],
+                msg.answer_in_format,
+            )
     run_id = chat_result["enrichment_run_id"]
     if run_id:
         response["enrichment_run_id"] = run_id
         response["enrichment_status_url"] = str(
             router.url_path_for("geo_places_enrichment_events", run_id=run_id)
         )
+    if cache_request is not None and not response.get("error"):
+        try:
+            await chat_response_cache.store(cache_request, response)
+        except (RedisError, ValueError):
+            logger.exception("Chat response cache write failed; returning fresh results.")
     return response
 
 
@@ -266,6 +323,10 @@ async def geo_places_enrichment_events(run_id: str):
                     last_status = status
 
                 if status in TERMINAL_DAGSTER_STATUSES:
+                    try:
+                        await chat_response_cache.invalidate_places()
+                    except RedisError:
+                        logger.exception("Failed to invalidate chat cache for run %s", run_id)
                     return
 
                 if ready_task is not None:
@@ -364,6 +425,10 @@ async def get_visitor_info(
         updates["touchpoint_id"] = touchpoint_id
     if updates:
         REDIS_CLIENT.hset(visitor_id, mapping=updates)
+        try:
+            await chat_response_cache.invalidate_visitor(visitor_id)
+        except RedisError:
+            logger.exception("Chat cache invalidation failed for updated visitor context.")
 
     return {
         "visitor_id": visitor_id,
@@ -390,10 +455,14 @@ async def create_geolocation_touchpoint(
         payload.type,
         payload.keywords,
     )
-    REDIS_CLIENT.hset(
-        payload.visitor_id.strip(),
-        mapping={"touchpoint_id": result["touchpoint_id"]},
+    await asyncio.to_thread(
+        REDIS_CLIENT.hset,
+        payload.visitor_id.strip(), mapping={"touchpoint_id": result["touchpoint_id"]},
     )
+    try:
+        await chat_response_cache.invalidate_visitor(payload.visitor_id.strip())
+    except RedisError:
+        logger.exception("Chat cache invalidation failed after geolocation update.")
     result["recommended_actions"] = _build_recommended_actions(
         result.get("nearby_places", [])
     )

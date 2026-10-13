@@ -1,4 +1,7 @@
 -- Run outside a transaction on an existing deployment to avoid blocking writers.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS places_name_search_gin
+ON geo_places USING GIN (to_tsvector('simple', coalesce(name, '')));
+
 CREATE INDEX CONCURRENTLY IF NOT EXISTS places_text_search_gin
 ON geo_places USING GIN (
     to_tsvector(

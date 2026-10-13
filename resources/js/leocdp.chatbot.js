@@ -534,6 +534,11 @@ class ChatbotController {
             );
           }
           processAnswer(answer);
+          if (Array.isArray(data.similar_places) &&
+              data.similar_places.length > 0 &&
+              data.similar_places_answer) {
+            processAnswer(data.similar_places_answer);
+          }
           if (data.enrichment_status_url) {
             watchGeoPlacesEnrichment(data.enrichment_status_url);
           }

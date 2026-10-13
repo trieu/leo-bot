@@ -215,6 +215,7 @@ def test_agent_queries_database_before_any_ai_work(count):
             user_id="visitor", latitude=10.747904, longitude=106.6467328,
             radius_meters=rag_db_manager.NEARBY_PLACES_RADIUS_METERS,
             tenant_id="default",
+            similar_places=[],
         )
         agent.context.build_context_summary.assert_not_awaited()
         agent.create_geolocation_touchpoint.assert_not_awaited()
@@ -280,6 +281,7 @@ def test_structured_location_intent_routes_without_reclassifying_nearby(
             longitude=106.6467328,
             radius_meters=1200,
             tenant_id="default",
+            similar_places=[],
         )
 
     asyncio.run(scenario())
@@ -599,6 +601,7 @@ def test_geolocation_endpoint_returns_recommended_action_array(route_client):
     routes.REDIS_CLIENT.hset.assert_called_once_with(
         "visitor", mapping={"touchpoint_id": "new-tp"},
     )
+    routes.chat_response_cache.invalidate_visitor.assert_awaited_once_with("visitor")
 
 
 def test_geolocation_endpoint_returns_default_actions_when_no_categories(route_client):
@@ -661,6 +664,55 @@ def test_handle_chat_accepts_coordinates_and_api_count_override(route_client):
     assert len(parser.links) == 20
     assert agent.db.find_nearby_places.call_args.args[2] == 20
     agent.create_geolocation_touchpoint.assert_not_awaited()
+
+
+def test_mien_name_matches_and_similar_suggestions_have_independent_api_keys(
+    route_client, monkeypatch,
+):
+    from leobot_router import leobot_main_router as routes
+
+    client, agent = route_client
+    suggestions = places(5)
+    for row, name in zip(suggestions, [
+        "Bún Bò Ruốc", "Quán Bún Bò Cao", "Quán Phở Tân Hiệp",
+        "Bún bò O Hè", "Cơm Tấm Cali",
+    ]):
+        row["name"] = name
+
+    async def find_places(*args, similar_places, **kwargs):
+        similar_places.extend(suggestions)
+        return []
+
+    agent.db.find_nearby_places.side_effect = find_places
+    agent.db.resolve_nearby_location = AsyncMock(return_value=(10.79, 106.67))
+    monkeypatch.setattr(
+        routes.intent_detector, "detect_async",
+        AsyncMock(return_value=rag_agent_module.IntentDetectionResult(
+            primary_intent=rag_agent_module.IntentType.LOCATION_CHAT,
+            purpose="generate_answer", confidence=0.95,
+            entities={
+                "search_name": "miến", "search_terms": ["miến"],
+                "result_limit": 5,
+            },
+        )),
+    )
+    trigger = Mock(return_value="run-id")
+    monkeypatch.setattr(rag_agent_module, "trigger_geo_places_enrichment", trigger)
+    response = client.post("/_leoai/ask", json={
+        "visitor_id": "visitor", "question": "5 quán miến ngon",
+        "latitude": 10.79, "longitude": 106.67,
+        "answer_in_language": "Vietnamese", "answer_in_format": "html",
+    })
+    assert response.status_code == 200
+    data = response.json()
+    assert data["places"] == []
+    assert data["similar_places"] == suggestions
+    assert "không phải kết quả khớp tên" in data["similar_places_notice"]
+    assert data["similar_places_answer"].count("<li>") == 5
+    assert all(row["name"] not in data["answer"] for row in suggestions)
+    assert data["enrichment_run_id"] == "run-id"
+    assert trigger.call_args.kwargs["name"] == "miến"
+    assert trigger.call_args.kwargs["count"] == 5
 
 
 def test_handle_chat_returns_queued_enrichment_notice_for_no_data(route_client, monkeypatch):
@@ -897,6 +949,7 @@ def test_unaccented_noodle_question_queues_dagster_enrichment(route_client, monk
         longitude=None,
         radius_meters=rag_db_manager.NEARBY_PLACES_RADIUS_METERS,
         tenant_id="default",
+        similar_places=[],
     )
     trigger.assert_called_once_with(
         name="noodle",
@@ -963,15 +1016,18 @@ def test_real_postgis_filters_orders_and_returns_requested_counts(monkeypatch):
             await conn.execute(f'SET LOCAL search_path TO "{schema}", public')
             await conn.execute("""
                 CREATE TABLE touchpoints (
-                    touchpoint_id text, user_id text, latitude numeric, longitude numeric
+                    touchpoint_id text, user_id text, latitude numeric, longitude numeric,
+                    tenant_id text DEFAULT 'default'
                 );
                 CREATE TABLE geo_places (
                     id uuid PRIMARY KEY DEFAULT uuidv7(), name text, address text, description text,
-                    category text, tags text[], geom geometry(Point, 4326)
+                    category text, tags text[], geom geometry(Point, 4326),
+                    tenant_id text DEFAULT 'global'
                 );
             """)
             await conn.execute(
-                "INSERT INTO touchpoints VALUES ('tp', 'visitor', 10.747904, 106.6467328)"
+                "INSERT INTO touchpoints (touchpoint_id,user_id,latitude,longitude) "
+                "VALUES ('tp', 'visitor', 10.747904, 106.6467328)"
             )
             for index in range(25):
                 await conn.execute(
@@ -1003,7 +1059,7 @@ def test_real_postgis_filters_orders_and_returns_requested_counts(monkeypatch):
                 None, ["Catholic"], 20, user_id="visitor",
                 latitude=10.747904, longitude=106.6467328,
             )
-            assert len(rows) == 20
+            assert rows == []
             with pytest.raises(NearbyLocationUnavailable):
                 await db.find_nearby_places("tp", ["church"], 3, user_id="other")
         finally:
