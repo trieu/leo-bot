@@ -216,7 +216,11 @@
     root.Vue.directive('botui-scroll', {
       inserted: function (el) {
         if (_container) {
-          _container.scrollTop = _container.scrollHeight;
+          var scrollContainer = _isMobileViewport() && _container.querySelector
+            ? _container.querySelector('.botui-messages-container')
+            : _container;
+          scrollContainer = scrollContainer || _container;
+          scrollContainer.scrollTop = scrollContainer.scrollHeight;
         }
       }
     });

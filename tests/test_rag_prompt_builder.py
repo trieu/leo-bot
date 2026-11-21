@@ -137,6 +137,44 @@ def test_language_instruction_is_explicit_with_or_without_target(language, expec
     assert "End with an insightful remark" not in prompt.prompt_text
 
 
+def test_web_qr_prompt_treats_scanned_page_as_primary_source():
+    context = {
+        "user_profile": {},
+        "user_context": {
+            "type": "web_qr",
+            "name": "LEO CDP",
+            "description": "Official product page",
+            "url": "https://leocdp.example/platform",
+            "keywords": ["CDP", "personalization"],
+            "content": "LEO CDP unifies customer data and real-time personalization.",
+            "selected_place": {"name": "Unrelated saved place"},
+            "nearby_places": [{"name": "Unrelated nearby place"}],
+        },
+    }
+
+    prompt = AgentOrchestrator().build_prompt(
+        "LEO CDP là gì?", context, "Vietnamese"
+    )
+
+    assert "### Active QR Touchpoint (primary source)" in prompt.prompt_text
+    assert "LEO CDP unifies customer data and real-time personalization." in (
+        prompt.prompt_text
+    )
+    assert "https://leocdp.example/platform" in prompt.prompt_text
+    assert "Do not answer from unrelated uploaded documents" in prompt.prompt_text
+    assert "Do not answer from unrelated uploaded documents" in (
+        prompt.system_instruction
+    )
+    source_section = prompt.prompt_text.split(
+        "### Active QR Touchpoint (primary source)"
+    )[1]
+    assert source_section.count(
+        "LEO CDP unifies customer data and real-time personalization."
+    ) == 1
+    assert "Unrelated saved place" not in prompt.prompt_text
+    assert "Unrelated nearby place" not in prompt.prompt_text
+
+
 @pytest.mark.parametrize(
     "question",
     [

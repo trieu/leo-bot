@@ -18,7 +18,13 @@ from redis.exceptions import RedisError
 from leoai.geo_place_events import wait_for_geo_places_ready
 from leoai.chat_response_cache import ChatResponseCache
 from leoai.ai_intent_detection import IntentDetector, IntentType, RequestContext
-from leoai.leo_datamodel import GoogleOneTapRequest, GeolocationTouchpointRequest, Message
+from leoai.leo_datamodel import (
+    GeolocationTouchpointRequest,
+    GoogleOneTapRequest,
+    Message,
+    WebQrTouchpointRequest,
+)
+from leoai.rag_knowledge_manager import KnowledgeFetchError, KnowledgeInputError
 from leoai.leo_personalization import _build_recommended_actions
 from leoai.rag_agent import (
     DOCUMENT_CHAT_TOUCHPOINT_ID, RAGAgent,
@@ -52,6 +58,12 @@ intent_detector = IntentDetector()
 chat_response_cache = ChatResponseCache()
 ENRICHMENT_STATUS_POLL_SECONDS = 2
 TERMINAL_DAGSTER_STATUSES = {"SUCCESS", "FAILURE", "CANCELED"}
+
+
+def _redis_text(value: Any) -> str:
+    if isinstance(value, bytes):
+        return value.decode("utf-8")
+    return value if isinstance(value, str) else ""
 
 
 # === Core UI Routes ===
@@ -209,6 +221,18 @@ async def handle_chat(msg: Message):
         profile_id = profile_id.decode("utf-8")
     if isinstance(active_touchpoint_id, bytes):
         active_touchpoint_id = active_touchpoint_id.decode("utf-8")
+    active_touchpoint_type = msg.touchpoint_type
+    if active_touchpoint_id:
+        cached_touchpoint_type = await asyncio.to_thread(
+            REDIS_CLIENT.hget, visitor_id, "touchpoint_type"
+        )
+        if isinstance(cached_touchpoint_type, bytes):
+            cached_touchpoint_type = cached_touchpoint_type.decode("utf-8")
+        if isinstance(cached_touchpoint_type, str) and cached_touchpoint_type:
+            active_touchpoint_type = cached_touchpoint_type
+    is_web_qr_touchpoint = (
+        active_touchpoint_type or ""
+    ).strip().casefold() == "web_qr"
     cache_request = None
     try:
         cache_request, cached_response = await chat_response_cache.lookup(
@@ -236,13 +260,20 @@ async def handle_chat(msg: Message):
             persona_id=msg.persona_id,
         ),
     )
+    if (
+        is_web_qr_touchpoint
+        and intent_result.primary_intent is IntentType.DOCUMENT_CHAT
+    ):
+        intent_result = intent_result.model_copy(
+            update={"primary_intent": IntentType.TOUCHPOINT_CHAT}
+        )
     intent_is_clear = not intent_result.needs_clarification
     document_chat = False
     nearby_search = False
 
     match intent_result.primary_intent:
         case IntentType.DOCUMENT_CHAT:
-            document_chat = intent_is_clear
+            document_chat = intent_is_clear and not is_web_qr_touchpoint
         case IntentType.LOCATION_CHAT:
             nearby_search = intent_is_clear
         case IntentType.GENERAL_CHAT:
@@ -318,7 +349,7 @@ async def handle_chat(msg: Message):
         longitude=None if document_chat else msg.longitude,
         touchpoint_name=msg.touchpoint_name,
         touchpoint_description=msg.touchpoint_description,
-        touchpoint_type=msg.touchpoint_type,
+        touchpoint_type=active_touchpoint_type,
         touchpoint_keywords=msg.touchpoint_keywords,
         result_limit=result_limit,
         radius_meters=radius_meters,
@@ -508,6 +539,10 @@ async def get_visitor_info(
     visitor_id: str = Query(...),
     name: str | None = None,
     touchpoint_id: str | None = None,
+    touchpoint_name: str | None = None,
+    touchpoint_description: str | None = None,
+    touchpoint_type: str | None = None,
+    touchpoint_full_url: str | None = None,
 ):
     """
     Fetch or update visitor info stored in Redis.
@@ -518,8 +553,37 @@ async def get_visitor_info(
         return JSONResponse(status_code=400, content={"error": "visitor_id is empty"})
 
     redis_data = REDIS_CLIENT.hgetall(visitor_id)
-    cached_name = redis_data.get("name", "")
-    cached_touchpoint = redis_data.get("touchpoint_id", "")
+    cached_name = _redis_text(redis_data.get("name", ""))
+    cached_touchpoint = _redis_text(redis_data.get("touchpoint_id", ""))
+    cached_touchpoint_name = _redis_text(
+        redis_data.get("touchpoint_name", "")
+    )
+    cached_touchpoint_description = _redis_text(
+        redis_data.get("touchpoint_description", "")
+    )
+    cached_touchpoint_type = _redis_text(
+        redis_data.get("touchpoint_type", "")
+    )
+    cached_touchpoint_full_url = _redis_text(
+        redis_data.get("touchpoint_full_url", "")
+    )
+    active_touchpoint_id = touchpoint_id or cached_touchpoint
+    active_touchpoint_name = touchpoint_name or _redis_text(
+        cached_touchpoint_name
+    )
+    active_touchpoint_description = (
+        touchpoint_description
+        if touchpoint_description is not None
+        else cached_touchpoint_description
+    )
+    active_touchpoint_type = touchpoint_type or _redis_text(
+        cached_touchpoint_type
+    )
+    active_touchpoint_full_url = (
+        touchpoint_full_url
+        if touchpoint_full_url is not None
+        else cached_touchpoint_full_url
+    )
 
     # Update cache only if new values differ
     updates = {}
@@ -527,6 +591,45 @@ async def get_visitor_info(
         updates["name"] = name
     if touchpoint_id and touchpoint_id != cached_touchpoint:
         updates["touchpoint_id"] = touchpoint_id
+    if active_touchpoint_id and (
+        not active_touchpoint_name
+        or not active_touchpoint_type
+        or (
+            active_touchpoint_type == "web_qr"
+            and not active_touchpoint_full_url
+        )
+    ):
+        touchpoint_context = await rag_agent.db.get_touchpoint_context(
+            active_touchpoint_id,
+            user_id=visitor_id,
+            tenant_id="default",
+        )
+        if touchpoint_context:
+            active_touchpoint_name = (
+                touchpoint_context.get("name") or active_touchpoint_name
+            )
+            active_touchpoint_description = (
+                touchpoint_context.get("description")
+                or active_touchpoint_description
+            )
+            active_touchpoint_type = (
+                touchpoint_context.get("type") or active_touchpoint_type
+            )
+            active_touchpoint_full_url = (
+                touchpoint_context.get("full_url")
+                or touchpoint_context.get("url")
+                or active_touchpoint_full_url
+            )
+    if active_touchpoint_name and active_touchpoint_name != cached_touchpoint_name:
+        updates["touchpoint_name"] = active_touchpoint_name
+    if active_touchpoint_id and (
+        active_touchpoint_description != cached_touchpoint_description
+        or (active_touchpoint_type or "web") != cached_touchpoint_type
+        or active_touchpoint_full_url != cached_touchpoint_full_url
+    ):
+        updates["touchpoint_description"] = active_touchpoint_description
+        updates["touchpoint_type"] = active_touchpoint_type or "web"
+        updates["touchpoint_full_url"] = active_touchpoint_full_url
     if updates:
         REDIS_CLIENT.hset(visitor_id, mapping=updates)
         try:
@@ -534,13 +637,22 @@ async def get_visitor_info(
         except RedisError:
             logger.exception("Chat cache invalidation failed for updated visitor context.")
 
-    return {
+    response = {
         "visitor_id": visitor_id,
         "name": name or cached_name or "",
-        "init_touchpoint_id": touchpoint_id or cached_touchpoint or "",
+        "init_touchpoint_id": active_touchpoint_id or "",
         "cached": bool(redis_data),
         "error_code": 0
     }
+    if active_touchpoint_id:
+        response["touchpoint"] = {
+            "touchpoint_id": active_touchpoint_id,
+            "name": active_touchpoint_name,
+            "description": active_touchpoint_description,
+            "type": active_touchpoint_type or "web",
+            "full_url": active_touchpoint_full_url,
+        }
+    return response
 
 
 @router.post("/_leoai/touchpoint/geolocation", response_class=JSONResponse)
@@ -561,7 +673,16 @@ async def create_geolocation_touchpoint(
     )
     await asyncio.to_thread(
         REDIS_CLIENT.hset,
-        payload.visitor_id.strip(), mapping={"touchpoint_id": result["touchpoint_id"]},
+        payload.visitor_id.strip(),
+        mapping={
+            "touchpoint_id": result["touchpoint_id"],
+            "touchpoint_name": result.get("name") or payload.name,
+            "touchpoint_description": (
+                result.get("description") or payload.description
+            ),
+            "touchpoint_type": result.get("type") or payload.type,
+            "touchpoint_full_url": "",
+        },
     )
     try:
         await chat_response_cache.invalidate_visitor(payload.visitor_id.strip())
@@ -570,4 +691,46 @@ async def create_geolocation_touchpoint(
     result["recommended_actions"] = _build_recommended_actions(
         result.get("nearby_places", [])
     )
+    return result
+
+
+@router.post("/_leoai/touchpoint/web-qr", response_class=JSONResponse)
+@router.post("/touchpoint/web-qr", response_class=JSONResponse)
+async def create_web_qr_touchpoint(
+    payload: WebQrTouchpointRequest,
+):
+    """Fetch a QR URL and persist its page context as a web QR touchpoint."""
+    try:
+        result = await rag_agent.create_web_qr_touchpoint(
+            payload.visitor_id.strip(),
+            str(payload.full_url),
+            payload.touchpoint_id,
+        )
+    except KnowledgeInputError as exc:
+        logger.warning("QR touchpoint URL rejected: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except KnowledgeFetchError as exc:
+        logger.warning("QR touchpoint URL could not be fetched: %s", exc)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except ValueError as exc:
+        logger.warning("QR touchpoint could not be saved: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    await asyncio.to_thread(
+        REDIS_CLIENT.hset,
+        payload.visitor_id.strip(),
+        mapping={
+            "touchpoint_id": result["touchpoint_id"],
+            "touchpoint_name": result.get("name") or "QR touchpoint",
+            "touchpoint_description": result.get("description") or "",
+            "touchpoint_type": result.get("type") or "web_qr",
+            "touchpoint_full_url": (
+                result.get("full_url") or result.get("url") or str(payload.full_url)
+            ),
+        },
+    )
+    try:
+        await chat_response_cache.invalidate_visitor(payload.visitor_id.strip())
+    except RedisError:
+        logger.exception("Chat cache invalidation failed after QR touchpoint update.")
     return result

@@ -2,7 +2,7 @@
 from typing import Any, Dict, Optional
 from pydantic import BaseModel, Field
 from typing import List, Optional
-from pydantic import BaseModel, HttpUrl
+from pydantic import AliasChoices, BaseModel, HttpUrl
 from datetime import datetime, timezone
 from enum import Enum
 
@@ -24,6 +24,7 @@ class Message(BaseModel):
     touchpoint_name: str = Field("Web visitor")
     touchpoint_description: str = Field("")
     touchpoint_type: str = Field("web", max_length=50)
+    touchpoint_full_url: str = Field("")
     touchpoint_keywords: List[str] = Field(default_factory=list)
     result_limit: Optional[int] = Field(
         None, gt=0, strict=True, description="Nearby result count; overrides a count in the question."
@@ -46,6 +47,12 @@ class GeolocationTouchpointRequest(BaseModel):
     description: str = Field("")
     type: str = Field("web", max_length=50)
     keywords: List[str] = Field(default_factory=list)
+
+
+class WebQrTouchpointRequest(BaseModel):
+    visitor_id: str = Field(..., min_length=1, max_length=50)
+    full_url: HttpUrl = Field(validation_alias=AliasChoices("full_url", "url"))
+    touchpoint_id: Optional[str] = Field(None, max_length=64)
 
     
     

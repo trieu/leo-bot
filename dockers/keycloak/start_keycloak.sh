@@ -12,6 +12,12 @@ CONTAINER_NAME="keycloak"
 VLAN_NAME="leo-vlan"
 VOLUME_NAME="keycloak_data"
 
+# Recreate the shared Docker network if it was removed or Docker was restarted.
+if ! docker network inspect "$VLAN_NAME" >/dev/null 2>&1; then
+  echo -e "\e[36m🌐 Creating Docker network '${VLAN_NAME}'...\e[0m"
+  docker network create "$VLAN_NAME" >/dev/null
+fi
+
 # Load environment variables
 if [ -f "$ENV_FILE" ]; then
   echo -e "\e[36m📄 Loading environment from $ENV_FILE\e[0m"

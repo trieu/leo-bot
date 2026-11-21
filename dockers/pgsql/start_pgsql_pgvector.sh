@@ -12,6 +12,12 @@ DATA_VOLUME="pgdata_vector${POSTGRES_VERSION}"
 LEGACY_CONTAINER_NAME="pgsql16_vector"
 LEGACY_DATA_VOLUME="pgdata_vector"
 
+# Recreate the shared Docker network if it was removed or Docker was restarted.
+if ! docker network inspect "$VLAN_NAME" >/dev/null 2>&1; then
+  echo "🌐 Creating Docker network '${VLAN_NAME}'..."
+  docker network create "$VLAN_NAME" >/dev/null
+fi
+
 # --- POSTGRES config ---
 POSTGRES_USER="postgres"
 POSTGRES_PASSWORD="password"

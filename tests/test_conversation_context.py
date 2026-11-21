@@ -66,6 +66,42 @@ def test_summary_refresh_preserves_explicit_place_selection():
     asyncio.run(scenario())
 
 
+def test_web_qr_content_is_loaded_for_chat_without_persisting_duplicate_page_text():
+    async def scenario():
+        stored = {
+            "updated_at": datetime.now(timezone.utc),
+            "user_profile": {},
+            "user_context": {"datetime": "2026-11-21 13:00"},
+        }
+        page_text = "The QR-linked page contains opening hours and directions."
+        db = SimpleNamespace(
+            get_touchpoint_context=AsyncMock(return_value={
+                "name": "Temple Guide",
+                "description": "Visitor guide",
+                "type": "web_qr",
+                "url": "https://example.com/temple",
+                "keywords": ["temple"],
+                "content": page_text,
+                "nearby_places": [],
+            }),
+            save_context_summary=AsyncMock(return_value=True),
+        )
+        manager = ContextManager(None, None, db)
+        manager.get_context_summary = Mock(return_value=stored)
+
+        result = await manager.build_context_summary(
+            "visitor", "qr-touchpoint", None, "What time does it open?"
+        )
+
+        assert result["user_context"]["content"] == page_text
+        assert result["user_context"]["url"] == "https://example.com/temple"
+        persisted = db.save_context_summary.call_args.args[3]
+        assert persisted["user_context"]["url"] == "https://example.com/temple"
+        assert "content" not in persisted["user_context"]
+
+    asyncio.run(scenario())
+
+
 def test_prompt_explicitly_resolves_history_to_selected_place():
     prompt = AgentOrchestrator().build_prompt(
         "history", {"user_context": {"selected_place": PLACES[3], "nearby_places": PLACES}},

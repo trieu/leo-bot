@@ -15,7 +15,13 @@ PLACE_STATE_KEYS = (
     "place_choices",
     "selected_place_knowledge",
 )
-LOCATION_CONTEXT_KEYS = (*PLACE_STATE_KEYS, "nearby_places", "latitude", "longitude")
+LOCATION_CONTEXT_KEYS = (
+    *PLACE_STATE_KEYS,
+    "nearby_places",
+    "latitude",
+    "longitude",
+    "content",
+)
 
 SUMMARY_PROMPT_TEMPLATE = """
 You are a data extractor. Please analyze the conversation below. Extract key information and return a single, valid JSON object
@@ -101,6 +107,9 @@ class ContextManager:
         if needs_refresh or touchpoint_context or not include_location:
             persisted_context = dict(current_context)
             persisted_context.pop("updated_at", None)
+            persisted_user_context = dict(persisted_context.get("user_context") or {})
+            persisted_user_context.pop("content", None)
+            persisted_context["user_context"] = persisted_user_context
             saved = await self.db.save_context_summary(
                 user_id,
                 touchpoint_id,

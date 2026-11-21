@@ -458,6 +458,7 @@ Open your browser and visit your configured `HOSTNAME` to test.
 | `/_leoai/ask`              | POST     | Main chatbot endpoint            |
 | `/_leoai/is-ready`         | GET/POST | Configured AI provider readiness check |
 | `/_leoai/touchpoint/geolocation` | POST | Create/update a geolocation touchpoint, return nearby places and localized recommendations |
+| `/_leoai/touchpoint/web-qr` | POST | Crawl `full_url` and save it with the title, metadata, keywords, and text as a visitor-owned web QR touchpoint |
 | `/_leoai/fb-webhook`       | GET/POST | Facebook Messenger webhook       |
 | `/_leoai/zalo-webhook`     | POST     | Zalo OA webhook                  |
 | `/_leoai/ping`             | GET      | Basic health check               |

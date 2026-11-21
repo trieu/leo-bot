@@ -160,7 +160,8 @@ body {
 
 .leobot-chat-card,
 .leobot-location-card,
-.leobot-discover-card {
+.leobot-discover-card,
+.leobot-qr-card {
   box-shadow: var(--leobot-shadow);
 }
 
@@ -181,6 +182,28 @@ body {
   font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.12em;
+}
+
+.leobot-card-kicker .bi,
+.leobot-section-icon .bi {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.leobot-section-icon {
+  align-items: center;
+  background: rgba(49, 94, 251, 0.1);
+  border-radius: 0.65rem;
+  display: inline-flex;
+  flex: 0 0 2rem;
+  height: 2rem;
+  justify-content: center;
+  width: 2rem;
+}
+
+.leobot-spin {
+  animation: leobot-spin 1s linear infinite;
+  display: inline-block;
 }
 
 .leobot-location-card {
@@ -241,6 +264,7 @@ body {
 }
 
 .leobot-location-data span {
+  display: inline !important;
   font-size: 0.68rem !important;
   line-height: 1.25;
 }
@@ -258,6 +282,25 @@ body {
 
 .leobot-discover-card {
   background: linear-gradient(145deg, #f2f6ff, var(--leobot-surface) 68%);
+}
+
+.leobot-qr-card {
+  background: linear-gradient(145deg, #f7f4ff, var(--leobot-surface) 68%);
+}
+
+.leobot-qr-reader {
+  background: #111827;
+  border-radius: 0.75rem;
+  min-height: 220px;
+  overflow: hidden;
+}
+
+.leobot-qr-reader video {
+  border-radius: 0.75rem;
+}
+
+.leobot-qr-reader__dashboard {
+  display: none !important;
   border: 1px solid rgba(49, 94, 251, 0.14) !important;
   border-top: 3px solid var(--leobot-primary) !important;
 }
@@ -421,11 +464,38 @@ div.leobot-question .botui-message-content,
   transition: background-color 0.2s ease, transform 0.2s ease;
 }
 
+.botui-actions-text .botui-actions-buttons-button {
+  align-items: center;
+  align-self: center;
+  background: var(--leobot-primary);
+  border: 0;
+  border-radius: 12px;
+  box-shadow: none;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 0.4rem;
+  height: 44px;
+  justify-content: center;
+  margin: 0;
+  min-width: 5.25rem;
+  padding: 0.65rem 0.85rem;
+  touch-action: manipulation;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
 .botui-actions-text-submit:hover,
 .botui-actions-text-submit:focus-visible {
   background: var(--leobot-primary-dark);
   color: #fff;
   transform: translateY(-1px);
+}
+
+.botui-actions-text .botui-actions-buttons-button:hover,
+.botui-actions-text .botui-actions-buttons-button:focus-visible {
+  background: var(--leobot-primary-dark);
+  color: #fff;
+  outline: 3px solid rgba(49, 94, 251, 0.18);
+  outline-offset: 2px;
 }
 
 #leobot_info_box {
@@ -444,16 +514,23 @@ div.leobot-question .botui-message-content,
   50% { box-shadow: 0 0 0 8px rgba(49, 94, 251, 0); }
 }
 
+@keyframes leobot-spin {
+  to { transform: rotate(360deg); }
+}
+
 @media (max-width: 991.98px) {
   .leobot-chat-card {
     min-height: 0;
+  }
+
+  #leobot_chat_container {
+    scroll-margin-top: 0.75rem;
   }
 }
 
 @media (max-width: 575.98px) {
   .leobot-shell {
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
+    padding: 0.5rem 0.65rem max(0.75rem, env(safe-area-inset-bottom)) !important;
   }
 
   .leobot-topbar {
@@ -483,8 +560,8 @@ div.leobot-question .botui-message-content,
 
   .leobot-welcome {
     background-size: 9rem;
-    margin-bottom: 0.75rem !important;
-    padding: 0.85rem 1rem !important;
+    margin-bottom: 0.65rem !important;
+    padding: 0.75rem 0.9rem !important;
   }
 
   .leobot-welcome .row {
@@ -505,6 +582,27 @@ div.leobot-question .botui-message-content,
   .leobot-welcome .lead {
     font-size: 0.86rem;
     line-height: 1.4;
+  }
+
+  .leobot-chat-card {
+    border-radius: 1rem !important;
+  }
+
+  .leobot-chat-card > .card-header {
+    padding: 0.85rem 0.9rem 0.6rem !important;
+  }
+
+  .leobot-chat-card > .card-header h2 {
+    font-size: 1.05rem;
+  }
+
+  .leobot-chat-card > .card-header p {
+    font-size: 0.75rem;
+    line-height: 1.35;
+  }
+
+  .leobot-chat-card > .card-body {
+    padding: 0.6rem 0.55rem 0.25rem !important;
   }
 
   .leobot-trust-card {
@@ -538,42 +636,69 @@ div.leobot-question .botui-message-content,
   }
 
   #LEO_ChatBot_Container {
-    height: clamp(320px, 64vh, 520px) !important;
+    height: var(--leobot-chat-height, min(64dvh, 560px)) !important;
     overflow: hidden !important;
+    padding: 0 !important;
+    scroll-behavior: smooth;
   }
 
   #LEO_ChatBot_Container .botui-container {
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: contain;
+    display: flex;
+    flex-direction: column;
     font-size: 1rem !important;
+    overflow: hidden;
+    scrollbar-gutter: stable;
   }
 
   #LEO_ChatBot_Container .botui-messages-container {
-    padding: 0.5rem 0.25rem;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    padding: 0.35rem 0.15rem 0.6rem;
+    scrollbar-color: #cbd5ef transparent;
+    scrollbar-width: thin;
   }
 
   #LEO_ChatBot_Container .botui-message-content {
-    max-width: 94%;
-    padding: 0.65rem 0.75rem !important;
+    font-size: 0.95rem;
+    line-height: 1.5 !important;
+    max-width: 96%;
+    padding: 0.7rem 0.8rem !important;
   }
 
   #LEO_ChatBot_Container .botui-actions-container {
-    position: sticky;
-    bottom: 0;
-    background: var(--leobot-surface);
-    z-index: 2;
+    flex: 0 0 auto;
+    position: relative;
+    background:
+      linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0.78),
+        var(--leobot-surface) 18%
+      );
+    box-shadow: 0 -8px 18px rgba(255, 255, 255, 0.72);
+    padding-top: 0.35rem !important;
+    z-index: 3;
   }
 
   @supports (height: 1dvh) {
     #LEO_ChatBot_Container {
-      height: clamp(320px, 64dvh, 520px) !important;
+      height: var(--leobot-chat-height, min(64dvh, 560px)) !important;
+      min-height: 320px;
     }
   }
 
   .botui-actions-text {
     gap: 0.35rem;
-    padding: 0.6rem 0 max(0.25rem, env(safe-area-inset-bottom));
+    padding: 0.35rem 0 max(0.35rem, env(safe-area-inset-bottom));
     position: static;
+  }
+
+  .botui-actions-text-input.leobot-question-input {
+    font-size: 16px;
+    height: 48px !important;
   }
 
   .botui-actions-text-submit {
@@ -581,6 +706,15 @@ div.leobot-question .botui-message-content,
     min-width: 48px;
     padding-left: 0.7rem;
     padding-right: 0.7rem;
+  }
+
+  .botui-actions-text .botui-actions-buttons-button {
+    height: 48px;
+    min-width: 4.8rem;
+  }
+
+  .botui-actions-text .botui-actions-buttons-button .fa {
+    font-size: 0.9rem;
   }
 
   #leobot_info_box {
@@ -614,7 +748,10 @@ div.leobot-question .botui-message-content,
   .leobot-quick-action:focus-visible,
   .botui-actions-text-submit,
   .botui-actions-text-submit:hover,
-  .botui-actions-text-submit:focus-visible {
+  .botui-actions-text-submit:focus-visible,
+  .botui-actions-text .botui-actions-buttons-button,
+  .botui-actions-text .botui-actions-buttons-button:hover,
+  .botui-actions-text .botui-actions-buttons-button:focus-visible {
     transition: none;
     transform: none;
   }

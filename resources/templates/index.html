@@ -34,10 +34,10 @@
     <!-- BotUI CSS and JS  -->
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.7.14/vue.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
-    <!-- JQuery.JS, Bootstrap CSS, font-awesome CSS -->
+    <!-- JQuery, Bootstrap, and icon libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.7/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.2/font/bootstrap-icons.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
      <!-- LEO CHATBOT CSS -->
@@ -46,6 +46,8 @@
     <link href="https://{{ HOSTNAME }}/resources/css/leobot.css?_={{ timestamp }}" rel="stylesheet" media="all" >
     <script src="https://{{ HOSTNAME }}/resources/js/botui.js?_={{ timestamp }}" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
+    <!-- HTML5 QR Code JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js" integrity="sha512-r6rDA7W6ZeQhvl8S7yRVQUKVHdexq+GAlNkNNqVC7YyIV+NwqCTJe2hDWCiffTyRNOeGEzRRJ9ifvRm/HCzGYg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
     <!-- lscache JS  -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lscache/1.3.2/lscache.min.js" integrity="sha512-ved46eQuz4zEGcBm1JdsWqYsndqlY1jAtUXCrkTe+l88a7Sj0BhstPajJntxq3HwRDPa9qwaqRUVN7Jr8NwhMA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -89,7 +91,7 @@
             <div class="row align-items-center g-4">
                 <div class="col-lg-8">
                     <span class="badge leobot-eyebrow rounded-pill mb-3">
-                        <i class="fa fa-compass me-1" aria-hidden="true"></i>
+                        <i class="bi bi-compass me-1" aria-hidden="true"></i>
                         <span data-i18n="exploreWithContext">Khám phá theo ngữ cảnh</span>
                     </span>
                     <h1 class="display-3 fw-bold mb-2" data-i18n="heroTitle">Tìm địa điểm tiếp theo cùng LEO.</h1>
@@ -105,7 +107,7 @@
                     <div class="leobot-trust-card rounded-3 p-3">
                         <div class="d-flex gap-3 align-items-start">
                             <span class="leobot-trust-icon" aria-hidden="true">
-                                <i class="fa fa-map-marker"></i>
+                                <i class="bi bi-geo-alt-fill"></i>
                             </span>
                             <div>
                                 <div class="fw-semibold" data-i18n="locationHelps">Vị trí giúp LEO hữu ích hơn</div>
@@ -122,12 +124,15 @@
 
         <div class="row g-3 g-lg-4 align-items-start">
 
-            <div id="leobot_chat_container" class="col-lg-8 order-2 order-lg-1">
+            <div id="leobot_chat_container" class="col-lg-8 order-1">
                 <section class="card leobot-chat-card border-0 rounded-4 overflow-hidden" aria-labelledby="leobot_chat_title">
                     <div class="card-header bg-white border-0 px-3 px-md-4 pt-3 pt-md-4 pb-0">
                         <div class="d-flex align-items-center justify-content-between gap-3">
                             <div>
                                 <div class="d-flex align-items-center gap-2">
+                                    <span class="leobot-section-icon text-primary" aria-hidden="true">
+                                        <i class="bi bi-chat-dots-fill"></i>
+                                    </span>
                                     <h2 id="leobot_chat_title" class="h5 mb-0" data-i18n="chatWithLeo">Trò chuyện với LEO</h2>
                                     <span class="badge rounded-pill text-bg-success-subtle text-success-emphasis">
                                         <span class="leobot-live-dot" aria-hidden="true"></span>
@@ -139,7 +144,7 @@
                                 </p>
                             </div>
                             <span id="leobot_chat_location_badge" class="badge rounded-pill text-bg-light text-secondary d-none d-sm-inline-flex align-items-center gap-1">
-                                <i class="fa fa-location-arrow" aria-hidden="true"></i>
+                                <i class="bi bi-geo-alt" aria-hidden="true"></i>
                                 <span data-i18n="locationOff">Đã tắt vị trí</span>
                             </span>
                         </div>
@@ -155,20 +160,22 @@
                         </div>
 
                         <div class="botui-app-container" id="LEO_ChatBot_Container"
-                            data-place-search-links="true" style="display:none;">
+                            data-place-search-links="true" role="log" aria-live="polite"
+                            aria-relevant="additions text" aria-label="LEO chat conversation"
+                            style="display:none;">
                             <bot-ui></bot-ui>
                         </div>
                     </div>
                 </section>
             </div>
 
-            <div id="leobot_sidebar" class="col-lg-4 order-1 order-lg-2">
+            <div id="leobot_sidebar" class="col-lg-4 order-2">
                 <aside class="d-flex flex-column gap-3" aria-label="Location and discovery tools">
                     
                     <section id="leobot_discover_section" class="card border-0 rounded-4 leobot-discover-card" aria-labelledby="leobot_discover_title">
                         <div class="card-body p-3 p-md-4">
                             <div class="text-uppercase leobot-card-kicker d-flex align-items-center gap-2">
-                                <i class="fa fa-compass" aria-hidden="true"></i>
+                                <i class="bi bi-compass-fill" aria-hidden="true"></i>
                                 <span data-i18n="startExploring">Bắt đầu khám phá</span>
                             </div>
                             <h2 id="leobot_discover_title" class="h5 mt-1 mb-3" data-i18n="whatLookingFor">Bạn đang tìm gì?</h2>
@@ -183,6 +190,53 @@
                         </div>
                     </section>
 
+                    <section id="leobot_qr_section" class="card border-0 rounded-4 leobot-qr-card" aria-labelledby="leobot_qr_title">
+                        <div class="card-body p-3 p-md-4">
+                            <div class="text-uppercase leobot-card-kicker d-flex align-items-center gap-2">
+                                <i class="bi bi-qr-code-scan" aria-hidden="true"></i>
+                                <span data-i18n="scanTouchpoint">Quét điểm chạm</span>
+                            </div>
+                            <h2 id="leobot_qr_title" class="h5 mt-1 mb-2" data-i18n="scanTouchpointTitle">
+                                Bắt đầu từ mã QR
+                            </h2>
+                            <p class="small text-secondary mb-3" data-i18n="scanTouchpointDescription">
+                                Quét mã QR của điểm chạm để LEO dùng đúng ngữ cảnh và nội dung liên quan khi trò chuyện.
+                            </p>
+                            <div id="leobot_qr_reader" class="leobot-qr-reader d-none" aria-label="QR code scanner"></div>
+                            <div id="leobot_qr_status" class="small text-secondary mb-3" role="status" aria-live="polite">
+                                <i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+                                <span data-i18n="scanTouchpointHint">Cho phép camera để quét mã QR.</span>
+                            </div>
+                            <div class="d-grid gap-2">
+                                <button id="leobot_qr_start_button" type="button" class="btn btn-outline-primary rounded-3">
+                                    <i class="bi bi-camera-video me-2" aria-hidden="true"></i>
+                                    <span data-i18n="scanTouchpointButton">Quét mã QR</span>
+                                </button>
+                                <button id="leobot_qr_stop_button" type="button" class="btn btn-outline-secondary rounded-3 d-none">
+                                    <i class="bi bi-stop-circle me-2" aria-hidden="true"></i>
+                                    <span data-i18n="stopScanning">Dừng quét</span>
+                                </button>
+                            </div>
+                            <div id="leobot_qr_result" class="alert alert-success small mt-3 mb-0 d-none" role="status">
+                                <div class="d-flex gap-2 align-items-start">
+                                    <i class="bi bi-check-circle-fill fs-5 mt-1 flex-shrink-0" aria-hidden="true"></i>
+                                    <div class="min-w-0">
+                                        <div class="fw-semibold" data-i18n="touchpointReady">Đã chọn điểm chạm</div>
+                                        <div id="leobot_qr_result_name" class="mt-1 fw-semibold"></div>
+                                        <div class="d-flex gap-1 align-items-start mt-1 text-success-emphasis">
+                                            <i class="bi bi-link-45deg flex-shrink-0" aria-hidden="true"></i>
+                                            <div id="leobot_qr_result_url" class="small text-break"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="leobot_qr_chat_button" type="button" class="btn btn-sm btn-success mt-2">
+                                    <i class="bi bi-chat-dots me-1" aria-hidden="true"></i>
+                                    <span data-i18n="startTouchpointChat">Bắt đầu trò chuyện</span>
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+
                     <section id="leobot_location_section" class="card leobot-location-card border-0 rounded-4" aria-labelledby="leobot_location_title">
                         <div class="card-body p-3">
                             <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
@@ -191,30 +245,32 @@
                                     <h2 id="leobot_location_title" class="h6 mb-0 mt-1" data-i18n="currentLocation">Vị trí hiện tại</h2>
                                 </div>
                                 <span id="leobot_location_icon" class="leobot-location-icon is-pending" aria-hidden="true">
-                                    <i class="fa fa-location-arrow"></i>
+                                    <i class="bi bi-geo-alt"></i>
                                 </span>
                             </div>
 
                             <div id="leobot_location_status" class="alert alert-secondary small mb-2" role="status" aria-live="polite">
-                                <i class="fa fa-circle-o-notch fa-spin me-2" aria-hidden="true"></i>
+                                <i class="bi bi-arrow-repeat me-2 leobot-spin" aria-hidden="true"></i>
                                 <span data-i18n="checkingLocation">Đang kiểm tra khả năng truy cập vị trí…</span>
                             </div>
                             <div class="leobot-location-data rounded-3 p-2 mb-2">
                                 <div>
+                                    <i class="bi bi-crosshair text-primary me-1" aria-hidden="true"></i>
                                     <span class="text-secondary small" data-i18n="coordinates">Tọa độ</span>
                                     <strong id="leobot_location_coordinates" class="small" data-i18n="notAvailable">Chưa có dữ liệu</strong>
                                 </div>
                                 <div>
+                                    <i class="bi bi-bullseye text-primary me-1" aria-hidden="true"></i>
                                     <span class="text-secondary small" data-i18n="accuracy">Độ chính xác</span>
                                     <strong id="leobot_location_accuracy" class="small">—</strong>
                                 </div>
                             </div>
                             <button id="leobot_location_button" type="button" class="btn btn-sm btn-primary w-100 rounded-3">
-                                <i class="fa fa-crosshairs me-2" aria-hidden="true"></i>
+                                <i class="bi bi-crosshair me-2" aria-hidden="true"></i>
                                 <span data-i18n="useMyLocation">Dùng vị trí của tôi</span>
                             </button>
                             <p class="leobot-location-hint text-secondary text-center small mb-0 mt-2">
-                                <i class="fa fa-lock me-1" aria-hidden="true"></i>
+                                <i class="bi bi-shield-lock me-1" aria-hidden="true"></i>
                                 <span data-i18n="permissionHint">Bạn có thể thay đổi quyền này trong cài đặt trình duyệt.</span>
                             </p>
                         </div>
@@ -224,8 +280,11 @@
         </div>
 
         <footer id="leobot_info_box" class="d-flex flex-wrap justify-content-between align-items-center gap-2 small text-secondary mt-3 mt-lg-4 px-1" role="contentinfo">
-            <span><i class="fa fa-info-circle me-1" aria-hidden="true"></i><span data-i18n="madeBy">Phát triển bởi</span> <a href="https://www.facebook.com/dataism.one" target="_blank" rel="noopener noreferrer">Trieu Dataism</a><small class="ms-2 leobot-footer-privacy" data-i18n="privateByDesign">· Riêng tư theo thiết kế</small></span>
-            <span data-i18n="locationOptional">Dịch vụ vị trí là tùy chọn.</span>
+            <span><i class="bi bi-info-circle me-1" aria-hidden="true"></i><span data-i18n="madeBy">Phát triển bởi</span> <a href="https://www.facebook.com/dataism.one" target="_blank" rel="noopener noreferrer">Trieu Dataism</a><small class="ms-2 leobot-footer-privacy" data-i18n="privateByDesign">· Riêng tư theo thiết kế</small></span>
+            <span class="d-inline-flex align-items-center gap-1">
+                <i class="bi bi-shield-check" aria-hidden="true"></i>
+                <span data-i18n="locationOptional">Dịch vụ vị trí là tùy chọn.</span>
+            </span>
         </footer>
     </main>
 
@@ -234,7 +293,7 @@
             <div class="modal-content border-0 rounded-4">
                 <div class="modal-header border-0">
                     <h2 id="leobot_help_title" class="modal-title h5">
-                        <i class="fa fa-compass text-primary me-2" aria-hidden="true"></i>
+                        <i class="bi bi-compass text-primary me-2" aria-hidden="true"></i>
                         <span data-i18n="helpTitle">Sử dụng LEO hiệu quả hơn</span>
                     </h2>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -265,6 +324,7 @@
         const BASE_URL_TOUCHPOINT = ORIGIN + '/_leoai/touchpoint/geolocation';
         const BASE_URL_GOOGLE_ONE_TAP = ORIGIN + '/_leoai/auth/google/one-tap';
         const GOOGLE_ONE_TAP_CLIENT_ID = {{ GOOGLE_CLIENT_ID|tojson }};
+        const BASE_URL_QR_TOUCHPOINT = ORIGIN + '/_leoai/touchpoint/web-qr';
         const CDP_TRACKING = "{{ CDP_TRACKING }}" === 'True' ;
         var savedLeoLanguage = "";
         try {

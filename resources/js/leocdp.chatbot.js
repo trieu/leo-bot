@@ -7,6 +7,12 @@ class ChatbotState {
       email: "",
       profileId: "",
       touchpointId: "",
+      touchpointLocked: false,
+      touchpointName: "Web visitor",
+      touchpointDescription: "",
+      touchpointType: "web",
+      touchpointFullUrl: "",
+      touchpointKeywords: [],
       latitude: null,
       longitude: null,
     };
@@ -255,6 +261,10 @@ function requestUserGeolocation(visitorId, forceRefresh) {
   return new Promise(function (resolve) {
     navigator.geolocation.getCurrentPosition(
       function (position) {
+        if (currentUserProfile.touchpointLocked) {
+          resolve(null);
+          return;
+        }
         var payload = {
           visitor_id: visitorId,
           name: document.title || "Web visitor",
@@ -316,6 +326,26 @@ function requestUserGeolocation(visitorId, forceRefresh) {
 }
 
 // Initialize visitor state, resolve location, and load the greeting profile.
+function applyTouchpointProfile(touchpoint) {
+  if (!touchpoint || !touchpoint.touchpoint_id) return;
+  currentUserProfile.touchpointId = touchpoint.touchpoint_id;
+  currentUserProfile.touchpointName =
+    touchpoint.name || currentUserProfile.touchpointName || "Web visitor";
+  currentUserProfile.touchpointDescription = touchpoint.description || "";
+  currentUserProfile.touchpointType = touchpoint.type || "web";
+  currentUserProfile.touchpointFullUrl =
+    touchpoint.full_url || touchpoint.url || "";
+  currentUserProfile.touchpointLocked =
+    currentUserProfile.touchpointType === "web_qr";
+  currentUserProfile.touchpointKeywords = Array.isArray(touchpoint.keywords)
+    ? touchpoint.keywords
+    : [];
+  if (currentUserProfile.touchpointLocked) {
+    currentUserProfile.latitude = null;
+    currentUserProfile.longitude = null;
+  }
+}
+
 function initLeoChatBot(context, visitorId, okCallback) {
   window.leoBotContext = context;
   window.currentUserProfile.visitorId = visitorId;
@@ -324,12 +354,9 @@ function initLeoChatBot(context, visitorId, okCallback) {
   chatbotUI.initialize();
 
   loadChatSessionWithProfile();
-  requestUserGeolocation(visitorId).catch(function (error) {
-    console.warn("Unable to resolve visitor geolocation:", error);
-    emitLocationState("error");
-  });
   $.getJSON(BASE_URL_GET_VISITOR_INFO, {
       visitor_id: visitorId,
+      touchpoint_id: currentUserProfile.touchpointId || undefined,
       _: Date.now(),
     })
     .then(null, function () {
@@ -340,12 +367,26 @@ function initLeoChatBot(context, visitorId, okCallback) {
 
     if (data.error_code === 0 && typeof data.name === "string") {
       currentUserProfile.displayName = data.name;
-      showLeoChatBot(currentUserProfile.displayName);
+      applyTouchpointProfile(data.touchpoint);
+      showLeoChatBot(
+        currentUserProfile.displayName,
+        data.touchpoint && data.touchpoint.type === "web_qr"
+          ? data.touchpoint
+          : null
+      );
     } else if (data.error_code === 404) {
       currentUserProfile.displayName = "";
       showLeoChatBot(currentUserProfile.displayName);
     } else {
       leoBotShowError(data, leoBotPromptQuestion);
+    }
+    if (!currentUserProfile.touchpointLocked) {
+      requestUserGeolocation(visitorId).catch(function (error) {
+        console.warn("Unable to resolve visitor geolocation:", error);
+        emitLocationState("error");
+      });
+    } else {
+      emitLocationState("unavailable");
     }
   });
 
@@ -355,7 +396,29 @@ function initLeoChatBot(context, visitorId, okCallback) {
 }
 
 // Build the localized greeting shown when a chat session starts.
-function getGreetingMessage(displayName, language) {
+function getGreetingMessage(displayName, language, touchpoint) {
+  var touchpointName =
+    touchpoint && typeof touchpoint.name === "string"
+      ? touchpoint.name.trim()
+      : "";
+  var touchpointFullUrl =
+    touchpoint &&
+    typeof (touchpoint.full_url || touchpoint.url) === "string"
+      ? (touchpoint.full_url || touchpoint.url).trim()
+      : "";
+  if (touchpointName) {
+    switch (language) {
+      case "vi":
+        return "Đã tải nội dung từ touchpoint “" + touchpointName + "”" +
+          (touchpointFullUrl ? ", " + touchpointFullUrl : "") +
+          ". Bạn có thể hỏi tôi bất cứ điều gì về nội dung này.";
+      case "en":
+      default:
+        return "Loaded content from touchpoint “" + touchpointName + "”" +
+          (touchpointFullUrl ? ", " + touchpointFullUrl : "") +
+          ". You can ask me anything about it.";
+    }
+  }
   switch (language) {
     case "vi":
       return "Chào " + displayName + ", bạn có thể hỏi tôi bất cứ điều gì";
@@ -365,13 +428,45 @@ function getGreetingMessage(displayName, language) {
   }
 }
 
+function getChatSubmitLabel() {
+  return getLeoUiLanguage() === "en" ? "Send" : "Gửi";
+}
+
+function getChatInputAction() {
+  return {
+    cssClass: "leobot-question-input",
+    value: "",
+    placeholder: getLeoUiText("chatPlaceholder", "What would you like to find?"),
+    button: {
+      icon: "paper-plane",
+      label: getChatSubmitLabel(),
+    },
+  };
+}
+
 // Show the greeting and then prompt the visitor for their first question.
-var showLeoChatBot = function (displayName) {
-  var msg = getGreetingMessage(displayName, getLeoUiLanguage());
+var showLeoChatBot = function (displayName, touchpoint) {
+  var msg = getGreetingMessage(displayName, getLeoUiLanguage(), touchpoint);
   var msgObj = { content: msg, cssClass: "leobot-answer" };
   getBotUI().message.removeAll();
   getBotUI().message.bot(msgObj).then(leoBotPromptQuestion);
 };
+
+// Reset the visible conversation around a newly selected QR touchpoint.
+var reloadLeoChatBotSession = function (touchpoint) {
+  if (!touchpoint || !touchpoint.touchpointId) return;
+  var storedTouchpoint = {
+    touchpoint_id: touchpoint.touchpointId,
+    name: touchpoint.name,
+    description: touchpoint.description,
+    type: touchpoint.type || "web_qr",
+    full_url: touchpoint.fullUrl || touchpoint.full_url || touchpoint.url || "",
+    keywords: touchpoint.keywords
+  };
+  applyTouchpointProfile(storedTouchpoint);
+  showLeoChatBot(currentUserProfile.displayName, storedTouchpoint);
+};
+window.reloadLeoChatBotSession = reloadLeoChatBotSession;
 
 // --- Message rendering ---
 // Add the next text prompt and route its answer to the chat API.
@@ -379,11 +474,7 @@ var leoBotPromptQuestion = function (delay) {
   getBotUI()
     .action.text({
       delay: typeof delay === "number" ? delay : 800,
-      action: {
-        cssClass: "leobot-question-input",
-        value: "", // show the prevous answer if any
-        placeholder: getLeoUiText("chatPlaceholder", "What would you like to find?"),
-      },
+      action: getChatInputAction(),
     })
     .then(function (res) {
       sendQuestionToLeoAI("ask", res.value);
@@ -704,6 +795,11 @@ class ChatbotController {
         touchpoint_id: currentUserProfile.touchpointId || null,
         latitude: currentUserProfile.latitude,
         longitude: currentUserProfile.longitude,
+        touchpoint_name: currentUserProfile.touchpointName || "Web visitor",
+        touchpoint_description: currentUserProfile.touchpointDescription || "",
+        touchpoint_type: currentUserProfile.touchpointType || "web",
+        touchpoint_full_url: currentUserProfile.touchpointFullUrl || "",
+        touchpoint_keywords: currentUserProfile.touchpointKeywords || [],
         answer_in_language:
           getLeoUiLanguage() === "en" ? "English" : "Vietnamese",
         answer_in_format: "html",

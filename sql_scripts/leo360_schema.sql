@@ -427,7 +427,7 @@ CREATE INDEX IF NOT EXISTS idx_context_intent_confident
     ON conversational_context (tenant_id, intent_label) WHERE intent_confidence > 0.5;
 
 -- ---------------------------------------------------------------------------
--- touchpoints (user geolocation touchpoints)
+-- touchpoints (user touchpoints, including coordinate-free web QR touchpoints)
 -- [TENANT FIX] PK was touchpoint_id alone -> now (tenant_id, touchpoint_id).
 -- [TENANT FIX] tenant_id DEFAULT 'default' removed: a missing tenant now fails
 --              loudly instead of silently landing in a 'default' tenant.
@@ -437,20 +437,87 @@ CREATE TABLE IF NOT EXISTS touchpoints (
     tenant_id     VARCHAR(50) NOT NULL,
     touchpoint_id VARCHAR(64) NOT NULL,
     user_id       VARCHAR(50) NOT NULL,
-    latitude      DECIMAL(9, 6) NOT NULL CHECK (latitude BETWEEN -90 AND 90),
-    longitude     DECIMAL(9, 6) NOT NULL CHECK (longitude BETWEEN -180 AND 180),
-    geom          GEOMETRY(Point, 4326) NOT NULL,
+    latitude      DECIMAL(9, 6) CHECK (latitude BETWEEN -90 AND 90),
+    longitude     DECIMAL(9, 6) CHECK (longitude BETWEEN -180 AND 180),
+    geom          GEOMETRY(Point, 4326),
     name          TEXT,
     description   TEXT,
     type          VARCHAR(50),
     keywords      TEXT[],
+    content       TEXT,
+    full_url      TEXT DEFAULT '',
     embedding     VECTOR(768),
     metadata      JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at    TIMESTAMPTZ DEFAULT NOW(),
     updated_at    TIMESTAMPTZ DEFAULT NOW(),
     last_seen_at  TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (tenant_id, touchpoint_id)
+    PRIMARY KEY (tenant_id, touchpoint_id),
+    CONSTRAINT touchpoints_coordinates_together_chk CHECK (
+        (latitude IS NULL AND longitude IS NULL AND geom IS NULL)
+        OR (latitude IS NOT NULL AND longitude IS NOT NULL AND geom IS NOT NULL)
+    ),
+    CONSTRAINT touchpoints_web_qr_nullable_chk CHECK (
+        latitude IS NOT NULL
+        OR type IS NOT DISTINCT FROM 'web_qr'
+    )
 );
+
+-- Apply the nullable coordinate and content contract to databases created
+-- from an older version of this schema as well as fresh installations above.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'touchpoints'
+          AND column_name = 'content'
+    ) THEN
+        ALTER TABLE touchpoints ADD COLUMN content TEXT;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'touchpoints'
+          AND column_name = 'full_url'
+    ) THEN
+        ALTER TABLE touchpoints ADD COLUMN full_url TEXT DEFAULT '';
+    END IF;
+
+    ALTER TABLE touchpoints
+        ALTER COLUMN latitude DROP NOT NULL,
+        ALTER COLUMN longitude DROP NOT NULL,
+        ALTER COLUMN geom DROP NOT NULL;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conrelid = 'touchpoints'::regclass
+          AND conname = 'touchpoints_coordinates_together_chk'
+    ) THEN
+        ALTER TABLE touchpoints
+            ADD CONSTRAINT touchpoints_coordinates_together_chk CHECK (
+                (latitude IS NULL AND longitude IS NULL AND geom IS NULL)
+                OR (latitude IS NOT NULL AND longitude IS NOT NULL AND geom IS NOT NULL)
+            );
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conrelid = 'touchpoints'::regclass
+          AND conname = 'touchpoints_web_qr_nullable_chk'
+    ) THEN
+        ALTER TABLE touchpoints
+            ADD CONSTRAINT touchpoints_web_qr_nullable_chk CHECK (
+                latitude IS NOT NULL
+                OR type IS NOT DISTINCT FROM 'web_qr'
+            );
+    END IF;
+END
+$$;
 
 CREATE INDEX IF NOT EXISTS idx_touchpoints_geom ON touchpoints USING GIST (geom);
 CREATE INDEX IF NOT EXISTS idx_touchpoints_geog ON touchpoints USING GIST ((geom::geography));

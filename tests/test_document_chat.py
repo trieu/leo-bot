@@ -149,6 +149,18 @@ def test_missing_document_excerpts_prompt_requests_documents_not_location():
     assert "PLACE_FOLLOWUP" not in prompt.system_instruction
 
 
+def test_document_intent_stays_on_web_qr_touchpoint_workflow():
+    state = {
+        "primary_intent": IntentType.DOCUMENT_CHAT.value,
+        "touchpoint_type": "web_qr",
+    }
+
+    assert RAGAgent._route_chat_type(state) == "standard_chat"
+
+    state["touchpoint_type"] = "web"
+    assert RAGAgent._route_chat_type(state) == "document_chat"
+
+
 def test_document_summary_never_reads_or_preserves_location_state():
     async def scenario():
         db = SimpleNamespace(

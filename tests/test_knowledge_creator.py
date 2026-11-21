@@ -70,7 +70,10 @@ def mock_database(monkeypatch):
 def test_parser_uses_article_title_and_readable_text():
     parser = _WebPageParser()
     parser.feed("""
-        <html><head><title>RAG &amp; CAG</title><style>hidden</style></head>
+        <html><head><title>RAG &amp; CAG</title>
+        <meta name="description" content="A guide to RAG and CAG.">
+        <meta name="keywords" content="RAG, CAG; AI">
+        <style>hidden</style></head>
         <body><nav>Navigation</nav><article>
         <h1>RAG versus CAG</h1><p>First paragraph.</p><p>Second <b>paragraph</b>.</p>
         <script>ignoreMe()</script></article><footer>Footer</footer></body></html>
@@ -80,6 +83,9 @@ def test_parser_uses_article_title_and_readable_text():
     assert "RAG versus CAG\n\nFirst paragraph.\n\nSecond paragraph." == document.text
     assert "Navigation" not in document.text
     assert "ignoreMe" not in document.text
+    assert document.description == "A guide to RAG and CAG."
+    assert document.keywords == ("RAG", "CAG", "AI")
+    assert "First paragraph." in document.full_text
 
 
 def test_parser_supports_blogger_post_body_and_plain_body_fallback():

@@ -4,6 +4,7 @@ import hashlib
 import ipaddress
 import json
 import logging
+import re
 import socket
 from dataclasses import dataclass
 from html.parser import HTMLParser
@@ -53,6 +54,9 @@ class WebDocument:
     text: str
     fetched_url: str
     links: tuple[str, ...] = ()
+    description: str = ""
+    keywords: tuple[str, ...] = ()
+    full_text: str | None = None
 
 
 class KnowledgeEmbeddingModel(Protocol):
@@ -90,6 +94,8 @@ class _WebPageParser(HTMLParser):
         self.content: list[str] = []
         self.article: list[str] = []
         self.links: list[str] = []
+        self.description = ""
+        self.keywords: list[str] = []
 
     def _append(self, text: str) -> None:
         if any(hidden for _, hidden, _ in self.stack):
@@ -100,6 +106,18 @@ class _WebPageParser(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs) -> None:
         attributes = dict(attrs)
+        if tag == "meta":
+            meta_name = (attributes.get("name") or attributes.get("property") or "").strip().lower()
+            meta_content = (attributes.get("content") or "").strip()
+            if meta_name in {"description", "og:description", "twitter:description"} and meta_content:
+                if not self.description:
+                    self.description = meta_content
+            elif meta_name in {"keywords", "news_keywords"} and meta_content:
+                self.keywords.extend(
+                    keyword.strip()
+                    for keyword in re.split(r"[,;]", meta_content)
+                    if keyword.strip()
+                )
         if tag == "a" and isinstance(attributes.get("href"), str):
             self.links.append(attributes["href"])
         classes = (attributes.get("class") or "").split()
@@ -128,12 +146,17 @@ class _WebPageParser(HTMLParser):
 
     def document(self, url: str) -> WebDocument:
         text = "".join(self.article or self.content)
+        full_text = "".join(self.content)
         paragraphs = [" ".join(part.split()) for part in text.split("\n\n")]
+        full_paragraphs = [" ".join(part.split()) for part in full_text.split("\n\n")]
         return WebDocument(
             title=" ".join("".join(self.title).split()) or url,
             text="\n\n".join(part for part in paragraphs if part),
             fetched_url=url,
             links=tuple(self.links),
+            description=self.description,
+            keywords=tuple(dict.fromkeys(self.keywords)),
+            full_text="\n\n".join(part for part in full_paragraphs if part),
         )
 
 
@@ -208,7 +231,13 @@ class PublicWebPageFetcher:
                         except (LookupError, UnicodeDecodeError) as exc:
                             raise KnowledgeInputError("Source text encoding is unsupported or invalid.") from exc
                         if content_type == "text/plain":
-                            return WebDocument(str(current), decoded.strip(), str(current))
+                            text = decoded.strip()
+                            return WebDocument(
+                                str(current),
+                                text,
+                                str(current),
+                                full_text=text,
+                            )
                         parser = _WebPageParser()
                         parser.feed(decoded)
                         parser.close()

@@ -119,6 +119,87 @@ test("loads the greeting without waiting for optional geolocation", async () => 
   assert.equal(greetedName, "Ada");
 });
 
+for (const [language, expected] of [
+  ["vi", "Gửi"],
+  ["en", "Send"],
+]) {
+  test(`uses the ${expected} send label in ${language}`, () => {
+    const chat = setupChat();
+    chat.context.window.LEO_UI_LANGUAGE = language;
+    const action = chat.context.getChatInputAction();
+
+    assert.equal(action.button.label, expected);
+    assert.equal(action.button.icon, "paper-plane");
+  });
+}
+
+test("QR greeting includes the touchpoint name and full_url", () => {
+  const chat = setupChat();
+  const greeting = chat.context.getGreetingMessage(
+    "Ada",
+    "vi",
+    {
+      name: "Temple Guide",
+      full_url: "https://example.com/temple-guide",
+    }
+  );
+
+  assert.equal(
+    greeting,
+    "Đã tải nội dung từ touchpoint “Temple Guide”, " +
+      "https://example.com/temple-guide. " +
+      "Bạn có thể hỏi tôi bất cứ điều gì về nội dung này."
+  );
+});
+
+test("restores a persisted QR touchpoint and skips geolocation refresh", async () => {
+  const chat = setupChat();
+  let geolocationRequests = 0;
+  let greetingTouchpoint;
+  chat.context.window.currentUserProfile = chat.context.currentUserProfile;
+  chat.context.navigator = {
+    geolocation: {
+      getCurrentPosition() {
+        geolocationRequests += 1;
+      },
+    },
+  };
+  chat.context.BASE_URL_TOUCHPOINT = "https://leobot.test/touchpoint";
+  chat.context.BASE_URL_GET_VISITOR_INFO = "https://leobot.test/visitor-info";
+  chat.context.lscache.get = () => "qr-touchpoint";
+  chat.context.$.getJSON = () => Promise.resolve({
+    error_code: 0,
+    name: "Ada",
+    init_touchpoint_id: "qr-touchpoint",
+    touchpoint: {
+      touchpoint_id: "qr-touchpoint",
+      name: "Temple Guide",
+      description: "A scanned guide",
+      type: "web_qr",
+      full_url: "https://example.com/temple-guide",
+    },
+  });
+  chat.context.chatbotUI.initialize = () => {};
+  chat.context.loadChatSessionWithProfile = () => {};
+  chat.context.showLeoChatBot = (name, touchpoint) => {
+    greetingTouchpoint = touchpoint;
+  };
+
+  chat.context.initLeoChatBot("leobot_website", "visitor");
+  await Promise.resolve();
+  await Promise.resolve();
+
+  assert.equal(chat.context.currentUserProfile.touchpointId, "qr-touchpoint");
+  assert.equal(chat.context.currentUserProfile.touchpointLocked, true);
+  assert.equal(
+    chat.context.currentUserProfile.touchpointFullUrl,
+    "https://example.com/temple-guide"
+  );
+  assert.equal(chat.context.currentUserProfile.latitude, null);
+  assert.equal(greetingTouchpoint.name, "Temple Guide");
+  assert.equal(geolocationRequests, 0);
+});
+
 test("sends a verified Google One Tap credential for the current visitor", async () => {
   const chat = setupChat();
   let initializeOptions;

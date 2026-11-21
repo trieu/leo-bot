@@ -3,7 +3,9 @@ import json
 import logging
 import math
 import os
+from collections.abc import Mapping
 from typing import Sequence
+from uuid import NAMESPACE_URL, uuid5
 from uuid6 import uuid7
 import httpx
 from google.api_core.exceptions import GoogleAPIError
@@ -24,6 +26,7 @@ TOUCHPOINT_NAME_DEFAULT = "Web visitor"
 TOUCHPOINT_TYPE_DEFAULT = "web"
 PLACE_VECTOR_MAX_DISTANCE = 0.35
 PLACE_VECTOR_TIMEOUT_SECONDS = 5
+TOUCHPOINT_CONTEXT_CONTENT_MAX_LENGTH = 100_000
 
 
 class NearbyLocationUnavailable(ValueError):
@@ -44,6 +47,32 @@ def build_touchpoint_embedding_text(
         f"keywords: {', '.join(keyword.strip() for keyword in (keywords or []) if keyword.strip())}",
     ]
     return "\n".join(parts)
+
+
+def get_touchpoint_full_url(
+    full_url: object, metadata: object = None
+) -> str | None:
+    """Read a URL from the dedicated column or legacy JSONB metadata."""
+    if isinstance(full_url, str) and full_url:
+        return full_url
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except json.JSONDecodeError:
+            logger.warning("Touchpoint metadata contains invalid JSON.")
+            return None
+    if not isinstance(metadata, Mapping):
+        if metadata is not None:
+            logger.warning("Touchpoint metadata is not a JSON object.")
+        return None
+    legacy_url = metadata.get("full_url") or metadata.get("url")
+    if legacy_url is None:
+        return None
+    if not isinstance(legacy_url, str):
+        logger.warning("Touchpoint metadata URL is not a string.")
+        return None
+    return legacy_url
+
 
 class ChatDBManager:
     def __init__(self, embedding_model):
@@ -195,7 +224,7 @@ class ChatDBManager:
             row = await conn.fetchrow(
                 """
                 SELECT touchpoint_id, latitude, longitude, name, description,
-                       type, keywords
+                       type, keywords, content, full_url, metadata
                 FROM touchpoints
                 WHERE tenant_id = $1 AND touchpoint_id = $2 AND user_id = $3;
                 """,
@@ -205,44 +234,59 @@ class ChatDBManager:
             )
             if not row:
                 return None
-            places = await conn.fetch(
-                """
-                SELECT id, name, address, description, category, tags,
-                       ST_Distance(
-                           geom::geography,
-                           ST_SetSRID(ST_MakePoint(
-                               $2::double precision, $1::double precision
-                           ), 4326)::geography
-                       ) AS distance_meters
-                FROM geo_places
-                WHERE ST_DWithin(
-                    geom::geography,
-                    ST_SetSRID(ST_MakePoint(
-                        $2::double precision, $1::double precision
-                    ), 4326)::geography,
-                    $3
+            places = []
+            if row["latitude"] is not None and row["longitude"] is not None:
+                places = await conn.fetch(
+                    """
+                    SELECT id, name, address, description, category, tags,
+                           ST_Distance(
+                               geom::geography,
+                               ST_SetSRID(ST_MakePoint(
+                                   $2::double precision, $1::double precision
+                               ), 4326)::geography
+                           ) AS distance_meters
+                    FROM geo_places
+                    WHERE ST_DWithin(
+                        geom::geography,
+                        ST_SetSRID(ST_MakePoint(
+                            $2::double precision, $1::double precision
+                        ), 4326)::geography,
+                        $3
+                    )
+                      AND tenant_id IN ($5, 'global')
+                    ORDER BY geom::geography <-> ST_SetSRID(
+                        ST_MakePoint(
+                            $2::double precision, $1::double precision
+                        ) , 4326
+                    )::geography
+                    LIMIT $4;
+                    """,
+                    row["latitude"],
+                    row["longitude"],
+                    NEARBY_PLACES_RADIUS_METERS,
+                    NEARBY_PLACES_LIMIT,
+                    tenant_id,
                 )
-                  AND tenant_id IN ($5, 'global')
-                ORDER BY geom::geography <-> ST_SetSRID(
-                    ST_MakePoint(
-                        $2::double precision, $1::double precision
-                    ), 4326
-                )::geography
-                LIMIT $4;
-                """,
-                row["latitude"],
-                row["longitude"],
-                NEARBY_PLACES_RADIUS_METERS,
-                NEARBY_PLACES_LIMIT,
-                tenant_id,
-            )
+        full_url = get_touchpoint_full_url(
+            row["full_url"] if "full_url" in row.keys() else None,
+            row["metadata"] if "metadata" in row.keys() else None,
+        )
         return {
-            "latitude": float(row["latitude"]),
-            "longitude": float(row["longitude"]),
+            "latitude": (
+                float(row["latitude"]) if row["latitude"] is not None else None
+            ),
+            "longitude": (
+                float(row["longitude"]) if row["longitude"] is not None else None
+            ),
             "name": row["name"],
             "description": row["description"],
             "type": row["type"],
             "keywords": row["keywords"] or [],
+            "full_url": full_url,
+            "url": full_url,
+            "content": (
+                (row["content"] if "content" in row.keys() else "") or ""
+            )[:TOUCHPOINT_CONTEXT_CONTENT_MAX_LENGTH],
             "nearby_places": [
                 {
                     "id": str(place["id"]),
@@ -255,6 +299,112 @@ class ChatDBManager:
                 }
                 for place in places
             ],
+        }
+
+    async def upsert_web_qr_touchpoint(
+        self,
+        user_id: str,
+        full_url: str,
+        name: str,
+        description: str,
+        keywords: Sequence[str],
+        content: str,
+        touchpoint_id: str | None = None,
+        tenant_id: str = "default",
+    ) -> dict:
+        """Persist crawled QR page context as a visitor-owned touchpoint."""
+        user_id = user_id.strip()
+        full_url = full_url.strip()
+        if not user_id:
+            raise ValueError("user_id must be non-empty")
+        if not full_url:
+            raise ValueError("full_url must be non-empty")
+        if len(user_id) > 50:
+            raise ValueError("user_id must be 50 characters or fewer")
+        if len(name) > 500 or len(description) > 5000:
+            raise ValueError("touchpoint metadata is too long")
+        if any(not isinstance(keyword, str) or not keyword.strip() for keyword in keywords):
+            raise ValueError("touchpoint keywords must be non-empty strings")
+
+        touchpoint_id = touchpoint_id or str(
+            uuid5(NAMESPACE_URL, f"web_qr:{tenant_id}:{user_id}:{full_url}")
+        )
+        embedding_model = get_touchpoint_embedding_model()
+        embedding = await asyncio.to_thread(
+            embedding_model.encode,
+            build_touchpoint_embedding_text(
+                name,
+                f"{description}\n{content[:10000]}",
+                "web_qr",
+                keywords,
+            ),
+            normalize_embeddings=True,
+        )
+        embedding_vector = embedding.tolist()
+        if len(embedding_vector) != TOUCHPOINT_EMBEDDING_DIMENSIONS:
+            raise ValueError(
+                "touchpoint embedding must have "
+                f"{TOUCHPOINT_EMBEDDING_DIMENSIONS} dimensions; "
+                f"got {len(embedding_vector)}"
+            )
+        embedding_str = to_pgvector(embedding_vector)
+        async with get_async_pg_conn() as conn:
+            saved_touchpoint = await conn.fetchval(
+                """
+                INSERT INTO touchpoints (
+                    touchpoint_id, user_id, tenant_id, latitude, longitude, geom,
+                    name, description, type, keywords, content, full_url,
+                    embedding, metadata,
+                    updated_at, last_seen_at
+                )
+                VALUES (
+                    $1, $2, $3, NULL, NULL, NULL,
+                    $4, $5, 'web_qr', $6, $7, $8::text, $9::vector,
+                    jsonb_build_object('full_url', $8::text), NOW(), NOW()
+                )
+                ON CONFLICT (tenant_id, touchpoint_id) DO UPDATE SET
+                    user_id = EXCLUDED.user_id,
+                    latitude = NULL,
+                    longitude = NULL,
+                    geom = NULL,
+                    name = EXCLUDED.name,
+                    description = EXCLUDED.description,
+                    type = EXCLUDED.type,
+                    keywords = EXCLUDED.keywords,
+                    content = EXCLUDED.content,
+                    full_url = EXCLUDED.full_url,
+                    embedding = EXCLUDED.embedding,
+                    metadata = COALESCE(touchpoints.metadata, '{}'::jsonb)
+                        || EXCLUDED.metadata,
+                    updated_at = NOW(),
+                    last_seen_at = NOW()
+                WHERE touchpoints.user_id = EXCLUDED.user_id
+                RETURNING touchpoint_id;
+                """,
+                touchpoint_id,
+                user_id,
+                tenant_id,
+                name,
+                description,
+                list(keywords),
+                content,
+                full_url,
+                embedding_str,
+            )
+            if saved_touchpoint is None:
+                raise ValueError("touchpoint_id already belongs to another visitor.")
+
+        return {
+            "touchpoint_id": touchpoint_id,
+            "full_url": full_url,
+            "url": full_url,
+            "name": name,
+            "description": description,
+            "keywords": list(keywords),
+            "type": "web_qr",
+            "latitude": None,
+            "longitude": None,
+            "nearby_places": [],
         }
 
     async def resolve_nearby_location(

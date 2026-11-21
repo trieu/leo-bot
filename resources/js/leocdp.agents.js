@@ -50,7 +50,24 @@
       emptyQuestion: "Vui lòng nhập câu hỏi hoặc số của địa điểm.",
       networkError: "Không thể gửi tin nhắn. Vui lòng thử lại.",
       assistantLoadError: "Không thể tải LEO. Vui lòng tải lại trang và thử lại.",
-      googleSignedInAs: "Đã đăng nhập: "
+      googleSignedInAs: "Đã đăng nhập: ",
+      scanTouchpoint: "Quét điểm chạm",
+      scanTouchpointTitle: "Bắt đầu từ mã QR",
+      scanTouchpointDescription: "Quét mã QR của điểm chạm để LEO dùng đúng ngữ cảnh và nội dung liên quan khi trò chuyện.",
+      scanTouchpointHint: "Cho phép camera để quét mã QR.",
+      scanTouchpointButton: "Quét mã QR",
+      stopScanning: "Dừng quét",
+      touchpointReady: "Đã chọn điểm chạm",
+      startTouchpointChat: "Bắt đầu trò chuyện",
+      qrScannerUnavailable: "Không thể tải trình quét QR trên trình duyệt này.",
+      qrScannerStarting: "Đang mở camera…",
+      qrScannerScanning: "Đưa mã QR vào khung hình.",
+      qrScannerInvalid: "Mã QR không chứa điểm chạm hợp lệ.",
+      qrScannerError: "Không thể mở camera. Vui lòng kiểm tra quyền truy cập và thử lại.",
+      qrScannerFetching: "Đang tải nội dung từ liên kết QR…",
+      qrScannerFetchError: "Không thể tải nội dung liên kết QR. Vui lòng thử lại.",
+      qrScannerSelected: "Đã chọn điểm chạm. Bạn có thể bắt đầu trò chuyện.",
+      qrScannerNoVisitor: "Chưa tạo được phiên khách truy cập. Vui lòng thử lại."
     },
     en: {
       help: "Help",
@@ -100,7 +117,24 @@
       emptyQuestion: "Please enter a question or a place number.",
       networkError: "Unable to send your message. Please try again.",
       assistantLoadError: "LEO could not load. Please refresh the page and try again.",
-      googleSignedInAs: "Signed in as "
+      googleSignedInAs: "Signed in as ",
+      scanTouchpoint: "Scan a touchpoint",
+      scanTouchpointTitle: "Start from a QR code",
+      scanTouchpointDescription: "Scan a touchpoint QR code so LEO can use the right context and related knowledge while chatting.",
+      scanTouchpointHint: "Allow camera access to scan a QR code.",
+      scanTouchpointButton: "Scan QR code",
+      stopScanning: "Stop scanning",
+      touchpointReady: "Touchpoint selected",
+      startTouchpointChat: "Start chatting",
+      qrScannerUnavailable: "The QR scanner is not available in this browser.",
+      qrScannerStarting: "Opening camera…",
+      qrScannerScanning: "Place the QR code inside the frame.",
+      qrScannerInvalid: "This QR code does not contain a valid touchpoint.",
+      qrScannerError: "Unable to open the camera. Check permission and try again.",
+      qrScannerFetching: "Loading content from the QR link…",
+      qrScannerFetchError: "Unable to load the QR link content. Please try again.",
+      qrScannerSelected: "Touchpoint selected. You can start chatting.",
+      qrScannerNoVisitor: "A visitor session is not ready yet. Please try again."
     }
   };
 
@@ -113,6 +147,333 @@
 
   var latestLocationDetail = { state: "pending" };
   var recommendedActions = null;
+  var qrScanner = null;
+  var qrScannerRunning = false;
+  var qrTouchpointLoading = false;
+  var pendingQrTouchpoint = null;
+
+  function setQrStatus(key, className) {
+    var $status = $("#leobot_qr_status");
+    if (!$status.length) return;
+    $status.attr("class", "small mb-3 " + (className || "text-secondary"))
+      .empty()
+      .append($("<i>", {
+        class: "fa " + (className === "text-danger" ? "fa-exclamation-circle" : "fa-info-circle") + " me-1",
+        "aria-hidden": "true"
+      }))
+      .append($("<span>").text(window.leoUiText(key)));
+  }
+
+  function normalizeQrTouchpoint(rawValue) {
+    var raw = typeof rawValue === "string" ? rawValue.trim() : "";
+    if (!raw) return null;
+
+    var parsed = null;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      parsed = null;
+    }
+
+    var source = parsed && typeof parsed === "object" ? parsed : {};
+    var nestedTouchpoint =
+      source.touchpoint && typeof source.touchpoint === "object"
+        ? source.touchpoint
+        : {};
+    var nestedData =
+      source.data && typeof source.data === "object" ? source.data : {};
+    var sourceUrl =
+      source.full_url ||
+      source.url ||
+      source.uri ||
+      source.href ||
+      nestedData.full_url ||
+      nestedData.url ||
+      nestedData.uri;
+    if (!sourceUrl && /^https?:\/\//i.test(raw)) {
+      sourceUrl = raw;
+    }
+    var normalizedUrl = null;
+    if (typeof sourceUrl === "string" && sourceUrl.trim()) {
+      try {
+        var parsedUrl = new URL(sourceUrl.trim(), window.location.origin);
+        if (parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:") {
+          normalizedUrl = parsedUrl.toString();
+        }
+      } catch (error) {
+        normalizedUrl = null;
+      }
+    }
+    var touchpointId =
+      source.touchpoint_id ||
+      source.touchpointId ||
+      (typeof source.touchpoint === "string" ? source.touchpoint : null) ||
+      source.id ||
+      source.code ||
+      nestedTouchpoint.touchpoint_id ||
+      nestedTouchpoint.touchpointId ||
+      nestedTouchpoint.id ||
+      nestedData.touchpoint_id ||
+      nestedData.touchpointId ||
+      null;
+    if (!touchpointId && typeof parsed === "string") {
+      touchpointId = parsed;
+    }
+    if (!touchpointId) {
+      try {
+        var url = new URL(raw, window.location.origin);
+        var hashParams = new URLSearchParams(url.hash.replace(/^#\/?/, ""));
+        touchpointId =
+          url.searchParams.get("touchpoint_id") ||
+          url.searchParams.get("touchpointId") ||
+          url.searchParams.get("touchpoint") ||
+          url.searchParams.get("tp") ||
+          url.searchParams.get("id") ||
+          hashParams.get("touchpoint_id") ||
+          hashParams.get("touchpointId") ||
+          hashParams.get("touchpoint") ||
+          hashParams.get("tp") ||
+          hashParams.get("id");
+
+        if (!touchpointId) {
+          var pathParts = url.pathname.split("/").filter(function (part) {
+            return part.trim();
+          });
+          var touchpointPathIndex = pathParts.findIndex(function (part) {
+            return /^(?:touchpoint|touchpoints|tp|web_qr)$/i.test(part);
+          });
+          if (touchpointPathIndex >= 0) {
+            touchpointId = pathParts[touchpointPathIndex + 1] || null;
+          }
+        }
+      } catch (error) {
+        touchpointId = null;
+      }
+    }
+    if (!touchpointId) {
+      var prefixedId = raw.match(
+        /^(?:touchpoint|touchpoints|tp|web_qr)[:/]+(.+)$/i
+      );
+      touchpointId = prefixedId ? prefixedId[1] : null;
+    }
+    if (!touchpointId && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$/.test(raw)) {
+      touchpointId = raw;
+    }
+    if (typeof touchpointId !== "string" && touchpointId !== null) return null;
+    if (touchpointId) {
+      try {
+        touchpointId = decodeURIComponent(touchpointId.trim());
+      } catch (error) {
+        return null;
+      }
+      touchpointId = touchpointId.trim();
+      if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$/.test(touchpointId)) return null;
+    }
+    if (!touchpointId && !normalizedUrl) return null;
+
+    var latitude = Number(source.latitude);
+    var longitude = Number(source.longitude);
+    return {
+      touchpointId: touchpointId,
+      fullUrl: normalizedUrl,
+      url: normalizedUrl,
+      name: typeof source.name === "string" ? source.name.trim() : "",
+      description: typeof source.description === "string" ? source.description.trim() : "",
+      type: typeof source.type === "string" ? source.type.trim() : "web_qr",
+      keywords: Array.isArray(source.keywords)
+        ? source.keywords.filter(function (keyword) {
+            return typeof keyword === "string" && keyword.trim();
+          }).map(function (keyword) {
+            return keyword.trim();
+          })
+        : [],
+      latitude: Number.isFinite(latitude) && latitude >= -90 && latitude <= 90
+        ? latitude
+        : null,
+      longitude: Number.isFinite(longitude) && longitude >= -180 && longitude <= 180
+        ? longitude
+        : null
+    };
+  }
+
+  function stopQrScanner() {
+    if (!qrScanner || !qrScannerRunning) return Promise.resolve();
+    qrScannerRunning = false;
+    return qrScanner.stop().then(function () {
+      return qrScanner.clear();
+    }).catch(function (error) {
+      console.warn("Unable to stop QR scanner cleanly.", error);
+    }).then(function () {
+      $("#leobot_qr_reader").addClass("d-none").empty();
+      $("#leobot_qr_start_button").removeClass("d-none");
+      $("#leobot_qr_stop_button").addClass("d-none");
+    });
+  }
+
+  function persistQrTouchpoint(touchpoint) {
+    var visitorId = window.currentUserProfile && window.currentUserProfile.visitorId;
+    if (!visitorId) {
+      setQrStatus("qrScannerNoVisitor", "text-danger");
+      return;
+    }
+    lscache.set(touchpointCacheKey(visitorId), touchpoint.touchpointId);
+    $.getJSON(BASE_URL_GET_VISITOR_INFO, {
+      visitor_id: visitorId,
+      touchpoint_id: touchpoint.touchpointId,
+      touchpoint_name: touchpoint.name || "QR touchpoint",
+      touchpoint_description: touchpoint.description || "",
+      touchpoint_type: touchpoint.type || "web_qr",
+      touchpoint_full_url:
+        touchpoint.fullUrl || touchpoint.full_url || touchpoint.url || "",
+      _: Date.now()
+    }).fail(function () {
+      console.warn("Unable to persist scanned touchpoint.");
+      setQrStatus("qrScannerError", "text-danger");
+    });
+  }
+
+  function activateQrTouchpoint(touchpoint) {
+    pendingQrTouchpoint = touchpoint;
+    pendingQrTouchpoint.isLoaded = true;
+    currentUserProfile.touchpointId = touchpoint.touchpointId;
+    currentUserProfile.touchpointLocked = true;
+    currentUserProfile.touchpointName = touchpoint.name || "QR touchpoint";
+    currentUserProfile.touchpointDescription = touchpoint.description;
+    currentUserProfile.touchpointType = touchpoint.type;
+    currentUserProfile.touchpointFullUrl =
+      touchpoint.fullUrl || touchpoint.full_url || touchpoint.url || "";
+    currentUserProfile.touchpointKeywords = touchpoint.keywords;
+    currentUserProfile.latitude = touchpoint.latitude;
+    currentUserProfile.longitude = touchpoint.longitude;
+    if (touchpoint.fullUrl || touchpoint.full_url || touchpoint.url) {
+      lscache.set(touchpointCacheKey(currentUserProfile.visitorId), touchpoint.touchpointId);
+    } else {
+      persistQrTouchpoint(touchpoint);
+    }
+
+    var label = touchpoint.name
+      ? touchpoint.name + " (" + touchpoint.touchpointId + ")"
+      : touchpoint.touchpointId;
+    $("#leobot_qr_result_name").text(label);
+    $("#leobot_qr_result_url").text(
+      touchpoint.fullUrl || touchpoint.full_url || touchpoint.url || ""
+    );
+    $("#leobot_qr_result").removeClass("d-none");
+    setQrStatus("qrScannerSelected", "text-success");
+  }
+
+  function queueQrTouchpoint(touchpoint) {
+    pendingQrTouchpoint = touchpoint;
+    var label = touchpoint.name
+      || touchpoint.fullUrl
+      || touchpoint.url
+      || touchpoint.touchpointId;
+    $("#leobot_qr_result_name").text(label);
+    $("#leobot_qr_result_url").text(
+      touchpoint.fullUrl || touchpoint.full_url || touchpoint.url || ""
+    );
+    $("#leobot_qr_result").removeClass("d-none");
+    setQrStatus("qrScannerSelected", "text-success");
+    stopQrScanner();
+  }
+
+  function applyQrTouchpoint(touchpoint, onReady) {
+    var visitorId = window.currentUserProfile && window.currentUserProfile.visitorId;
+    if (!visitorId) {
+      setQrStatus("qrScannerNoVisitor", "text-danger");
+      return false;
+    }
+    stopQrScanner();
+    if (!touchpoint.fullUrl && !touchpoint.full_url && !touchpoint.url) {
+      if (!touchpoint.touchpointId) {
+        setQrStatus("qrScannerInvalid", "text-danger");
+        return false;
+      }
+      activateQrTouchpoint(touchpoint);
+      if (typeof onReady === "function") onReady(touchpoint);
+      return true;
+    }
+
+    qrTouchpointLoading = true;
+    $("#leobot_qr_chat_button").prop("disabled", true);
+    setQrStatus("qrScannerFetching");
+    $.ajax({
+      url: BASE_URL_QR_TOUCHPOINT,
+      type: "POST",
+      contentType: "application/json",
+      data: JSON.stringify({
+        visitor_id: visitorId,
+        full_url: touchpoint.fullUrl || touchpoint.full_url || touchpoint.url,
+        touchpoint_id: touchpoint.touchpointId || null
+      })
+    }).done(function (data) {
+      if (!data || typeof data.touchpoint_id !== "string") {
+        qrTouchpointLoading = false;
+        $("#leobot_qr_chat_button").prop("disabled", false);
+        setQrStatus("qrScannerFetchError", "text-danger");
+        return;
+      }
+      touchpoint.touchpointId = data.touchpoint_id;
+      touchpoint.name = data.name || touchpoint.name;
+      touchpoint.description = data.description || touchpoint.description;
+      touchpoint.type = data.type || "web_qr";
+      touchpoint.fullUrl =
+        data.full_url || data.url || touchpoint.fullUrl || touchpoint.url;
+      touchpoint.keywords = Array.isArray(data.keywords)
+        ? data.keywords
+        : touchpoint.keywords;
+      activateQrTouchpoint(touchpoint);
+      qrTouchpointLoading = false;
+      $("#leobot_qr_chat_button").prop("disabled", false);
+      if (typeof onReady === "function") onReady(touchpoint);
+    }).fail(function (jqXHR) {
+      console.warn("Unable to crawl QR URL.", jqXHR.status, jqXHR.responseText);
+      qrTouchpointLoading = false;
+      $("#leobot_qr_chat_button").prop("disabled", false);
+      setQrStatus("qrScannerFetchError", "text-danger");
+    });
+    return true;
+  }
+
+  function startQrScanner() {
+    if (qrScannerRunning) return;
+    if (typeof window.Html5Qrcode !== "function") {
+      setQrStatus("qrScannerUnavailable", "text-danger");
+      return;
+    }
+
+    $("#leobot_qr_reader").removeClass("d-none");
+    $("#leobot_qr_start_button").addClass("d-none");
+    $("#leobot_qr_stop_button").removeClass("d-none");
+    $("#leobot_qr_result").addClass("d-none");
+    pendingQrTouchpoint = null;
+    setQrStatus("qrScannerStarting");
+    qrScanner = new window.Html5Qrcode("leobot_qr_reader");
+    qrScannerRunning = true;
+    qrScanner.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 220, height: 220 } },
+      function (decodedText) {
+        if (!qrScannerRunning || qrTouchpointLoading) return;
+        var touchpoint = normalizeQrTouchpoint(decodedText);
+        if (!touchpoint) {
+          setQrStatus("qrScannerInvalid", "text-danger");
+          return;
+        }
+        queueQrTouchpoint(touchpoint);
+      },
+      function () {}
+    ).then(function () {
+      setQrStatus("qrScannerScanning");
+    }).catch(function (error) {
+      console.warn("Unable to start QR scanner.", error);
+      qrScannerRunning = false;
+      $("#leobot_qr_reader").addClass("d-none").empty();
+      $("#leobot_qr_start_button").removeClass("d-none");
+      $("#leobot_qr_stop_button").addClass("d-none");
+      setQrStatus("qrScannerError", "text-danger");
+    });
+  }
 
   function renderRecommendedActions(actions) {
     recommendedActions = Array.isArray(actions) ? actions : null;
@@ -175,13 +536,24 @@
     });
     renderRecommendedActions(recommendedActions);
     $("#LEO_ChatBot_Container .botui-actions-text-input")
-      .attr("placeholder", window.leoUiText("chatPlaceholder"));
+      .attr("placeholder", window.leoUiText("chatPlaceholder"))
+      .attr("aria-label", window.leoUiText("chatPlaceholder"));
+    var submitLabel = window.LEO_UI_LANGUAGE === "en" ? "Send" : "Gửi";
+    $("#LEO_ChatBot_Container .botui-actions-buttons-button")
+      .attr("aria-label", submitLabel)
+      .find("span")
+      .text(submitLabel);
 
     var $greeting = $("#LEO_ChatBot_Container .leobot-answer .botui-message-content").first();
     if ($greeting.length && typeof getGreetingMessage === "function") {
+      var profile = window.currentUserProfile;
+      var touchpoint = profile && profile.touchpointLocked
+        ? { name: profile.touchpointName }
+        : null;
       $greeting.text(getGreetingMessage(
-        window.currentUserProfile ? window.currentUserProfile.displayName : "",
-        window.LEO_UI_LANGUAGE
+        profile ? profile.displayName : "",
+        window.LEO_UI_LANGUAGE,
+        touchpoint
       ));
     }
     updateLocationPanel(latestLocationDetail);
@@ -287,6 +659,45 @@
     });
   }
 
+  function isMobileViewport() {
+    return typeof window.matchMedia === "function"
+      ? window.matchMedia("(max-width: 991.98px)").matches
+      : window.innerWidth <= 991;
+  }
+
+  function updateMobileChatViewport() {
+    if (!isMobileViewport()) return;
+    var viewport = window.visualViewport;
+    var visibleHeight = viewport && Number.isFinite(viewport.height)
+      ? viewport.height
+      : window.innerHeight;
+    if (!Number.isFinite(visibleHeight) || visibleHeight <= 0) return;
+
+    var keyboardOpen =
+      Number.isFinite(window.innerHeight) &&
+      visibleHeight < window.innerHeight * 0.78;
+    var chatHeight = keyboardOpen
+      ? Math.max(300, visibleHeight - 24)
+      : Math.min(560, visibleHeight * 0.64);
+    document.documentElement.style.setProperty(
+      "--leobot-chat-height",
+      Math.round(chatHeight) + "px"
+    );
+
+    if (keyboardOpen) {
+      window.setTimeout(function () {
+        var input = document.querySelector
+          ? document.querySelector(
+              "#LEO_ChatBot_Container .botui-actions-text-input"
+            )
+          : null;
+        if (input && input.scrollIntoView) {
+          input.scrollIntoView({ block: "nearest" });
+        }
+      }, 50);
+    }
+  }
+
   function startChatbot() {
     var $loader = $("#LEO_ChatBot_Container_Loader");
     var $chat = $("#LEO_ChatBot_Container");
@@ -349,6 +760,39 @@
         window.requestUserGeolocation(window.currentUserProfile.visitorId, true);
       }
     });
+    $("#leobot_qr_start_button").on("click", startQrScanner);
+    $("#leobot_qr_stop_button").on("click", function () {
+      stopQrScanner();
+    });
+    $("#leobot_qr_chat_button").on("click", function () {
+      if (!pendingQrTouchpoint || qrTouchpointLoading) return;
+      var visitorId = window.currentUserProfile &&
+        window.currentUserProfile.visitorId;
+      var startTouchpointChat = function (touchpoint) {
+        if (!window.leoBotStarted &&
+            typeof window.startLeoChatBot === "function") {
+          window.startLeoChatBot(visitorId);
+        }
+        if (typeof window.reloadLeoChatBotSession === "function") {
+          window.reloadLeoChatBotSession(touchpoint);
+        }
+        scrollToChatOnMobile();
+        if (!isMobileViewport()) {
+          window.setTimeout(function () {
+            $("#LEO_ChatBot_Container .botui-actions-text-input")
+              .last()
+              .trigger("focus");
+          }, 400);
+        }
+      };
+      if (pendingQrTouchpoint.isLoaded) {
+        startTouchpointChat(pendingQrTouchpoint);
+        return;
+      }
+      if (!applyQrTouchpoint(pendingQrTouchpoint, startTouchpointChat)) {
+        return;
+      }
+    });
     $("#leobot_language").on("change", function () {
       applyLanguage($(this).val());
     });
@@ -362,6 +806,20 @@
     });
 
     applyLanguage(window.LEO_UI_LANGUAGE);
+    updateMobileChatViewport();
+    if (typeof window.addEventListener === "function") {
+      window.addEventListener("resize", updateMobileChatViewport);
+      window.addEventListener("orientationchange", updateMobileChatViewport);
+    }
+    if (
+      window.visualViewport &&
+      typeof window.visualViewport.addEventListener === "function"
+    ) {
+      window.visualViewport.addEventListener(
+        "resize",
+        updateMobileChatViewport
+      );
+    }
     startChatbot();
     if (typeof window.startGoogleOneTapPrompt === "function") {
       window.startGoogleOneTapPrompt();

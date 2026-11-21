@@ -14,7 +14,10 @@ from leoai.rag_db_manager import (
 )
 from leoai.rag_context_manager import ContextManager
 from leoai.rag_prompt_builder import AgentOrchestrator
-from leoai.rag_knowledge_manager import KnowledgeRetriever
+from leoai.rag_knowledge_manager import (
+    KnowledgeRetriever,
+    PublicWebPageFetcher,
+)
 from leoai.rag_agent_utils import (
     format_nearby_places_answer,
     format_place_picker,
@@ -114,6 +117,7 @@ class RAGAgent:
         self.db = ChatDBManager(self.embedding_model)
         self.context = ContextManager(self.embedding_model, self.client, self.db)
         self.knowledge = KnowledgeRetriever(self.embedding_model)
+        self.web_page_fetcher = PublicWebPageFetcher()
         self.agent_orchestrator = AgentOrchestrator()
 
     async def create_geolocation_touchpoint(
@@ -139,6 +143,26 @@ class RAGAgent:
             description=description,
             touchpoint_type=touchpoint_type,
             keywords=keywords or [],
+        )
+
+    async def create_web_qr_touchpoint(
+        self,
+        user_id: str,
+        full_url: str,
+        touchpoint_id: Optional[str] = None,
+        tenant_id: str = "default",
+    ) -> dict:
+        """Fetch and persist a URL as a coordinate-free QR touchpoint."""
+        document = await self.web_page_fetcher.fetch(full_url)
+        return await self.db.upsert_web_qr_touchpoint(
+            user_id=user_id,
+            full_url=document.fetched_url,
+            name=document.title,
+            description=document.description,
+            keywords=document.keywords,
+            content=document.full_text or document.text,
+            touchpoint_id=touchpoint_id,
+            tenant_id=tenant_id,
         )
 
     async def process_chat_message(
@@ -423,7 +447,13 @@ class RAGAgent:
     @staticmethod
     def _route_chat_type(state: ChatMessageState) -> str:
         """Route document-chat requests away from geolocation conversation state."""
-        if state.get("primary_intent") == IntentType.DOCUMENT_CHAT.value:
+        is_web_qr_touchpoint = (
+            state.get("touchpoint_type") or ""
+        ).strip().casefold() == "web_qr"
+        if (
+            state.get("primary_intent") == IntentType.DOCUMENT_CHAT.value
+            and not is_web_qr_touchpoint
+        ):
             return "document_chat"
         return "standard_chat"
 

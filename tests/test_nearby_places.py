@@ -491,6 +491,8 @@ def test_touchpoint_context_serializes_uuid_place_ids(monkeypatch):
             "description": "",
             "type": "web",
             "keywords": [],
+            "content": "",
+            "metadata": {},
         }
         conn.fetch.return_value = [{
             "id": place_id,
@@ -509,6 +511,44 @@ def test_touchpoint_context_serializes_uuid_place_ids(monkeypatch):
         assert context is not None
         assert context["nearby_places"][0]["id"] == str(place_id)
         json.dumps(context)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("full_url", "metadata"),
+    [
+        ("https://example.com/guide", {}),
+        (None, {"url": "https://example.com/guide"}),
+        (None, '{"url": "https://example.com/guide"}'),
+    ],
+)
+def test_web_qr_touchpoint_context_returns_stored_url_and_content(
+    monkeypatch, full_url, metadata
+):
+    async def scenario():
+        conn = mock_connection(monkeypatch)
+        conn.fetchrow.return_value = {
+            "latitude": None,
+            "longitude": None,
+            "name": "Visitor Guide",
+            "description": "Scanned page",
+            "type": "web_qr",
+            "keywords": ["guide"],
+            "content": "Opening hours and ticket details.",
+            "full_url": full_url,
+            "metadata": metadata,
+        }
+
+        context = await ChatDBManager(None).get_touchpoint_context(
+            "qr-touchpoint", user_id="visitor"
+        )
+
+        assert context["full_url"] == "https://example.com/guide"
+        assert context["url"] == "https://example.com/guide"
+        assert context["content"] == "Opening hours and ticket details."
+        assert context["nearby_places"] == []
+        conn.fetch.assert_not_awaited()
 
     asyncio.run(scenario())
 
@@ -599,9 +639,161 @@ def test_geolocation_endpoint_returns_recommended_action_array(route_client):
         "Cho tôi xem top 5 quán cà phê gần tôi."
     )
     routes.REDIS_CLIENT.hset.assert_called_once_with(
-        "visitor", mapping={"touchpoint_id": "new-tp"},
+        "visitor",
+        mapping={
+            "touchpoint_id": "new-tp",
+            "touchpoint_name": "Web visitor",
+            "touchpoint_description": "",
+            "touchpoint_type": "web",
+            "touchpoint_full_url": "",
+        },
     )
     routes.chat_response_cache.invalidate_visitor.assert_awaited_once_with("visitor")
+
+
+@pytest.mark.parametrize("request_url_key", ["full_url", "url"])
+def test_web_qr_endpoint_crawls_and_activates_persisted_touchpoint(
+    route_client, request_url_key
+):
+    from leobot_router import leobot_main_router as routes
+
+    client, agent = route_client
+    agent.create_web_qr_touchpoint = AsyncMock(return_value={
+        "touchpoint_id": "qr-touchpoint",
+        "full_url": "https://example.com/guide",
+        "name": "Visitor Guide",
+        "description": "A scanned guide.",
+        "keywords": ["guide"],
+        "type": "web_qr",
+        "latitude": None,
+        "longitude": None,
+        "nearby_places": [],
+    })
+
+    response = client.post("/_leoai/touchpoint/web-qr", json={
+        "visitor_id": "visitor",
+        request_url_key: "https://example.com/guide",
+    })
+
+    assert response.status_code == 200
+    assert response.json()["touchpoint_id"] == "qr-touchpoint"
+    agent.create_web_qr_touchpoint.assert_awaited_once_with(
+        "visitor", "https://example.com/guide", None,
+    )
+    routes.REDIS_CLIENT.hset.assert_called_once_with(
+        "visitor",
+        mapping={
+            "touchpoint_id": "qr-touchpoint",
+            "touchpoint_name": "Visitor Guide",
+            "touchpoint_description": "A scanned guide.",
+            "touchpoint_type": "web_qr",
+            "touchpoint_full_url": "https://example.com/guide",
+        },
+    )
+    routes.chat_response_cache.invalidate_visitor.assert_awaited_once_with("visitor")
+
+
+def test_document_question_uses_active_web_qr_touchpoint(
+    route_client, monkeypatch,
+):
+    from leobot_router import leobot_main_router as routes
+
+    client, agent = route_client
+    agent.process_chat_message_with_metadata = AsyncMock(return_value={
+        "response": "LEO CDP is a customer data platform.",
+        "enrichment_run_id": None,
+        "places": [],
+        "similar_places": [],
+    })
+    monkeypatch.setattr(
+        routes.REDIS_CLIENT,
+        "hget",
+        Mock(side_effect=lambda visitor, field: {
+            "touchpoint_id": "qr-touchpoint",
+            "touchpoint_type": "web_qr",
+        }.get(field)),
+    )
+    monkeypatch.setattr(
+        routes.intent_detector,
+        "detect_async",
+        AsyncMock(return_value=rag_agent_module.IntentDetectionResult(
+            primary_intent=rag_agent_module.IntentType.DOCUMENT_CHAT,
+            purpose="generate_answer",
+            confidence=0.95,
+            entities={},
+        )),
+    )
+
+    response = client.post("/_leoai/ask", json={
+        "visitor_id": "visitor",
+        "question": "LEO CDP là gì?",
+        "touchpoint_id": "qr-touchpoint",
+        "touchpoint_type": "web_qr",
+        "answer_in_language": "Vietnamese",
+    })
+
+    assert response.status_code == 200
+    assert response.json()["touchpoint_id"] == "qr-touchpoint"
+    call = agent.process_chat_message_with_metadata.await_args.kwargs
+    assert call["touchpoint_id"] == "qr-touchpoint"
+    assert call["touchpoint_type"] == "web_qr"
+    assert (
+        call["intent_result"].primary_intent
+        is rag_agent_module.IntentType.TOUCHPOINT_CHAT
+    )
+
+
+def test_visitor_info_recovers_qr_metadata_from_touchpoints(monkeypatch):
+    from leobot_router import leobot_main_router as routes
+
+    agent = make_agent()
+    agent.db.get_touchpoint_context = AsyncMock(return_value={
+        "touchpoint_id": "qr-touchpoint",
+        "name": "Visitor Guide",
+        "description": "A scanned guide.",
+        "type": "web_qr",
+        "full_url": "https://example.com/guide",
+        "content": "Full page content.",
+    })
+    redis = SimpleNamespace(
+        hgetall=Mock(return_value={}),
+        hset=Mock(),
+    )
+    monkeypatch.setattr(routes, "rag_agent", agent)
+    monkeypatch.setattr(routes, "REDIS_CLIENT", redis)
+    monkeypatch.setattr(
+        routes,
+        "chat_response_cache",
+        SimpleNamespace(invalidate_visitor=AsyncMock()),
+    )
+    app = FastAPI()
+    app.include_router(routes.router)
+
+    response = TestClient(app).get("/_leoai/visitor-info", params={
+        "visitor_id": "visitor",
+        "touchpoint_id": "qr-touchpoint",
+    })
+
+    assert response.status_code == 200
+    assert response.json()["touchpoint"]["type"] == "web_qr"
+    assert response.json()["touchpoint"]["name"] == "Visitor Guide"
+    assert (
+        response.json()["touchpoint"]["full_url"]
+        == "https://example.com/guide"
+    )
+    agent.db.get_touchpoint_context.assert_awaited_once_with(
+        "qr-touchpoint", user_id="visitor", tenant_id="default"
+    )
+    redis.hset.assert_called_once_with(
+        "visitor",
+        mapping={
+            "touchpoint_id": "qr-touchpoint",
+            "touchpoint_name": "Visitor Guide",
+            "touchpoint_description": "A scanned guide.",
+            "touchpoint_type": "web_qr",
+            "touchpoint_full_url": "https://example.com/guide",
+        },
+    )
 
 
 def test_geolocation_endpoint_returns_default_actions_when_no_categories(route_client):

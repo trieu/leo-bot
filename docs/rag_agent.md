@@ -252,6 +252,14 @@ provided by tests or callers; otherwise the default `GeminiClient` is used.
 Creates or updates a touchpoint containing a user's latitude and longitude.
 The database manager owns the upsert behavior.
 
+## `create_web_qr_touchpoint(...)`
+
+Fetches `full_url` and persists the final redirected URL, crawled page title,
+description, keywords, and text in the `touchpoints.full_url` and related
+context columns. The QR API accepts legacy `url` requests for compatibility,
+but responses expose canonical `full_url` (with `url` retained as an alias).
+The browser greeting includes both the touchpoint name and `full_url`.
+
 ## `process_chat_message(...)`
 
 Public asynchronous entry point for chat. It assembles a
